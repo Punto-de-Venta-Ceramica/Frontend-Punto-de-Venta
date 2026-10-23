@@ -1,9 +1,27 @@
 # BarroControl · Flutter
 
 Frontend con Flutter y Dart para `Backend-Punto-de-Venta` (Spring Boot).
-La pantalla inicial consulta `GET /api/health`, muestra el resultado y permite
-reintentar. Productos, autenticación, ventas e inventario aún requieren sus
-endpoints de negocio; no se simulan operaciones ni se conecta Flutter a PostgreSQL.
+La pantalla inicial es el login de Figma (`13:16`), con correo, contraseña,
+control de visibilidad, validaciones al salir del campo/enviar y enlaces de
+recuperación y registro. `Crear cuenta` abre `/register`; `Iniciar sesión` en el
+registro vuelve a `/login`. La recuperación muestra un aviso de disponibilidad.
+
+El registro de propietario basado en Figma incluye el formulario
+vacío y estado con validaciones. Los errores aparecen al salir de un campo o
+al enviar; después se actualizan al escribir. Los ojos muestran u ocultan cada
+contraseña de forma independiente. El formulario se desplaza para pantallas
+pequeñas y teclado abierto. El apellido materno es opcional.
+
+La autenticación y el registro reales todavía no están conectados al backend
+desde estas pantallas. No se envían credenciales, se persisten contraseñas ni se
+simula una sesión. Un formulario válido informa que la operación estará
+disponible próximamente. El backend no se modifica en esta implementación visual.
+
+La pantalla de conexión se conserva en la ruta Flutter `/connection`; consulta
+`GET /api/health` y permite reintentar. En web con rutas hash se abre con
+`http://localhost:5173/#/connection`. Esta pantalla requiere que el backend
+exponga `/api/health`; comprueba su disponibilidad en la rama que estés usando.
+Flutter no se conecta a PostgreSQL.
 
 ## Ejecutar desde PowerShell
 
@@ -59,6 +77,28 @@ PostgreSQL ni secretos en `--dart-define`.
 
 ## Arquitectura hexagonal: puertos y adaptadores
 
+`lib/features/login` contiene los datos/reglas de validación en `domain`, el
+puerto de entrada `ValidateLoginUseCase` y su implementación en `application`,
+y `LoginPage` en `infrastructure/adapters/inbound/flutter`. Solo se exige que la
+contraseña no esté vacía; la política de creación de contraseñas no se aplica al
+login. `BarroInput`, en `lib/core/infrastructure/widgets`, es el campo compartido
+por ambos formularios; no hay dependencias entre sus módulos de aplicación.
+
+Para generar la captura del login revisada contra Figma:
+
+```powershell
+flutter test test/login_test.dart --dart-define=WRITE_LOGIN_PREVIEW=true
+```
+
+Resultado: `build/login-preview/login.png`.
+
+El módulo `lib/features/owner_registration` separa los datos y reglas en `domain`,
+el puerto `ValidateOwnerRegistrationUseCase` y su implementación en `application`,
+y la pantalla/campos Flutter en `infrastructure/adapters/inbound/flutter`.
+`main.dart` inyecta la implementación. Este caso de uso solo valida: no necesita
+un puerto de salida mientras no exista una operación de registro en el backend.
+El tema compartido de Figma está en `lib/core/infrastructure/theme`.
+
 Cada funcionalidad se organiza en `domain`, `application` e `infrastructure`.
 Las dependencias apuntan al interior. El dominio no importa Flutter, HTTP ni
 infraestructura. La aplicación define los puertos y ejecuta los casos de uso.
@@ -94,6 +134,17 @@ flutter analyze
 flutter test
 flutter build web
 ```
+
+Para generar las capturas revisadas de ambos estados:
+
+```powershell
+flutter test test/owner_registration_page_test.dart --dart-define=WRITE_REGISTRATION_PREVIEWS=true
+```
+
+Se guardan en `build/registration-previews/` (no se incluyen en Git).
+Se prueban reglas de dominio, validación al perder foco, corrección en vivo,
+visibilidad de contraseñas, envío sin éxito ficticio y una pantalla de 320 × 568
+con texto ampliado.
 
 El endpoint confirma que Spring responde HTTP; no consulta la base de datos.
 La aplicación Spring sí necesita su configuración PostgreSQL para arrancar.
