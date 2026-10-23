@@ -89,6 +89,37 @@ PostgreSQL ni secretos en `--dart-define`.
 
 ## Arquitectura hexagonal: puertos y adaptadores
 
+### Gestión de sucursales
+
+Después de iniciar sesión, pulsa **Administrar sucursales**. El módulo
+`lib/features/sucursal` conserva dominio, puertos, servicios y adaptadores.
+Consulta los negocios del usuario con `GET /api/negocios`; si hay varios,
+permite elegir uno. No crea datos de ejemplo ni una sucursal automática.
+
+Incluye listado, detalle, registro, edición de nombre/descripción, confirmación
+de eliminación, validaciones y estados de carga, error y éxito. La dirección
+es obligatoria en el formulario de registro según el boceto; durante la edición
+se muestra como información de consulta porque el PATCH del backend solo
+admite nombre y descripción. Reutiliza `assets/icons/brand.svg` y la fuente Inter.
+
+El listado usa `POST /api/sucursales/consultar` con `{"negocioId": 2}` porque los
+navegadores no admiten un body en GET de forma compatible. Reinicia el backend
+con esa ruta disponible. La ruta conserva las validaciones, JWT y comprobación
+de pertenencia del GET anterior, que sigue existiendo para otros clientes.
+Registro, PATCH y DELETE usan `/api/sucursales` con identificadores en el body.
+Todas las solicitudes envían el JWT de la sesión; un 401 vuelve al login.
+
+La barra inferior reproduce las secciones del boceto; pedidos, caja, inventario
+y más muestran un aviso mientras sus pantallas no estén implementadas.
+
+Para generar capturas con datos exclusivos de pruebas:
+
+```powershell
+flutter test test/sucursal_page_test.dart --dart-define=WRITE_SUCURSAL_PREVIEWS=true
+```
+
+Se guardan en `build/sucursal-previews/` (ignorado por Git).
+
 `lib/features/login` contiene los datos/reglas de validación en `domain`, el
 puerto de entrada `ValidateLoginUseCase` y su implementación en `application`,
 y `LoginPage` en `infrastructure/adapters/inbound/flutter`. Solo se exige que la

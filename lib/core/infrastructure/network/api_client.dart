@@ -35,15 +35,25 @@ class ApiClient {
   static const timeout = Duration(seconds: 10);
   String? bearerToken;
 
-  Future<Map<String, dynamic>> getJson(String path) => _request('GET', path);
+  Future<Map<String, dynamic>> getJson(String path) async =>
+      _object(await requestJson('GET', path));
 
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body, {
     bool authenticated = true,
-  }) => _request('POST', path, body: body, authenticated: authenticated);
+  }) async => _object(
+    await requestJson('POST', path, body: body, authenticated: authenticated),
+  );
 
-  Future<Map<String, dynamic>> _request(
+  Map<String, dynamic> _object(Object? data) {
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('La API no devolvió un objeto JSON válido.');
+    }
+    return data;
+  }
+
+  Future<Object?> requestJson(
     String method,
     String path, {
     Map<String, dynamic>? body,
@@ -57,17 +67,25 @@ class ApiClient {
         if (authenticated && bearerToken != null)
           'Authorization': 'Bearer $bearerToken',
       };
-      final response =
-          await (method == 'POST'
-                  ? _client.post(uri, headers: headers, body: jsonEncode(body))
-                  : _client.get(uri, headers: headers))
-              .timeout(timeout);
+      final request = http.Request(method, uri)..headers.addAll(headers);
+      if (body != null) request.body = jsonEncode(body);
+      final response = await (() async {
+        final stream = await _client.send(request);
+        return http.Response.fromStream(stream);
+      })().timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final message = switch (response.statusCode) {
           400 => 'Revisa los datos del formulario.',
-          401 => 'Correo o contraseña incorrectos.',
+          401 =>
+            authenticated
+                ? 'Tu sesión expiró o no es válida. Inicia sesión de nuevo.'
+                : 'Correo o contraseña incorrectos.',
           403 => 'No tienes permiso para realizar esta operación.',
-          409 => 'El correo electrónico ya está registrado.',
+          404 => 'El recurso no existe o no tienes acceso.',
+          409 =>
+            path.contains('usuarios/registro')
+                ? 'El correo electrónico ya está registrado.'
+                : 'No se pudo completar la operación porque hay datos relacionados o en conflicto.',
           429 => 'Demasiados intentos. Inténtalo más tarde.',
           _ =>
             'El servidor respondió HTTP ${response.statusCode}. Inténtalo más tarde.',
@@ -95,11 +113,8 @@ class ApiClient {
           fieldErrors: Map.unmodifiable(fieldErrors),
         );
       }
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      if (data is! Map<String, dynamic>) {
-        throw const ApiException('La API no devolvió un objeto JSON válido.');
-      }
-      return data;
+      if (response.statusCode == 204) return null;
+      return jsonDecode(utf8.decode(response.bodyBytes));
     } on TimeoutException {
       throw const ApiException('El servidor tardó demasiado en responder.');
     } on http.ClientException {
