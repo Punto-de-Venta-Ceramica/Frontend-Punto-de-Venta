@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'features/authentication/application/services/authentication_services.dart';
+import 'features/authentication/domain/auth_session.dart';
+import 'features/authentication/infrastructure/adapters/outbound/http/http_authentication_gateway.dart';
+import 'features/authentication/infrastructure/adapters/inbound/flutter/session_page.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -13,22 +18,63 @@ import 'features/connection/infrastructure/adapters/inbound/flutter/connection_p
 
 void main() => runApp(const PuntoDeVentaApp());
 
-class PuntoDeVentaApp extends StatelessWidget {
-  const PuntoDeVentaApp({this.initialRoute = '/', super.key});
+class PuntoDeVentaApp extends StatefulWidget {
+  const PuntoDeVentaApp({this.initialRoute = '/', this.httpClient, super.key});
   final String initialRoute;
+  final http.Client? httpClient;
+
+  @override
+  State<PuntoDeVentaApp> createState() => _PuntoDeVentaAppState();
+}
+
+class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
+  late final ApiClient _api;
+  late final HttpAuthenticationGateway _authentication;
+  @override
+  void initState() {
+    super.initState();
+    _api = ApiClient(baseUrl: ApiConfig.baseUrl, client: widget.httpClient);
+    _authentication = HttpAuthenticationGateway(_api);
+  }
+
+  @override
+  void dispose() {
+    _api.close();
+    super.dispose();
+  }
+
+  Widget _login(BuildContext context) => LoginPage(
+    validateLogin: const ValidateLogin(),
+    signIn: SignIn(_authentication),
+    initialEmail: ModalRoute.of(context)?.settings.arguments is String
+        ? ModalRoute.of(context)!.settings.arguments as String
+        : '',
+  );
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'BarroControl',
     debugShowCheckedModeBanner: false,
     theme: BarroTheme.data,
-    initialRoute: initialRoute,
-    home: const LoginPage(validateLogin: ValidateLogin()),
+    initialRoute: widget.initialRoute,
+    home: Builder(builder: _login),
     routes: {
-      '/login': (_) => const LoginPage(validateLogin: ValidateLogin()),
-      '/register': (_) => const OwnerRegistrationPage(
-        validateRegistration: ValidateOwnerRegistration(),
+      '/login': _login,
+      '/register': (_) => OwnerRegistrationPage(
+        validateRegistration: const ValidateOwnerRegistration(),
+        registerOwner: RegisterOwner(_authentication),
       ),
+      '/session': (context) {
+        final session = ModalRoute.of(context)?.settings.arguments;
+        if (session is! AuthSession || session.isExpired) {
+          return _login(context);
+        }
+        _api.bearerToken = session.token;
+        return SessionPage(
+          session: session,
+          clearSession: () => _api.bearerToken = null,
+        );
+      },
       '/connection': (_) => const _ConnectionHome(),
     },
   );

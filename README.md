@@ -1,6 +1,11 @@
 # BarroControl · Flutter
 
 Frontend con Flutter y Dart para `Backend-Punto-de-Venta` (Spring Boot).
+Nombre, correo y teléfono muestran los mensajes de obligatoriedad y formato
+requeridos por la API. Los errores HTTP 400/409 del servidor se muestran debajo
+del campo correspondiente, incluido el correo duplicado, y se limpian al editarlo.
+Las longitudes máximas se comprueban también en Flutter. El servidor conserva la
+autoridad sobre las validaciones y la unicidad del correo.
 La pantalla inicial es el login de Figma (`13:16`), con correo, contraseña,
 control de visibilidad, validaciones al salir del campo/enviar y enlaces de
 recuperación y registro. `Crear cuenta` abre `/register`; `Iniciar sesión` en el
@@ -12,10 +17,17 @@ al enviar; después se actualizan al escribir. Los ojos muestran u ocultan cada
 contraseña de forma independiente. El formulario se desplaza para pantallas
 pequeñas y teclado abierto. El apellido materno es opcional.
 
-La autenticación y el registro reales todavía no están conectados al backend
-desde estas pantallas. No se envían credenciales, se persisten contraseñas ni se
-simula una sesión. Un formulario válido informa que la operación estará
-disponible próximamente. El backend no se modifica en esta implementación visual.
+Los formularios están conectados a la API real:
+
+- Registro: `POST /api/usuarios/registro`, con nombre, apellidos, correo, teléfono y password.
+- Login: `POST /api/auth/login`, con correo y password.
+- Un registro confirmado abre el login con el correo precargado; no inicia sesión automáticamente.
+- El login usa el JWT recibido, muestra la sesión iniciada y permite cerrarla.
+- El token solo vive en memoria. Al recargar/cerrar la aplicación hay que iniciar sesión otra vez.
+- La sesión termina al vencer `expiraEn` y al cerrar sesión se borra el token del cliente HTTP.
+- Las peticiones autenticadas envían `Authorization: Bearer ...`; login/registro no incluyen un token anterior.
+- Los formularios bloquean envíos repetidos y distinguen credenciales incorrectas, correo duplicado,
+  datos inválidos, desconexión y fallos de servidor. No se guardan contraseñas.
 
 La pantalla de conexión se conserva en la ruta Flutter `/connection`; consulta
 `GET /api/health` y permite reintentar. En web con rutas hash se abre con
@@ -25,7 +37,7 @@ Flutter no se conecta a PostgreSQL.
 
 ## Ejecutar desde PowerShell
 
-1. Inicia el backend con Java 21 y las variables de PostgreSQL indicadas en su README.
+1. Inicia el backend con Java 21 y su archivo `.env`: desde su carpeta ejecuta `.\scripts\run.ps1`.
 2. Desde esta carpeta ejecuta:
 
 ```powershell
@@ -82,7 +94,11 @@ puerto de entrada `ValidateLoginUseCase` y su implementación en `application`,
 y `LoginPage` en `infrastructure/adapters/inbound/flutter`. Solo se exige que la
 contraseña no esté vacía; la política de creación de contraseñas no se aplica al
 login. `BarroInput`, en `lib/core/infrastructure/widgets`, es el campo compartido
-por ambos formularios; no hay dependencias entre sus módulos de aplicación.
+por ambos formularios. `features/authentication` define los puertos de entrada
+`SignInUseCase`/`RegisterOwnerUseCase` y el puerto de salida `AuthenticationGateway`.
+Sus servicios de aplicación validan los datos y el adaptador HTTP traduce los DTO
+de Spring a resultados de dominio. `main.dart` ensambla las dependencias y posee
+el cliente HTTP. Los widgets no importan HTTP ni instancian el adaptador concreto.
 
 Para generar la captura del login revisada contra Figma:
 
@@ -95,8 +111,8 @@ Resultado: `build/login-preview/login.png`.
 El módulo `lib/features/owner_registration` separa los datos y reglas en `domain`,
 el puerto `ValidateOwnerRegistrationUseCase` y su implementación en `application`,
 y la pantalla/campos Flutter en `infrastructure/adapters/inbound/flutter`.
-`main.dart` inyecta la implementación. Este caso de uso solo valida: no necesita
-un puerto de salida mientras no exista una operación de registro en el backend.
+`main.dart` inyecta la implementación. El caso de uso de validación es local;
+el envío real lo realiza `RegisterOwner` mediante el puerto `AuthenticationGateway`.
 El tema compartido de Figma está en `lib/core/infrastructure/theme`.
 
 Cada funcionalidad se organiza en `domain`, `application` e `infrastructure`.

@@ -13,11 +13,18 @@ class LoginValidation {
 
 abstract final class LoginRules {
   static LoginValidation validate(LoginInput input) => LoginValidation(
-    emailError:
-        RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(input.email.trim())
+    emailError: input.email.trim().isEmpty
+        ? 'El correo electrónico es obligatorio.'
+        : input.email.length > 254
+        ? 'El correo electrónico no debe superar 254 caracteres.'
+        : RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(input.email.trim())
         ? null
-        : 'Escribe un correo como nombre@dominio.com.',
+        : 'El correo electrónico no tiene un formato válido.',
     // Login checks presence; registration password policies do not apply.
-    passwordError: input.password.isEmpty ? 'Ingresa tu contraseña.' : null,
+    passwordError: input.password.trim().isEmpty
+        ? 'La contraseña es obligatoria.'
+        : input.password.length > 128
+        ? 'La contraseña no debe superar 128 caracteres.'
+        : null,
   );
 }

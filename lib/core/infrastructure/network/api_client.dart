@@ -4,8 +4,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
-  const ApiException(this.message);
+  const ApiException(
+    this.message, {
+    this.statusCode,
+    this.fieldErrors = const {},
+  });
   final String message;
+  final int? statusCode;
+  final Map<String, String> fieldErrors;
   @override
   String toString() => message;
 }
@@ -27,18 +33,66 @@ class ApiClient {
   final Uri _baseUri;
   final http.Client _client;
   static const timeout = Duration(seconds: 10);
+  String? bearerToken;
 
-  Future<Map<String, dynamic>> getJson(String path) async {
+  Future<Map<String, dynamic>> getJson(String path) => _request('GET', path);
+
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> body, {
+    bool authenticated = true,
+  }) => _request('POST', path, body: body, authenticated: authenticated);
+
+  Future<Map<String, dynamic>> _request(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    bool authenticated = true,
+  }) async {
     try {
-      final response = await _client
-          .get(
-            _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), '')),
-            headers: {'Accept': 'application/json'},
-          )
-          .timeout(timeout);
+      final uri = _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
+      final headers = {
+        'Accept': 'application/json',
+        if (body != null) 'Content-Type': 'application/json; charset=utf-8',
+        if (authenticated && bearerToken != null)
+          'Authorization': 'Bearer $bearerToken',
+      };
+      final response =
+          await (method == 'POST'
+                  ? _client.post(uri, headers: headers, body: jsonEncode(body))
+                  : _client.get(uri, headers: headers))
+              .timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        final message = switch (response.statusCode) {
+          400 => 'Revisa los datos del formulario.',
+          401 => 'Correo o contraseña incorrectos.',
+          403 => 'No tienes permiso para realizar esta operación.',
+          409 => 'El correo electrónico ya está registrado.',
+          429 => 'Demasiados intentos. Inténtalo más tarde.',
+          _ =>
+            'El servidor respondió HTTP ${response.statusCode}. Inténtalo más tarde.',
+        };
+        final fieldErrors = <String, String>{};
+        if (response.statusCode == 400 || response.statusCode == 409) {
+          try {
+            final problem = jsonDecode(utf8.decode(response.bodyBytes));
+            if (problem is Map && problem['errores'] is Map) {
+              for (final entry in (problem['errores'] as Map).entries) {
+                if (entry.key is String &&
+                    entry.value is String &&
+                    (entry.value as String).isNotEmpty) {
+                  fieldErrors[entry.key as String] = entry.value as String;
+                }
+              }
+            }
+          } on FormatException {
+            /* Keep the HTTP fallback for non-JSON errors. */
+          }
+        }
         throw ApiException(
-          'El servidor respondió HTTP ${response.statusCode}.',
+          message,
+          statusCode: response.statusCode,
+          fieldErrors: Map.unmodifiable(fieldErrors),
         );
       }
       final data = jsonDecode(utf8.decode(response.bodyBytes));

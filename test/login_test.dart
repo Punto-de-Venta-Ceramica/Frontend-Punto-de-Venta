@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +14,7 @@ Future<void> openLogin(
   WidgetTester tester, {
   Size size = const Size(390, 844),
   double textScale = 1,
+  http.Client? client,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -23,9 +26,11 @@ Future<void> openLogin(
     'Inter',
   )..addFont(rootBundle.load('assets/fonts/Inter.ttf'))).load();
   await tester.pumpWidget(
-    const RepaintBoundary(
+    RepaintBoundary(
       key: ValueKey('login-capture'),
-      child: PuntoDeVentaApp(),
+      child: PuntoDeVentaApp(
+        httpClient: client ?? MockClient((_) async => http.Response('{}', 401)),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -48,7 +53,7 @@ void main() {
         const LoginInput(email: 'correo@', password: ''),
       );
       expect(invalid.emailError, isNotNull);
-      expect(invalid.passwordError, 'Ingresa tu contraseña.');
+      expect(invalid.passwordError, 'La contraseña es obligatoria.');
     },
   );
 
@@ -58,7 +63,7 @@ void main() {
       await openLogin(tester);
       expect(find.text('Bienvenido de nuevo'), findsOneWidget);
       expect(find.byType(TextField), findsNWidgets(2));
-      expect(find.text('Ingresa tu contraseña.'), findsNothing);
+      expect(find.text('La contraseña es obligatoria.'), findsNothing);
       if (const bool.fromEnvironment('WRITE_LOGIN_PREVIEW')) {
         await tester.runAsync(() async {
           final boundary = tester.renderObject<RenderRepaintBoundary>(
@@ -90,11 +95,8 @@ void main() {
     await openLogin(tester);
     await tester.tap(find.byKey(const ValueKey('login-submit')));
     await tester.pumpAndSettle();
-    expect(find.text('Ingresa tu contraseña.'), findsOneWidget);
-    expect(
-      find.text('Escribe un correo como nombre@dominio.com.'),
-      findsOneWidget,
-    );
+    expect(find.text('La contraseña es obligatoria.'), findsOneWidget);
+    expect(find.text('El correo electrónico es obligatorio.'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('login-email')),
       'maria@ejemplo.com',
@@ -105,7 +107,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('login-submit')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Aún no has iniciado sesión.'), findsOneWidget);
+    expect(find.text('Correo o contraseña incorrectos.'), findsOneWidget);
   });
 
   testWidgets('Navega a registro y vuelve al login', (tester) async {

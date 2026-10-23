@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +14,7 @@ Future<void> openRegistration(
   WidgetTester tester, {
   Size size = const Size(390, 940),
   double textScale = 1,
+  http.Client? client,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -25,7 +28,10 @@ Future<void> openRegistration(
   await tester.pumpWidget(
     RepaintBoundary(
       key: _captureKey,
-      child: const PuntoDeVentaApp(initialRoute: '/register'),
+      child: PuntoDeVentaApp(
+        initialRoute: '/register',
+        httpClient: client ?? MockClient((_) async => http.Response('{}', 500)),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -110,7 +116,7 @@ void main() {
       await fill(tester, 'email', 'no-es-correo');
       await fill(tester, 'phone', '4181234567');
       expect(
-        find.text('Escribe un correo como nombre@dominio.com.'),
+        find.text('El correo electrónico no tiene un formato válido.'),
         findsOneWidget,
       );
       for (final field in ['password', 'passwordConfirmation']) {
@@ -141,10 +147,7 @@ void main() {
     await fill(tester, 'password', 'Registro123');
     await fill(tester, 'passwordConfirmation', 'Registro123');
     await submit(tester);
-    expect(
-      find.textContaining('Tu cuenta aún no se ha creado.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('HTTP 500'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -153,7 +156,10 @@ void main() {
   ) async {
     await openRegistration(tester, size: const Size(320, 568), textScale: 1.3);
     await submit(tester);
-    expect(find.text('Ingresa tu nombre.'), findsOneWidget);
+    expect(
+      find.text('El nombre es obligatorio y no puede contener solo espacios.'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

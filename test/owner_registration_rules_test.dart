@@ -42,10 +42,10 @@ void main() {
       'Ingresa tu apellido paterno.',
     ]);
     expect(result.errorsFor(RegistrationField.email), [
-      'Escribe un correo como nombre@dominio.com.',
+      'El correo electrónico no tiene un formato válido.',
     ]);
     expect(result.errorsFor(RegistrationField.phone), [
-      'Ingresa un número de 10 dígitos.',
+      'El teléfono debe contener exactamente 10 dígitos.',
     ]);
     expect(result.errorsFor(RegistrationField.password), hasLength(3));
     expect(result.errorsFor(RegistrationField.passwordConfirmation), [
