@@ -4,6 +4,9 @@ import 'features/authentication/application/services/authentication_services.dar
 import 'features/authentication/domain/auth_session.dart';
 import 'features/authentication/infrastructure/adapters/outbound/http/http_authentication_gateway.dart';
 import 'features/authentication/infrastructure/adapters/inbound/flutter/session_page.dart';
+import 'features/sucursal/application/services/gestion_sucursales.dart';
+import 'features/sucursal/infrastructure/adapters/outbound/http/http_sucursal_gateway.dart';
+import 'features/sucursal/infrastructure/adapters/inbound/flutter/sucursales_page.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -73,6 +76,19 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         return SessionPage(
           session: session,
           clearSession: () => _api.bearerToken = null,
+          openBranches: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => SucursalesPage(
+                gestion: GestionSucursales(HttpSucursalGateway(_api)),
+                onSesionExpirada: () {
+                  _api.bearerToken = null;
+                  Navigator.of(
+                    context,
+                  ).pushNamedAndRemoveUntil('/login', (_) => false);
+                },
+              ),
+            ),
+          ),
         );
       },
       '/connection': (_) => const _ConnectionHome(),
