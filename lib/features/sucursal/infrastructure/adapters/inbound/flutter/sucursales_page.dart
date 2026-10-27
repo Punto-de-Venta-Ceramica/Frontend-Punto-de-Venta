@@ -9,10 +9,14 @@ class SucursalesPage extends StatefulWidget {
   const SucursalesPage({
     required this.gestion,
     required this.onSesionExpirada,
+    this.negocioInicial,
+    this.registrarAlAbrir = false,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
   final VoidCallback onSesionExpirada;
+  final NegocioSucursal? negocioInicial;
+  final bool registrarAlAbrir;
   @override
   State<SucursalesPage> createState() => _SucursalesPageState();
 }
@@ -25,6 +29,7 @@ class _SucursalesPageState extends State<SucursalesPage> {
   String? _error;
   String? _mensaje;
   int _carga = 0;
+  bool _registroAbierto = false;
   @override
   void initState() {
     super.initState();
@@ -48,7 +53,9 @@ class _SucursalesPageState extends State<SucursalesPage> {
       _error = null;
     });
     try {
-      final negocios = await widget.gestion.negocios();
+      final negocios = widget.negocioInicial == null
+          ? await widget.gestion.negocios()
+          : [widget.negocioInicial!];
       if (!mounted) return;
       setState(() {
         _negocios = negocios;
@@ -56,7 +63,16 @@ class _SucursalesPageState extends State<SucursalesPage> {
         _sucursales = [];
       });
       if (_negocio != null) {
-        await _cargar(_negocio!);
+        if (widget.registrarAlAbrir && !_registroAbierto) {
+          // El negocio recién creado aún no tiene sucursales.
+          _registroAbierto = true;
+          setState(() => _busy = false);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _formulario();
+          });
+        } else {
+          await _cargar(_negocio!);
+        }
       } else {
         setState(() => _busy = false);
       }
@@ -345,7 +361,11 @@ class _SucursalesPageState extends State<SucursalesPage> {
                   Center(
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Volver a mi sesión'),
+                      child: Text(
+                        widget.negocioInicial == null
+                            ? 'Volver a mi sesión'
+                            : 'Volver a mis negocios',
+                      ),
                     ),
                   ),
                 ],
