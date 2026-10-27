@@ -13,6 +13,23 @@
       "request": "launch",
       "type": "dart",
       "toolArgs": ["--dart-define=API_BASE_URL=http://10.0.2.2:8080"]
+    },
+    {
+      "name": "BarroControl Negocios (vista previa)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/negocios_preview.dart",
+      "deviceId": "chrome",
+      "toolArgs": ["--web-port=5174", "--dart-define=NEGOCIOS_PREVIEW=${input:negociosPreview}"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "negociosPreview",
+      "type": "pickString",
+      "description": "Escenario visual de negocios",
+      "options": ["vacio", "lista", "registro", "completo", "validacion", "editar", "guardado", "eliminar"],
+      "default": "lista"
     }
   ]
 }

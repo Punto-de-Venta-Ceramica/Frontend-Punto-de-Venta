@@ -59,16 +59,38 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authenticated = true,
   }) async {
+    final uri = _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
+    final request = http.Request(method, uri);
+    if (body != null) {
+      request.headers['Content-Type'] = 'application/json; charset=utf-8';
+      request.body = jsonEncode(body);
+    }
+    return _send(request, path, authenticated: authenticated);
+  }
+
+  Future<Object?> requestMultipart(
+    String method,
+    String path, {
+    required Map<String, String> fields,
+    List<http.MultipartFile> files = const [],
+  }) {
+    final uri = _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
+    final request = http.MultipartRequest(method, uri)
+      ..fields.addAll(fields)
+      ..files.addAll(files);
+    return _send(request, path);
+  }
+
+  Future<Object?> _send(
+    http.BaseRequest request,
+    String path, {
+    bool authenticated = true,
+  }) async {
     try {
-      final uri = _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
-      final headers = {
-        'Accept': 'application/json',
-        if (body != null) 'Content-Type': 'application/json; charset=utf-8',
-        if (authenticated && bearerToken != null)
-          'Authorization': 'Bearer $bearerToken',
-      };
-      final request = http.Request(method, uri)..headers.addAll(headers);
-      if (body != null) request.body = jsonEncode(body);
+      request.headers['Accept'] = 'application/json';
+      if (authenticated && bearerToken != null) {
+        request.headers['Authorization'] = 'Bearer $bearerToken';
+      }
       final response = await (() async {
         final stream = await _client.send(request);
         return http.Response.fromStream(stream);
@@ -86,6 +108,8 @@ class ApiClient {
             path.contains('usuarios/registro')
                 ? 'El correo electrónico ya está registrado.'
                 : 'No se pudo completar la operación porque hay datos relacionados o en conflicto.',
+          413 =>
+            'El archivo es demasiado grande. Selecciona un logo de hasta 2 MB.',
           429 => 'Demasiados intentos. Inténtalo más tarde.',
           _ =>
             'El servidor respondió HTTP ${response.statusCode}. Inténtalo más tarde.',

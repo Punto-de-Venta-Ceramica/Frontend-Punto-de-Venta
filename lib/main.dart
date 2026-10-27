@@ -7,6 +7,12 @@ import 'features/authentication/infrastructure/adapters/inbound/flutter/session_
 import 'features/sucursal/application/services/gestion_sucursales.dart';
 import 'features/sucursal/infrastructure/adapters/outbound/http/http_sucursal_gateway.dart';
 import 'features/sucursal/infrastructure/adapters/inbound/flutter/sucursales_page.dart';
+import 'features/sucursal/domain/sucursal.dart';
+import 'features/negocios/application/services/gestion_negocios.dart';
+import 'features/negocios/domain/negocio.dart';
+import 'features/negocios/infrastructure/adapters/inbound/flutter/negocios_page.dart';
+import 'features/negocios/infrastructure/adapters/outbound/http/http_negocio_gateway.dart';
+import 'features/negocios/infrastructure/adapters/outbound/files/file_selector_logo.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -54,6 +60,27 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         : '',
   );
 
+  void _cerrarSesion(BuildContext context) {
+    _api.bearerToken = null;
+    if (!context.mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+  }
+
+  Future<void> _abrirSucursales(
+    BuildContext context,
+    Negocio negocio, {
+    bool registrar = false,
+  }) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => SucursalesPage(
+        gestion: GestionSucursales(HttpSucursalGateway(_api)),
+        negocioInicial: NegocioSucursal(id: negocio.id, nombre: negocio.nombre),
+        registrarAlAbrir: registrar,
+        onSesionExpirada: () => _cerrarSesion(context),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'BarroControl',
@@ -76,16 +103,15 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         return SessionPage(
           session: session,
           clearSession: () => _api.bearerToken = null,
-          openBranches: () => Navigator.of(context).push(
+          openBusinesses: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => SucursalesPage(
-                gestion: GestionSucursales(HttpSucursalGateway(_api)),
-                onSesionExpirada: () {
-                  _api.bearerToken = null;
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/login', (_) => false);
-                },
+              builder: (_) => NegociosPage(
+                gestion: GestionNegocios(HttpNegocioGateway(_api)),
+                selectorLogo: const FileSelectorLogo(),
+                onSesionExpirada: () => _cerrarSesion(context),
+                onAdministrar: (negocio) => _abrirSucursales(context, negocio),
+                onNegocioCreado: (negocio) =>
+                    _abrirSucursales(context, negocio, registrar: true),
               ),
             ),
           ),
