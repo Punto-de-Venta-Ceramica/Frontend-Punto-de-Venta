@@ -1,13 +1,43 @@
 # BarroControl · Flutter
 
 Frontend con Flutter y Dart para `Backend-Punto-de-Venta` (Spring Boot).
-La pantalla inicial consulta `GET /api/health`, muestra el resultado y permite
-reintentar. Productos, autenticación, ventas e inventario aún requieren sus
-endpoints de negocio; no se simulan operaciones ni se conecta Flutter a PostgreSQL.
+Nombre, correo y teléfono muestran los mensajes de obligatoriedad y formato
+requeridos por la API. Los errores HTTP 400/409 del servidor se muestran debajo
+del campo correspondiente, incluido el correo duplicado, y se limpian al editarlo.
+Las longitudes máximas se comprueban también en Flutter. El servidor conserva la
+autoridad sobre las validaciones y la unicidad del correo.
+La pantalla inicial es el login de Figma (`13:16`), con correo, contraseña,
+control de visibilidad, validaciones al salir del campo/enviar y enlaces de
+recuperación y registro. `Crear cuenta` abre `/register`; `Iniciar sesión` en el
+registro vuelve a `/login`. La recuperación muestra un aviso de disponibilidad.
+
+El registro de propietario basado en Figma incluye el formulario
+vacío y estado con validaciones. Los errores aparecen al salir de un campo o
+al enviar; después se actualizan al escribir. Los ojos muestran u ocultan cada
+contraseña de forma independiente. El formulario se desplaza para pantallas
+pequeñas y teclado abierto. El apellido materno es opcional.
+
+Los formularios están conectados a la API real:
+
+- Registro: `POST /api/usuarios/registro`, con nombre, apellidos, correo, teléfono y password.
+- Login: `POST /api/auth/login`, con correo y password.
+- Un registro confirmado abre el login con el correo precargado; no inicia sesión automáticamente.
+- El login usa el JWT recibido, muestra la sesión iniciada y permite cerrarla.
+- El token solo vive en memoria. Al recargar/cerrar la aplicación hay que iniciar sesión otra vez.
+- La sesión termina al vencer `expiraEn` y al cerrar sesión se borra el token del cliente HTTP.
+- Las peticiones autenticadas envían `Authorization: Bearer ...`; login/registro no incluyen un token anterior.
+- Los formularios bloquean envíos repetidos y distinguen credenciales incorrectas, correo duplicado,
+  datos inválidos, desconexión y fallos de servidor. No se guardan contraseñas.
+
+La pantalla de conexión se conserva en la ruta Flutter `/connection`; consulta
+`GET /api/health` y permite reintentar. En web con rutas hash se abre con
+`http://localhost:5173/#/connection`. Esta pantalla requiere que el backend
+exponga `/api/health`; comprueba su disponibilidad en la rama que estés usando.
+Flutter no se conecta a PostgreSQL.
 
 ## Ejecutar desde PowerShell
 
-1. Inicia el backend con Java 21 y las variables de PostgreSQL indicadas en su README.
+1. Inicia el backend con Java 21 y su archivo `.env`: desde su carpeta ejecuta `.\scripts\run.ps1`.
 2. Desde esta carpeta ejecuta:
 
 ```powershell
@@ -59,6 +89,63 @@ PostgreSQL ni secretos en `--dart-define`.
 
 ## Arquitectura hexagonal: puertos y adaptadores
 
+### Gestión de sucursales
+
+Después de iniciar sesión, pulsa **Administrar sucursales**. El módulo
+`lib/features/sucursal` conserva dominio, puertos, servicios y adaptadores.
+Consulta los negocios del usuario con `GET /api/negocios`; si hay varios,
+permite elegir uno. No crea datos de ejemplo ni una sucursal automática.
+
+Incluye listado, detalle, registro, edición de nombre/descripción, confirmación
+de eliminación, validaciones y estados de carga, error y éxito. La dirección
+es obligatoria en el formulario de registro según el boceto; durante la edición
+se muestra como información de consulta porque el PATCH del backend solo
+admite nombre y descripción. Reutiliza `assets/icons/brand.svg` y la fuente Inter.
+
+El listado usa `POST /api/sucursales/consultar` con `{"negocioId": 2}` porque los
+navegadores no admiten un body en GET de forma compatible. Reinicia el backend
+con esa ruta disponible. La ruta conserva las validaciones, JWT y comprobación
+de pertenencia del GET anterior, que sigue existiendo para otros clientes.
+Registro, PATCH y DELETE usan `/api/sucursales` con identificadores en el body.
+Todas las solicitudes envían el JWT de la sesión; un 401 vuelve al login.
+
+La barra inferior reproduce las secciones del boceto; pedidos, caja, inventario
+y más muestran un aviso mientras sus pantallas no estén implementadas.
+
+Para generar capturas con datos exclusivos de pruebas:
+
+```powershell
+flutter test test/sucursal_page_test.dart --dart-define=WRITE_SUCURSAL_PREVIEWS=true
+```
+
+Se guardan en `build/sucursal-previews/` (ignorado por Git).
+
+`lib/features/login` contiene los datos/reglas de validación en `domain`, el
+puerto de entrada `ValidateLoginUseCase` y su implementación en `application`,
+y `LoginPage` en `infrastructure/adapters/inbound/flutter`. Solo se exige que la
+contraseña no esté vacía; la política de creación de contraseñas no se aplica al
+login. `BarroInput`, en `lib/core/infrastructure/widgets`, es el campo compartido
+por ambos formularios. `features/authentication` define los puertos de entrada
+`SignInUseCase`/`RegisterOwnerUseCase` y el puerto de salida `AuthenticationGateway`.
+Sus servicios de aplicación validan los datos y el adaptador HTTP traduce los DTO
+de Spring a resultados de dominio. `main.dart` ensambla las dependencias y posee
+el cliente HTTP. Los widgets no importan HTTP ni instancian el adaptador concreto.
+
+Para generar la captura del login revisada contra Figma:
+
+```powershell
+flutter test test/login_test.dart --dart-define=WRITE_LOGIN_PREVIEW=true
+```
+
+Resultado: `build/login-preview/login.png`.
+
+El módulo `lib/features/owner_registration` separa los datos y reglas en `domain`,
+el puerto `ValidateOwnerRegistrationUseCase` y su implementación en `application`,
+y la pantalla/campos Flutter en `infrastructure/adapters/inbound/flutter`.
+`main.dart` inyecta la implementación. El caso de uso de validación es local;
+el envío real lo realiza `RegisterOwner` mediante el puerto `AuthenticationGateway`.
+El tema compartido de Figma está en `lib/core/infrastructure/theme`.
+
 Cada funcionalidad se organiza en `domain`, `application` e `infrastructure`.
 Las dependencias apuntan al interior. El dominio no importa Flutter, HTTP ni
 infraestructura. La aplicación define los puertos y ejecuta los casos de uso.
@@ -94,6 +181,17 @@ flutter analyze
 flutter test
 flutter build web
 ```
+
+Para generar las capturas revisadas de ambos estados:
+
+```powershell
+flutter test test/owner_registration_page_test.dart --dart-define=WRITE_REGISTRATION_PREVIEWS=true
+```
+
+Se guardan en `build/registration-previews/` (no se incluyen en Git).
+Se prueban reglas de dominio, validación al perder foco, corrección en vivo,
+visibilidad de contraseñas, envío sin éxito ficticio y una pantalla de 320 × 568
+con texto ampliado.
 
 El endpoint confirma que Spring responde HTTP; no consulta la base de datos.
 La aplicación Spring sí necesita su configuración PostgreSQL para arrancar.
