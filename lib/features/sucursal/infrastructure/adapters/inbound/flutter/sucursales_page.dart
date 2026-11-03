@@ -11,12 +11,15 @@ class SucursalesPage extends StatefulWidget {
     required this.onSesionExpirada,
     this.negocioInicial,
     this.registrarAlAbrir = false,
+    this.onAdministrar,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
   final VoidCallback onSesionExpirada;
   final NegocioSucursal? negocioInicial;
   final bool registrarAlAbrir;
+  final void Function(NegocioSucursal negocio, Sucursal sucursal)?
+  onAdministrar;
   @override
   State<SucursalesPage> createState() => _SucursalesPageState();
 }
@@ -246,7 +249,9 @@ class _SucursalesPageState extends State<SucursalesPage> {
           children: [
             TextButton(
               style: TextButton.styleFrom(padding: EdgeInsets.zero),
-              onPressed: () => _detalles(sucursal),
+              onPressed: () => widget.onAdministrar == null
+                  ? _detalles(sucursal)
+                  : widget.onAdministrar!(_negocio!, sucursal),
               child: const Text('Administrar'),
             ),
             TextButton(

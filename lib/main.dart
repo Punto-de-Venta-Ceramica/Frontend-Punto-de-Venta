@@ -6,8 +6,13 @@ import 'features/authentication/infrastructure/adapters/outbound/http/http_authe
 import 'features/authentication/infrastructure/adapters/inbound/flutter/session_page.dart';
 import 'features/sucursal/application/services/gestion_sucursales.dart';
 import 'features/sucursal/infrastructure/adapters/outbound/http/http_sucursal_gateway.dart';
+import 'features/sucursal/infrastructure/adapters/inbound/flutter/administrar_sucursal_page.dart';
 import 'features/sucursal/infrastructure/adapters/inbound/flutter/sucursales_page.dart';
 import 'features/sucursal/domain/sucursal.dart';
+import 'features/productos/application/services/gestion_productos.dart';
+import 'features/productos/domain/producto.dart';
+import 'features/productos/infrastructure/adapters/inbound/flutter/productos_page.dart';
+import 'features/productos/infrastructure/adapters/outbound/http/http_producto_gateway.dart';
 import 'features/negocios/application/services/gestion_negocios.dart';
 import 'features/negocios/domain/negocio.dart';
 import 'features/negocios/infrastructure/adapters/inbound/flutter/negocios_page.dart';
@@ -77,9 +82,38 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         negocioInicial: NegocioSucursal(id: negocio.id, nombre: negocio.nombre),
         registrarAlAbrir: registrar,
         onSesionExpirada: () => _cerrarSesion(context),
+        onAdministrar: (negocio, sucursal) =>
+            _abrirAdministracion(context, negocio, sucursal),
       ),
     ),
   );
+
+  Future<void> _abrirAdministracion(
+    BuildContext context,
+    NegocioSucursal negocio,
+    Sucursal sucursal,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (administrarContext) => AdministrarSucursalPage(
+        sucursal: sucursal,
+        onProductos: () => _abrirProductos(administrarContext, negocio),
+      ),
+    ),
+  );
+
+  Future<void> _abrirProductos(BuildContext context, NegocioSucursal negocio) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => ProductosPage(
+            gestion: GestionProductos(HttpProductoGateway(_api)),
+            negocioInicial: NegocioProducto(
+              id: negocio.id,
+              nombre: negocio.nombre,
+            ),
+            onSesionExpirada: () => _cerrarSesion(context),
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) => MaterialApp(

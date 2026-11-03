@@ -162,7 +162,8 @@ class SucursalBoton extends StatelessWidget {
 }
 
 class SucursalNavegacion extends StatelessWidget {
-  const SucursalNavegacion({super.key});
+  const SucursalNavegacion({this.onInventario, super.key});
+  final VoidCallback? onInventario;
   @override
   Widget build(BuildContext context) => Container(
     color: Colors.white,
@@ -198,6 +199,10 @@ class SucursalNavegacion extends StatelessWidget {
                     ),
                     onPressed: () {
                       if (item.$2 == 'Inicio') return;
+                      if (item.$2 == 'Inventario' && onInventario != null) {
+                        onInventario!();
+                        return;
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
