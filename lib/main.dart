@@ -18,6 +18,10 @@ import 'features/negocios/domain/negocio.dart';
 import 'features/negocios/infrastructure/adapters/inbound/flutter/negocios_page.dart';
 import 'features/negocios/infrastructure/adapters/outbound/http/http_negocio_gateway.dart';
 import 'features/negocios/infrastructure/adapters/outbound/files/file_selector_logo.dart';
+import 'features/areas_categorias/application/services/gestion_catalogo.dart';
+import 'features/areas_categorias/domain/catalogo.dart';
+import 'features/areas_categorias/infrastructure/adapters/inbound/flutter/catalogo_page.dart';
+import 'features/areas_categorias/infrastructure/adapters/outbound/http/http_catalogo_gateway.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -82,11 +86,23 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         negocioInicial: NegocioSucursal(id: negocio.id, nombre: negocio.nombre),
         registrarAlAbrir: registrar,
         onSesionExpirada: () => _cerrarSesion(context),
+        onAreasCategorias: (negocio) => _abrirCatalogo(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
       ),
     ),
   );
+
+  Future<void> _abrirCatalogo(BuildContext context, NegocioSucursal negocio) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => CatalogoPage(
+            negocio: NegocioCatalogo(id: negocio.id, nombre: negocio.nombre),
+            gestion: GestionCatalogo(HttpCatalogoGateway(_api)),
+            onSesionExpirada: () => _cerrarSesion(context),
+          ),
+        ),
+      );
 
   Future<void> _abrirAdministracion(
     BuildContext context,

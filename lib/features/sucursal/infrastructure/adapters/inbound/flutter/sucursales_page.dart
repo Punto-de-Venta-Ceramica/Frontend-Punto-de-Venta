@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/areas_categorias/infrastructure/adapters/inbound/flutter/widgets/acceso_areas_categorias.dart';
 import '../../../../application/ports/inbound/gestion_sucursales_use_case.dart';
 import '../../../../domain/sucursal.dart';
 import 'sucursal_form_page.dart';
@@ -12,10 +13,12 @@ class SucursalesPage extends StatefulWidget {
     this.negocioInicial,
     this.registrarAlAbrir = false,
     this.onAdministrar,
+    this.onAreasCategorias,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
   final VoidCallback onSesionExpirada;
+  final void Function(NegocioSucursal negocio)? onAreasCategorias;
   final NegocioSucursal? negocioInicial;
   final bool registrarAlAbrir;
   final void Function(NegocioSucursal negocio, Sucursal sucursal)?
@@ -288,7 +291,23 @@ class _SucursalesPageState extends State<SucursalesPage> {
                       negocios: _negocios,
                       onChanged: _busy ? null : _cargar,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Catálogo del negocio',
+                      style: BarroTheme.type(
+                        13,
+                        20,
+                        weight: FontWeight.w600,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    AccesoAreasCategorias(
+                      onPressed: widget.onAreasCategorias == null
+                          ? null
+                          : () => widget.onAreasCategorias!(_negocio!),
+                    ),
+                    const SizedBox(height: 28),
                   ],
                   if (_mensaje != null) ...[
                     SucursalAviso(_mensaje!),
