@@ -7,11 +7,13 @@ class SessionPage extends StatefulWidget {
     required this.session,
     required this.clearSession,
     this.openBusinesses,
+    this.openOrders,
     super.key,
   });
   final AuthSession session;
   final VoidCallback clearSession;
   final VoidCallback? openBusinesses;
+  final VoidCallback? openOrders;
   @override
   State<SessionPage> createState() => _SessionPageState();
 }
@@ -74,7 +76,17 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 8),
             Text('Perfil: ${widget.session.role}'),
-            if (widget.openBusinesses != null) ...[
+            if (widget.session.role == 'EMPLEADO' &&
+                widget.openOrders != null) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: widget.openOrders,
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('Pedidos'),
+              ),
+            ],
+            if (widget.session.role == 'PROPIETARIO' &&
+                widget.openBusinesses != null) ...[
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: widget.openBusinesses,

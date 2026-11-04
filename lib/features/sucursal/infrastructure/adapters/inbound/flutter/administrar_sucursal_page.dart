@@ -11,12 +11,14 @@ class AdministrarSucursalPage extends StatelessWidget {
     this.onEmpleados,
     this.onProductos,
     this.onInventario,
+    this.onPedidos,
     super.key,
   });
   final Sucursal sucursal;
   final VoidCallback? onEmpleados;
   final VoidCallback? onProductos;
   final VoidCallback? onInventario;
+  final VoidCallback? onPedidos;
 
   void _noDisponible(BuildContext context, String modulo) =>
       ScaffoldMessenger.of(context).showSnackBar(
@@ -93,7 +95,10 @@ class AdministrarSucursalPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    bottomNavigationBar: SucursalNavegacion(onInventario: onInventario),
+    bottomNavigationBar: SucursalNavegacion(
+      onInventario: onInventario,
+      onPedidos: onPedidos,
+    ),
     body: SafeArea(
       bottom: false,
       child: Center(
@@ -153,6 +158,14 @@ class AdministrarSucursalPage extends StatelessWidget {
                   descripcion: 'Gestiona a las personas\nde tu equipo',
                   onTap: onEmpleados,
                   modulo: 'empleados',
+                ),
+                _opcion(
+                  context,
+                  icono: Icons.receipt_long_outlined,
+                  titulo: 'Pedidos',
+                  descripcion: 'Registra y consulta los pedidos',
+                  onTap: onPedidos,
+                  modulo: 'pedidos',
                 ),
                 _opcion(
                   context,

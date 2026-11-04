@@ -162,8 +162,9 @@ class SucursalBoton extends StatelessWidget {
 }
 
 class SucursalNavegacion extends StatelessWidget {
-  const SucursalNavegacion({this.onInventario, super.key});
+  const SucursalNavegacion({this.onInventario, this.onPedidos, super.key});
   final VoidCallback? onInventario;
+  final VoidCallback? onPedidos;
   @override
   Widget build(BuildContext context) => Container(
     color: Colors.white,
@@ -199,6 +200,10 @@ class SucursalNavegacion extends StatelessWidget {
                     ),
                     onPressed: () {
                       if (item.$2 == 'Inicio') return;
+                      if (item.$2 == 'Pedidos' && onPedidos != null) {
+                        onPedidos!();
+                        return;
+                      }
                       if (item.$2 == 'Inventario' && onInventario != null) {
                         onInventario!();
                         return;
