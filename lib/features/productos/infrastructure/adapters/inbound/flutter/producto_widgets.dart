@@ -12,7 +12,8 @@ String formatoPiezas(int cantidad) =>
     '$cantidad ${cantidad == 1 ? 'pieza' : 'piezas'}';
 
 class ProductoCabecera extends StatelessWidget {
-  const ProductoCabecera({super.key});
+  const ProductoCabecera({this.rol = 'Propietario', super.key});
+  final String rol;
   @override
   Widget build(BuildContext context) => Row(
     children: [
@@ -36,7 +37,7 @@ class ProductoCabecera extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Text(
-          'Propietario',
+          rol,
           style: BarroTheme.type(12, 17, color: BarroTheme.primary),
         ),
       ),
@@ -197,11 +198,13 @@ class ProductoScaffold extends StatelessWidget {
     required this.children,
     this.navegacion = false,
     this.onRefresh,
+    this.rol = 'Propietario',
     super.key,
   });
   final List<Widget> children;
   final bool navegacion;
   final Future<void> Function()? onRefresh;
+  final String rol;
   @override
   Widget build(BuildContext context) {
     Widget contenido = SingleChildScrollView(
@@ -209,7 +212,10 @@ class ProductoScaffold extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [const ProductoCabecera(), ...children],
+        children: [
+          ProductoCabecera(rol: rol),
+          ...children,
+        ],
       ),
     );
     if (onRefresh != null) {

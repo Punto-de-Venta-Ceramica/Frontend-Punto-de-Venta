@@ -1,17 +1,25 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
+import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
 
 class SessionPage extends StatefulWidget {
   const SessionPage({
     required this.session,
     required this.clearSession,
     this.openBusinesses,
+    this.openOrders,
+    this.conteoNotificaciones,
+    this.openNotifications,
     super.key,
   });
   final AuthSession session;
   final VoidCallback clearSession;
   final VoidCallback? openBusinesses;
+  final VoidCallback? openOrders;
+  final ValueListenable<int?>? conteoNotificaciones;
+  final VoidCallback? openNotifications;
   @override
   State<SessionPage> createState() => _SessionPageState();
 }
@@ -59,7 +67,17 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('BarroControl')),
+    appBar: AppBar(
+      title: const Text('BarroControl'),
+      actions: [
+        if (widget.conteoNotificaciones != null &&
+            widget.openNotifications != null)
+          BotonNotificaciones(
+            conteo: widget.conteoNotificaciones!,
+            onPressed: widget.openNotifications!,
+          ),
+      ],
+    ),
     body: Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -74,7 +92,17 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 8),
             Text('Perfil: ${widget.session.role}'),
-            if (widget.openBusinesses != null) ...[
+            if (widget.session.role == 'EMPLEADO' &&
+                widget.openOrders != null) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: widget.openOrders,
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('Pedidos'),
+              ),
+            ],
+            if (widget.session.role == 'PROPIETARIO' &&
+                widget.openBusinesses != null) ...[
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: widget.openBusinesses,

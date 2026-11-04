@@ -13,6 +13,12 @@ import 'features/productos/application/services/gestion_productos.dart';
 import 'features/productos/domain/producto.dart';
 import 'features/productos/infrastructure/adapters/inbound/flutter/productos_page.dart';
 import 'features/productos/infrastructure/adapters/outbound/http/http_producto_gateway.dart';
+import 'features/pedidos/application/gestion_pedidos.dart';
+import 'features/pedidos/infrastructure/adapters/outbound/http_pedidos_gateway.dart';
+import 'features/pedidos/infrastructure/adapters/inbound/pedidos_page.dart';
+import 'features/pedidos/infrastructure/adapters/inbound/notificaciones_page.dart';
+import 'features/notificaciones/application/contador_notificaciones.dart';
+import 'features/notificaciones/infrastructure/indicador_icono_movil.dart';
 import 'features/negocios/application/services/gestion_negocios.dart';
 import 'features/negocios/domain/negocio.dart';
 import 'features/negocios/infrastructure/adapters/inbound/flutter/negocios_page.dart';
@@ -48,15 +54,19 @@ class PuntoDeVentaApp extends StatefulWidget {
 class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final ApiClient _api;
   late final HttpAuthenticationGateway _authentication;
+  late final ContadorNotificaciones _contador;
+  String _rol = '';
   @override
   void initState() {
     super.initState();
     _api = ApiClient(baseUrl: ApiConfig.baseUrl, client: widget.httpClient);
     _authentication = HttpAuthenticationGateway(_api);
+    _contador = ContadorNotificaciones(_api, IndicadorIconoMovil());
   }
 
   @override
   void dispose() {
+    _contador.dispose();
     _api.close();
     super.dispose();
   }
@@ -71,6 +81,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
 
   void _cerrarSesion(BuildContext context) {
     _api.bearerToken = null;
+    _contador.cerrarSesion();
+    _rol = '';
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
@@ -113,6 +125,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       builder: (administrarContext) => AdministrarSucursalPage(
         sucursal: sucursal,
         onProductos: () => _abrirProductos(administrarContext, negocio),
+        onPedidos: () => _abrirPedidos(administrarContext, negocio, sucursal),
       ),
     ),
   );
@@ -130,6 +143,56 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           ),
         ),
       );
+
+  Future<void> _abrirPedidos(
+    BuildContext context,
+    NegocioSucursal negocio,
+    Sucursal sucursal,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => PedidosPage(
+        gestion: GestionPedidos(HttpPedidosGateway(_api)),
+        sucursalId: sucursal.id,
+        negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
+        esPropietario: _rol == 'PROPIETARIO',
+        contador: _contador,
+      ),
+    ),
+  );
+
+  Future<void> _abrirPedidosEmpleado(BuildContext context) async {
+    try {
+      final asignacion = await _api.getJson(
+        'api/pedidos/opciones/sucursal-asignada',
+      );
+      if (!context.mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => PedidosPage(
+            gestion: GestionPedidos(HttpPedidosGateway(_api)),
+            sucursalId: asignacion['sucursalId'] as int,
+            negocio: NegocioProducto(
+              id: asignacion['negocioId'] as int,
+              nombre: asignacion['negocio'] as String,
+            ),
+            esPropietario: false,
+            contador: _contador,
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.statusCode == 404
+                ? 'No tienes una sucursal asignada. Contacta al propietario.'
+                : e.message,
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -150,9 +213,24 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           return _login(context);
         }
         _api.bearerToken = session.token;
+        _rol = session.role;
+        _contador.iniciar(session.token);
         return SessionPage(
           session: session,
-          clearSession: () => _api.bearerToken = null,
+          clearSession: () {
+            _api.bearerToken = null;
+            _contador.cerrarSesion();
+          },
+          conteoNotificaciones: _contador,
+          openNotifications: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => NotificacionesPage(
+                gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                contador: _contador,
+              ),
+            ),
+          ),
+          openOrders: () => _abrirPedidosEmpleado(context),
           openBusinesses: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => NegociosPage(
