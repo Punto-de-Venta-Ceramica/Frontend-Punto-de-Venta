@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
+import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
 
 class NotificacionesPage extends StatefulWidget {
-  const NotificacionesPage({required this.gestion, super.key});
+  const NotificacionesPage({
+    required this.gestion,
+    required this.contador,
+    super.key,
+  });
   final GestionPedidos gestion;
+  final ContadorNotificaciones contador;
   @override
   State<NotificacionesPage> createState() => _NotificacionesPageState();
 }
@@ -16,13 +22,40 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
   void initState() {
     super.initState();
     _avisos = widget.gestion.notificaciones();
+    widget.contador.addListener(_actualizarLista);
+  }
+
+  @override
+  void didUpdateWidget(covariant NotificacionesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contador != widget.contador) {
+      oldWidget.contador.removeListener(_actualizarLista);
+      widget.contador.addListener(_actualizarLista);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.contador.removeListener(_actualizarLista);
+    super.dispose();
+  }
+
+  void _actualizarLista() {
+    if (mounted) {
+      setState(() {
+        _avisos = widget.gestion.notificaciones();
+      });
+    }
   }
 
   Future<void> _marcar(AvisoPedido aviso) async {
     if (aviso.leida) return;
     try {
       await widget.gestion.marcarLeida(aviso.id);
-      if (mounted) setState(() => _avisos = widget.gestion.notificaciones());
+      if (mounted) {
+        _actualizarLista();
+        await widget.contador.actualizar();
+      }
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -34,7 +67,19 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Notificaciones')),
+    appBar: AppBar(
+      title: const Text('Notificaciones'),
+      actions: [
+        IconButton(
+          tooltip: 'Actualizar notificaciones',
+          onPressed: () {
+            _actualizarLista();
+            widget.contador.actualizar();
+          },
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
     body: FutureBuilder<List<AvisoPedido>>(
       future: _avisos,
       builder: (context, snapshot) {

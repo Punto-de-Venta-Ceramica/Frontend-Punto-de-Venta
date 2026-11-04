@@ -31,6 +31,10 @@ void main() {
         tester,
         client: MockClient((request) async {
           requests.add(request);
+          if (request.url.path == '/api/notificaciones/no-leidas/conteo') {
+            expect(request.headers['Authorization'], 'Bearer test-jwt');
+            return http.Response('{"cantidad":0}', 200);
+          }
           expect(request.headers['Authorization'], isNull);
           final data = jsonDecode(request.body) as Map<String, dynamic>;
           if (request.url.path == '/api/usuarios/registro') {
@@ -75,7 +79,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Sesión iniciada'), findsOneWidget);
       expect(find.text('test-jwt'), findsNothing);
-      expect(requests, hasLength(2));
+      expect(requests, hasLength(3));
       await tester.tap(find.text('Cerrar sesión'));
       await tester.pumpAndSettle();
       expect(find.text('Bienvenido de nuevo'), findsOneWidget);

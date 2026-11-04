@@ -7,6 +7,8 @@ import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
 import 'registrar_pedido_page.dart';
 import 'notificaciones_page.dart';
+import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
+import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
 
 class PedidosPage extends StatefulWidget {
   const PedidosPage({
@@ -14,12 +16,14 @@ class PedidosPage extends StatefulWidget {
     required this.sucursalId,
     required this.negocio,
     required this.esPropietario,
+    required this.contador,
     super.key,
   });
   final GestionPedidos gestion;
   final int sucursalId;
   final NegocioProducto negocio;
   final bool esPropietario;
+  final ContadorNotificaciones contador;
   @override
   State<PedidosPage> createState() => _PedidosPageState();
 }
@@ -289,12 +293,14 @@ class _PedidosPageState extends State<PedidosPage> {
                 style: BarroTheme.type(28, 36, weight: FontWeight.w700),
               ),
             ),
-            IconButton(
-              tooltip: 'Notificaciones',
-              icon: const Icon(Icons.notifications_outlined),
+            BotonNotificaciones(
+              conteo: widget.contador,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => NotificacionesPage(gestion: widget.gestion),
+                  builder: (_) => NotificacionesPage(
+                    gestion: widget.gestion,
+                    contador: widget.contador,
+                  ),
                 ),
               ),
             ),

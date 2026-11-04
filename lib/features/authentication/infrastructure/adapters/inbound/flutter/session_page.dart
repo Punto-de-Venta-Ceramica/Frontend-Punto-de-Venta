@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
+import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
 
 class SessionPage extends StatefulWidget {
   const SessionPage({
@@ -8,12 +10,16 @@ class SessionPage extends StatefulWidget {
     required this.clearSession,
     this.openBusinesses,
     this.openOrders,
+    this.conteoNotificaciones,
+    this.openNotifications,
     super.key,
   });
   final AuthSession session;
   final VoidCallback clearSession;
   final VoidCallback? openBusinesses;
   final VoidCallback? openOrders;
+  final ValueListenable<int?>? conteoNotificaciones;
+  final VoidCallback? openNotifications;
   @override
   State<SessionPage> createState() => _SessionPageState();
 }
@@ -61,7 +67,17 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('BarroControl')),
+    appBar: AppBar(
+      title: const Text('BarroControl'),
+      actions: [
+        if (widget.conteoNotificaciones != null &&
+            widget.openNotifications != null)
+          BotonNotificaciones(
+            conteo: widget.conteoNotificaciones!,
+            onPressed: widget.openNotifications!,
+          ),
+      ],
+    ),
     body: Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
