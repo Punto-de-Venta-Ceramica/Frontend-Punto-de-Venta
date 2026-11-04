@@ -162,9 +162,17 @@ class SucursalBoton extends StatelessWidget {
 }
 
 class SucursalNavegacion extends StatelessWidget {
-  const SucursalNavegacion({this.onInventario, this.onPedidos, super.key});
+  const SucursalNavegacion({
+    this.onInventario,
+    this.onPedidos,
+    this.onInicio,
+    this.seleccionada = 'Inicio',
+    super.key,
+  });
   final VoidCallback? onInventario;
   final VoidCallback? onPedidos;
+  final VoidCallback? onInicio;
+  final String seleccionada;
   @override
   Widget build(BuildContext context) => Container(
     color: Colors.white,
@@ -188,18 +196,24 @@ class SucursalNavegacion extends StatelessWidget {
                 ])
                   IconButton(
                     tooltip: item.$2,
-                    isSelected: item.$2 == 'Inicio',
+                    isSelected: item.$2 == seleccionada,
                     style: IconButton.styleFrom(
-                      backgroundColor: item.$2 == 'Inicio'
+                      backgroundColor: item.$2 == seleccionada
                           ? const Color(0xFFA93A21)
                           : Colors.transparent,
-                      foregroundColor: item.$2 == 'Inicio'
+                      foregroundColor: item.$2 == seleccionada
                           ? Colors.white
                           : BarroTheme.secondary,
                       minimumSize: const Size(46, 46),
                     ),
                     onPressed: () {
-                      if (item.$2 == 'Inicio') return;
+                      if (item.$2 == 'Inicio' && onInicio != null) {
+                        onInicio!();
+                        return;
+                      }
+                      if (item.$2 == seleccionada && item.$2 != 'Pedidos') {
+                        return;
+                      }
                       if (item.$2 == 'Pedidos' && onPedidos != null) {
                         onPedidos!();
                         return;

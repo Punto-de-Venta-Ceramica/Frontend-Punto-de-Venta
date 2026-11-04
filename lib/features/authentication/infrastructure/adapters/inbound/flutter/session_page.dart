@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
 import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
 
@@ -68,7 +70,28 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('BarroControl'),
+      toolbarHeight: 84,
+      titleSpacing: 24,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            'assets/icons/brand.svg',
+            width: 36,
+            height: 36,
+            semanticsLabel: 'Logo de BarroControl',
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              'BarroControl',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BarroTheme.type(21, 28, weight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
       actions: [
         if (widget.conteoNotificaciones != null &&
             widget.openNotifications != null)

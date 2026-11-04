@@ -6,6 +6,7 @@ import 'package:punto_de_venta/features/productos/infrastructure/adapters/inboun
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
 import 'registrar_pedido_page.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'notificaciones_page.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
 import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
@@ -279,6 +280,11 @@ class _PedidosPageState extends State<PedidosPage> {
         )
         .toList();
     return ProductoScaffold(
+      barraInferior: SucursalNavegacion(
+        seleccionada: 'Pedidos',
+        onInicio: () => Navigator.of(context).maybePop(),
+        onPedidos: () {},
+      ),
       rol: widget.esPropietario ? 'Propietario' : 'Empleado',
       onRefresh: _cargar,
       children: [

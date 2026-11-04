@@ -47,6 +47,10 @@ void main() {
   testWidgets(
     'captura el pedido en tres pasos y conserva la dirección y corte',
     (tester) async {
+      tester.view.physicalSize = const Size(416, 858);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final gateway = _Gateway();
       await tester.pumpWidget(
         MaterialApp(
@@ -60,6 +64,22 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('BarroControl')).dy, lessThan(100));
+      expect(find.byTooltip('Inicio'), findsOneWidget);
+      expect(find.byTooltip('Pedidos'), findsOneWidget);
+      expect(find.byTooltip('Caja'), findsOneWidget);
+      expect(find.byTooltip('Inventario'), findsOneWidget);
+      expect(find.byTooltip('Más'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (widget) => widget is IconButton && widget.tooltip == 'Pedidos',
+              ),
+            )
+            .isSelected,
+        isTrue,
+      );
       await tester.tap(find.byType(DropdownButtonFormField<int>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.textContaining('Taza').last);

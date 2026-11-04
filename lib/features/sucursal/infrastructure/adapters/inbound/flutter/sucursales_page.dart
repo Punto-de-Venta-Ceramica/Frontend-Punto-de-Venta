@@ -272,7 +272,8 @@ class _SucursalesPageState extends State<SucursalesPage> {
     bottomNavigationBar: const SucursalNavegacion(),
     body: SafeArea(
       bottom: false,
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: RefreshIndicator(

@@ -197,12 +197,14 @@ class ProductoScaffold extends StatelessWidget {
   const ProductoScaffold({
     required this.children,
     this.navegacion = false,
+    this.barraInferior,
     this.onRefresh,
     this.rol = 'Propietario',
     super.key,
   });
   final List<Widget> children;
   final bool navegacion;
+  final Widget? barraInferior;
   final Future<void> Function()? onRefresh;
   final String rol;
   @override
@@ -222,10 +224,12 @@ class ProductoScaffold extends StatelessWidget {
       contenido = RefreshIndicator(onRefresh: onRefresh!, child: contenido);
     }
     return Scaffold(
-      bottomNavigationBar: navegacion ? const ProductoNavegacion() : null,
+      bottomNavigationBar:
+          barraInferior ?? (navegacion ? const ProductoNavegacion() : null),
       body: SafeArea(
         bottom: false,
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: contenido,

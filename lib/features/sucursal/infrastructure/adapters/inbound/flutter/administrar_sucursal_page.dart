@@ -101,7 +101,8 @@ class AdministrarSucursalPage extends StatelessWidget {
     ),
     body: SafeArea(
       bottom: false,
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: SingleChildScrollView(

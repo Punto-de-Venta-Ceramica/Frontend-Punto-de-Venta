@@ -5,6 +5,7 @@ import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 
 class RegistrarPedidoPage extends StatefulWidget {
   const RegistrarPedidoPage({
@@ -234,6 +235,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
 
   @override
   Widget build(BuildContext context) => ProductoScaffold(
+    barraInferior: SucursalNavegacion(
+      seleccionada: 'Pedidos',
+      onPedidos: () => Navigator.of(context).maybePop(),
+    ),
     rol: widget.esPropietario ? 'Propietario' : 'Empleado',
     children: [
       TextButton.icon(

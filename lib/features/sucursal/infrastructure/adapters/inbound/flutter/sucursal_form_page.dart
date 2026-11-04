@@ -273,7 +273,8 @@ class _SucursalFormPageState extends State<SucursalFormPage> {
     canPop: !_busy,
     child: Scaffold(
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: LayoutBuilder(
