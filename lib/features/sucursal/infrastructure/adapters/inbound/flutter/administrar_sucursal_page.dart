@@ -3,19 +3,17 @@ import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import '../../../../domain/sucursal.dart';
 import 'sucursal_widgets.dart';
 
-/// Inicio de una sucursal: accesos a áreas y categorías, empleados y productos.
+/// Inicio de una sucursal: accesos a empleados y productos.
 /// Los destinos se inyectan; sin callback se avisa que el módulo no está disponible.
 class AdministrarSucursalPage extends StatelessWidget {
   const AdministrarSucursalPage({
     required this.sucursal,
-    this.onAreasCategorias,
     this.onEmpleados,
     this.onProductos,
     this.onInventario,
     super.key,
   });
   final Sucursal sucursal;
-  final VoidCallback? onAreasCategorias;
   final VoidCallback? onEmpleados;
   final VoidCallback? onProductos;
   final VoidCallback? onInventario;
@@ -148,14 +146,6 @@ class AdministrarSucursalPage extends StatelessWidget {
                   style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
                 ),
                 const SizedBox(height: 24),
-                _opcion(
-                  context,
-                  icono: Icons.storefront_outlined,
-                  titulo: 'Áreas y Categorías',
-                  descripcion: 'Administra las áreas\nde tu sucursal',
-                  onTap: onAreasCategorias,
-                  modulo: 'áreas y categorías',
-                ),
                 _opcion(
                   context,
                   icono: Icons.groups_outlined,
