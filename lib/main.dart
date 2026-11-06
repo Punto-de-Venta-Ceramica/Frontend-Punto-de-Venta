@@ -28,6 +28,10 @@ import 'features/areas_categorias/application/services/gestion_catalogo.dart';
 import 'features/areas_categorias/domain/catalogo.dart';
 import 'features/areas_categorias/infrastructure/adapters/inbound/flutter/catalogo_page.dart';
 import 'features/areas_categorias/infrastructure/adapters/outbound/http/http_catalogo_gateway.dart';
+import 'features/empleados/application/services/gestion_empleados.dart';
+import 'features/empleados/domain/empleado.dart';
+import 'features/empleados/infrastructure/adapters/inbound/flutter/empleados_page.dart';
+import 'features/empleados/infrastructure/adapters/outbound/http/http_empleado_gateway.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -126,9 +130,59 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         sucursal: sucursal,
         onProductos: () => _abrirProductos(administrarContext, negocio),
         onPedidos: () => _abrirPedidos(administrarContext, negocio, sucursal),
+        onEmpleados: () => _abrirEmpleados(administrarContext, negocio),
       ),
     ),
   );
+
+  Future<void> _abrirEmpleados(
+    BuildContext context,
+    NegocioSucursal negocio,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => EmpleadosPage(
+        gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
+        negocioInicial: NegocioEmpleado(
+          id: negocio.id,
+          nombre: negocio.nombre,
+        ),
+        onSesionExpirada: () => _cerrarSesion(context),
+      ),
+    ),
+  );
+
+  Future<void> _abrirEmpleadosDesdeSesion(BuildContext context) async {
+    try {
+      final negociosJson = await _api.requestJson('GET', 'api/negocios');
+      if (negociosJson is List && negociosJson.isNotEmpty) {
+        final primer = negociosJson.first as Map<String, dynamic>;
+        final negocio = NegocioEmpleado(
+          id: primer['id'] as int,
+          nombre: primer['nombre'] as String,
+        );
+        if (!context.mounted) return;
+        Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => EmpleadosPage(
+              gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
+              negocioInicial: negocio,
+              onSesionExpirada: () => _cerrarSesion(context),
+            ),
+          ),
+        );
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Primero registra un negocio.')),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudieron obtener los negocios.')),
+      );
+    }
+  }
 
   Future<void> _abrirProductos(BuildContext context, NegocioSucursal negocio) =>
       Navigator.of(context).push<void>(
@@ -231,6 +285,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             ),
           ),
           openOrders: () => _abrirPedidosEmpleado(context),
+          openEmployees: () => _abrirEmpleadosDesdeSesion(context),
           openBusinesses: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => NegociosPage(
