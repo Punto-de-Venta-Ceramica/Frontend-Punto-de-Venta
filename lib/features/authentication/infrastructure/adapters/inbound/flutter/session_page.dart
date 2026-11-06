@@ -104,52 +104,150 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
       ],
     ),
     body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle_outline, size: 56),
-            const SizedBox(height: 16),
-            Text(
-              'Sesión iniciada',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text('Perfil: ${widget.session.role}'),
-            if (widget.session.role == 'EMPLEADO' &&
-                widget.openOrders != null) ...[
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: widget.openOrders,
-                icon: const Icon(Icons.receipt_long_outlined),
-                label: const Text('Pedidos'),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: const BoxDecoration(
+                    color: _suave,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 48,
+                    color: BarroTheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Sesión iniciada',
+                textAlign: TextAlign.center,
+                style: BarroTheme.type(28, 36, weight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _suave,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Perfil: ${widget.session.role}',
+                    style: BarroTheme.type(
+                      13,
+                      19,
+                      weight: FontWeight.w700,
+                      color: BarroTheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              if (widget.session.role == 'EMPLEADO' &&
+                  widget.openOrders != null)
+                _accion(
+                  icono: Icons.receipt_long_outlined,
+                  titulo: 'Pedidos',
+                  descripcion: 'Registra y consulta los pedidos',
+                  onTap: widget.openOrders,
+                ),
+              if (widget.session.role == 'PROPIETARIO') ...[
+                if (widget.openBusinesses != null)
+                  _accion(
+                    icono: Icons.storefront_outlined,
+                    titulo: 'Administrar negocios',
+                    descripcion: 'Sucursales, productos y más',
+                    onTap: widget.openBusinesses,
+                  ),
+                if (widget.openEmployees != null)
+                  _accion(
+                    icono: Icons.people_outline_rounded,
+                    titulo: 'Gestionar empleados',
+                    descripcion: 'Gestiona a las personas de tu equipo',
+                    onTap: widget.openEmployees,
+                  ),
+              ],
+              const SizedBox(height: 4),
+              OutlinedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Cerrar sesión'),
               ),
             ],
-            if (widget.session.role == 'PROPIETARIO') ...[
-              if (widget.openBusinesses != null) ...[
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: widget.openBusinesses,
-                  icon: const Icon(Icons.storefront_outlined),
-                  label: const Text('Administrar negocios'),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  static const _suave = Color(0xFFF7E7DF);
+
+  Widget _accion({
+    required IconData icono,
+    required String titulo,
+    required String descripcion,
+    required VoidCallback? onTap,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(21),
+        side: const BorderSide(color: BarroTheme.border),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(21),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: _suave,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
-              if (widget.openEmployees != null) ...[
-                const SizedBox(height: 14),
-                FilledButton.icon(
-                  onPressed: widget.openEmployees,
-                  icon: const Icon(Icons.people_outline_rounded),
-                  label: const Text('Gestionar empleados'),
+                child: Icon(icono, size: 30, color: BarroTheme.primary),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: BarroTheme.type(17, 24, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      descripcion,
+                      style: BarroTheme.type(
+                        13,
+                        19,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              const Icon(Icons.chevron_right, color: BarroTheme.primary),
             ],
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _logout,
-              child: const Text('Cerrar sesión'),
-            ),
-          ],
+          ),
         ),
       ),
     ),

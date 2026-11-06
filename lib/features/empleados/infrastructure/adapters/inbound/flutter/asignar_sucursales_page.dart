@@ -79,7 +79,10 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
     }
   }
 
-  Future<void> _cambiarAsignacion(Empleado empleado, int? nuevaSucursalId) async {
+  Future<void> _cambiarAsignacion(
+    Empleado empleado,
+    int? nuevaSucursalId,
+  ) async {
     if (empleado.sucursalId == nuevaSucursalId) return;
 
     setState(() {
@@ -127,10 +130,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: BarroTheme.error,
-        ),
+        SnackBar(content: Text(e.message), backgroundColor: BarroTheme.error),
       );
     } catch (_) {
       if (!mounted) return;
@@ -147,7 +147,9 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
   Widget _buildItemEmpleado(Empleado emp) {
     final guardando = _guardandoEmpleados.contains(emp.id);
     final tieneSucursal =
-        emp.asignado && emp.sucursalNombre != null && emp.sucursalNombre!.isNotEmpty;
+        emp.asignado &&
+        emp.sucursalNombre != null &&
+        emp.sucursalNombre!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -227,7 +229,10 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                 )
               else
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: tieneSucursal
                         ? const Color(0xFFECF7F0)
@@ -358,7 +363,10 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back, color: BarroTheme.text),
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: BarroTheme.text,
+                        ),
                         onPressed: () => Navigator.pop(context, true),
                         tooltip: 'Volver',
                       ),
@@ -366,7 +374,11 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                       Expanded(
                         child: Text(
                           'Cambiar asignación',
-                          style: BarroTheme.type(26, 32, weight: FontWeight.w700),
+                          style: BarroTheme.type(
+                            26,
+                            32,
+                            weight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -375,7 +387,11 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                     padding: const EdgeInsets.only(left: 48, bottom: 16),
                     child: Text(
                       'Asigna o cambia la sucursal de tus empleados',
-                      style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+                      style: BarroTheme.type(
+                        14,
+                        20,
+                        color: BarroTheme.secondary,
+                      ),
                     ),
                   ),
                   NegocioSucursalPanel(
@@ -451,7 +467,11 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                           const SizedBox(height: 12),
                           Text(
                             'No hay empleados registrados',
-                            style: BarroTheme.type(16, 22, weight: FontWeight.w600),
+                            style: BarroTheme.type(
+                              16,
+                              22,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -467,4 +487,3 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
     ),
   );
 }
-

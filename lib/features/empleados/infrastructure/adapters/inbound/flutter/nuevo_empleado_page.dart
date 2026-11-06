@@ -130,10 +130,7 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
   }) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        label,
-        style: BarroTheme.type(14, 20, weight: FontWeight.w600),
-      ),
+      Text(label, style: BarroTheme.type(14, 20, weight: FontWeight.w600)),
       const SizedBox(height: 6),
       TextField(
         controller: controller,
@@ -162,9 +159,7 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
-              color: errorText != null
-                  ? BarroTheme.error
-                  : BarroTheme.primary,
+              color: errorText != null ? BarroTheme.error : BarroTheme.primary,
               width: 1.5,
             ),
           ),
@@ -201,7 +196,10 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: BarroTheme.text),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: BarroTheme.text,
+                      ),
                       onPressed: () => Navigator.pop(context),
                       tooltip: 'Volver',
                     ),

@@ -172,6 +172,7 @@ class AdministrarSucursalPage extends StatelessWidget {
                   context,
                   icono: Icons.storefront_outlined,
                   titulo: 'Productos',
+                  descripcion: 'Crea productos y gestiona inventario',
                   onTap: onProductos,
                   modulo: 'productos',
                 ),

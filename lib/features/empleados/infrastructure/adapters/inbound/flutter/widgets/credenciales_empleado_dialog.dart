@@ -4,10 +4,7 @@ import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/empleados/domain/empleado.dart';
 
 class CredencialesEmpleadoDialog extends StatefulWidget {
-  const CredencialesEmpleadoDialog({
-    required this.empleadoCreado,
-    super.key,
-  });
+  const CredencialesEmpleadoDialog({required this.empleadoCreado, super.key});
 
   final EmpleadoCreado empleadoCreado;
 

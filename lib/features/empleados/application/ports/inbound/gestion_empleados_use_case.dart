@@ -12,4 +12,3 @@ abstract interface class GestionEmpleadosUseCase {
   });
   Future<void> eliminar(int negocioId, int empleadoId);
 }
-

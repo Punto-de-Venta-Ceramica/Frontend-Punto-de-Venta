@@ -3,8 +3,17 @@ import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'clasificacion_widgets.dart';
 
 class AccesoAreasCategorias extends StatelessWidget {
-  const AccesoAreasCategorias({this.onPressed, super.key});
+  const AccesoAreasCategorias({
+    this.onPressed,
+    this.icono = Icons.category_outlined,
+    this.titulo = 'Áreas y categorías',
+    this.descripcion = 'Organiza el catálogo de tu negocio.',
+    super.key,
+  });
   final VoidCallback? onPressed;
+  final IconData icono;
+  final String titulo;
+  final String descripcion;
   @override
   Widget build(BuildContext context) => OutlinedButton(
     onPressed: onPressed,
@@ -26,11 +35,7 @@ class AccesoAreasCategorias extends StatelessWidget {
             color: clasificacionSuave,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(
-            Icons.category_outlined,
-            color: BarroTheme.primary,
-            size: 28,
-          ),
+          child: Icon(icono, color: BarroTheme.primary, size: 28),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -38,12 +43,12 @@ class AccesoAreasCategorias extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Áreas y categorías',
+                titulo,
                 style: BarroTheme.type(17, 24, weight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
               Text(
-                'Organiza el catálogo de tu negocio.',
+                descripcion,
                 style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
               ),
             ],

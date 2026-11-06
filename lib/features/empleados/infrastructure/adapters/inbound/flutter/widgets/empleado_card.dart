@@ -66,11 +66,7 @@ class EmpleadoCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 empleado.correoElectronico,
-                style: BarroTheme.type(
-                  13,
-                  18,
-                  color: BarroTheme.placeholder,
-                ),
+                style: BarroTheme.type(13, 18, color: BarroTheme.placeholder),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -131,9 +127,7 @@ class EmpleadoCard extends StatelessWidget {
           Icon(
             tieneSucursal ? Icons.store_outlined : Icons.storefront_outlined,
             size: 13,
-            color: tieneSucursal
-                ? BarroTheme.success
-                : BarroTheme.secondary,
+            color: tieneSucursal ? BarroTheme.success : BarroTheme.secondary,
           ),
           const SizedBox(width: 4),
           Flexible(

@@ -14,11 +14,13 @@ class SucursalesPage extends StatefulWidget {
     this.registrarAlAbrir = false,
     this.onAdministrar,
     this.onAreasCategorias,
+    this.onProductos,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
   final VoidCallback onSesionExpirada;
   final void Function(NegocioSucursal negocio)? onAreasCategorias;
+  final void Function(NegocioSucursal negocio)? onProductos;
   final NegocioSucursal? negocioInicial;
   final bool registrarAlAbrir;
   final void Function(NegocioSucursal negocio, Sucursal sucursal)?
@@ -269,7 +271,6 @@ class _SucursalesPageState extends State<SucursalesPage> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    bottomNavigationBar: const SucursalNavegacion(),
     body: SafeArea(
       bottom: false,
       child: Align(
@@ -307,6 +308,16 @@ class _SucursalesPageState extends State<SucursalesPage> {
                       onPressed: widget.onAreasCategorias == null
                           ? null
                           : () => widget.onAreasCategorias!(_negocio!),
+                    ),
+                    const SizedBox(height: 12),
+                    AccesoAreasCategorias(
+                      icono: Icons.inventory_2_outlined,
+                      titulo: 'Productos',
+                      descripcion:
+                          'Registra productos y gestiona su existencia en todas las sucursales.',
+                      onPressed: widget.onProductos == null
+                          ? null
+                          : () => widget.onProductos!(_negocio!),
                     ),
                     const SizedBox(height: 28),
                   ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
 import '../../../../domain/producto.dart';
@@ -12,6 +13,7 @@ class ProductoDetallePage extends StatefulWidget {
     required this.producto,
     required this.gestion,
     required this.onSesionExpirada,
+    this.sucursal,
     this.mensajeInicial,
     super.key,
   });
@@ -20,6 +22,10 @@ class ProductoDetallePage extends StatefulWidget {
   final GestionProductosUseCase gestion;
   final VoidCallback onSesionExpirada;
   final String? mensajeInicial;
+
+  /// Con sucursal solo se gestiona su existencia; sin ella (modo negocio) se
+  /// ven todas las sucursales y se puede asignar el producto a las que faltan.
+  final SucursalProducto? sucursal;
   @override
   State<ProductoDetallePage> createState() => _ProductoDetallePageState();
 }
@@ -30,12 +36,70 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   String? _mensaje;
   String? _error;
   bool _busy = false;
+  int? _ajustandoId;
+  List<SucursalProducto> _sucursales = [];
+
+  bool get _modoSucursal => widget.sucursal != null;
+
+  /// Sucursales del negocio donde el producto aún no tiene registro de existencia.
+  List<SucursalProducto> get _sinAsignar {
+    final asignadas = {for (final e in _producto.existencias) e.sucursalId};
+    return [
+      for (final s in _sucursales)
+        if (!asignadas.contains(s.id)) s,
+    ];
+  }
 
   @override
   void initState() {
     super.initState();
     _mensaje = widget.mensajeInicial;
     _cargarClasificacion();
+    if (!_modoSucursal) _cargarSucursales();
+  }
+
+  Future<void> _cargarSucursales() async {
+    try {
+      final sucursales = await widget.gestion.sucursales(widget.negocio.id);
+      if (mounted) setState(() => _sucursales = sucursales);
+    } on ProductoFailure catch (e) {
+      if (mounted) _fallo(e);
+    }
+  }
+
+  Future<void> _asignar(SucursalProducto sucursal) async {
+    if (_busy || _ajustandoId != null) return;
+    final cantidad = await showDialog<int>(
+      context: context,
+      builder: (_) => _AsignarDialog(sucursal: sucursal),
+    );
+    if (cantidad == null || !mounted) return;
+    setState(() {
+      _ajustandoId = -sucursal.id;
+      _error = null;
+      _mensaje = null;
+    });
+    try {
+      final nueva = await widget.gestion.asignarASucursal(
+        _producto.id,
+        sucursal,
+        cantidad,
+      );
+      if (!mounted) return;
+      setState(() {
+        _producto = _producto.conExistencias(
+          [..._producto.existencias, nueva]
+            ..sort((a, b) => a.sucursalNombre.compareTo(b.sucursalNombre)),
+        );
+        _ajustandoId = null;
+        _mensaje =
+            'Producto asignado a ${sucursal.nombre} con ${formatoPiezas(cantidad)}.';
+      });
+    } on ProductoFailure catch (f) {
+      if (!mounted) return;
+      setState(() => _ajustandoId = null);
+      _fallo(f);
+    }
   }
 
   void _fallo(ProductoFailure e) {
@@ -68,6 +132,45 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
     }
   }
 
+  /// Suma (positiva) o resta (negativa) piezas en una sucursal.
+  Future<void> _ajustar(ExistenciaSucursal e, int cantidad) async {
+    if (_busy || _ajustandoId != null) return;
+    setState(() {
+      _ajustandoId = e.inventarioId;
+      _error = null;
+      _mensaje = null;
+    });
+    try {
+      final nueva = await widget.gestion.ajustarExistencia(
+        e.inventarioId,
+        cantidad,
+      );
+      if (!mounted) return;
+      setState(() {
+        _producto = _producto.conExistencias([
+          for (final x in _producto.existencias)
+            x.inventarioId == e.inventarioId ? x.conExistencia(nueva) : x,
+        ]);
+        _ajustandoId = null;
+        _mensaje =
+            '${e.sucursalNombre}: ${cantidad > 0 ? '+' : '−'}${cantidad.abs()}, ahora ${formatoPiezas(nueva)}.';
+      });
+    } on ProductoFailure catch (f) {
+      if (!mounted) return;
+      setState(() => _ajustandoId = null);
+      _fallo(f);
+    }
+  }
+
+  Future<void> _ajustarCantidad(ExistenciaSucursal e) async {
+    if (_busy || _ajustandoId != null) return;
+    final cantidad = await showDialog<int>(
+      context: context,
+      builder: (_) => _AjusteDialog(existencia: e),
+    );
+    if (cantidad != null && mounted) _ajustar(e, cantidad);
+  }
+
   Future<void> _editar() async {
     if (_busy) return;
     final editado = await Navigator.of(context).push<Producto>(
@@ -82,7 +185,9 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
     );
     if (!mounted || editado == null) return;
     setState(() {
-      _producto = editado;
+      _producto = widget.sucursal == null
+          ? editado
+          : editado.soloSucursal(widget.sucursal!.id);
       _mensaje = 'Cambios guardados correctamente.';
       _error = null;
     });
@@ -118,7 +223,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   Widget build(BuildContext context) {
     final p = _producto;
     return PopScope(
-      canPop: !_busy,
+      canPop: !_busy && _ajustandoId == null,
       child: ProductoScaffold(
         children: [
           const SizedBox(height: 14),
@@ -216,7 +321,9 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Existencias por sucursal',
+            _modoSucursal
+                ? 'Existencia en ${widget.sucursal!.nombre}'
+                : 'Existencias por sucursal',
             style: BarroTheme.type(18, 26, weight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
@@ -228,7 +335,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
               border: Border.all(color: BarroTheme.border),
               borderRadius: BorderRadius.circular(21),
             ),
-            child: p.existencias.isEmpty
+            child: p.existencias.isEmpty && _sinAsignar.isEmpty
                 ? Text(
                     'Este producto aún no tiene existencias registradas.',
                     style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
@@ -236,27 +343,19 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                 : Column(
                     children: [
                       for (final e in p.existencias)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  e.sucursalNombre,
-                                  style: BarroTheme.type(14, 21),
-                                ),
-                              ),
-                              Text(
-                                formatoPiezas(e.existencia),
-                                style: BarroTheme.type(
-                                  14,
-                                  21,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
+                        _FilaExistencia(
+                          existencia: e,
+                          ocupado: _busy || _ajustandoId != null,
+                          cargando: _ajustandoId == e.inventarioId,
+                          onAjustar: (c) => _ajustar(e, c),
+                          onCantidad: () => _ajustarCantidad(e),
+                        ),
+                      for (final s in _sinAsignar)
+                        _FilaSinAsignar(
+                          sucursal: s,
+                          ocupado: _busy || _ajustandoId != null,
+                          cargando: _ajustandoId == -s.id,
+                          onAsignar: () => _asignar(s),
                         ),
                     ],
                   ),
@@ -266,7 +365,9 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Total disponible',
+                _modoSucursal
+                    ? 'Disponible en la sucursal'
+                    : 'Total disponible',
                 style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
               ),
               Text(
@@ -281,14 +382,277 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             texto: 'Editar producto',
             onPressed: _busy ? null : _editar,
           ),
-          const SizedBox(height: 12),
-          ProductoBotonPeligro(
-            key: const ValueKey('producto-eliminar'),
-            texto: 'Eliminar producto',
-            onPressed: _busy ? null : _eliminar,
+          // Eliminar da de baja el producto en todo el negocio: solo desde el modo negocio.
+          if (!_modoSucursal) ...[
+            const SizedBox(height: 12),
+            ProductoBotonPeligro(
+              key: const ValueKey('producto-eliminar'),
+              texto: 'Eliminar producto',
+              onPressed: _busy ? null : _eliminar,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FilaExistencia extends StatelessWidget {
+  const _FilaExistencia({
+    required this.existencia,
+    required this.ocupado,
+    required this.cargando,
+    required this.onAjustar,
+    required this.onCantidad,
+  });
+  final ExistenciaSucursal existencia;
+  final bool ocupado;
+  final bool cargando;
+  final ValueChanged<int> onAjustar;
+  final VoidCallback onCantidad;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = existencia;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(e.sucursalNombre, style: BarroTheme.type(14, 21)),
+              ),
+              Text(
+                formatoPiezas(e.existencia),
+                style: BarroTheme.type(14, 21, weight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              IconButton.outlined(
+                key: ValueKey('existencia-menos-${e.inventarioId}'),
+                tooltip: 'Quitar 1 pieza',
+                onPressed: ocupado || e.existencia < 1
+                    ? null
+                    : () => onAjustar(-1),
+                icon: const Icon(Icons.remove),
+              ),
+              Expanded(
+                child: Center(
+                  child: cargando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : TextButton(
+                          key: ValueKey('existencia-ajustar-${e.inventarioId}'),
+                          onPressed: ocupado ? null : onCantidad,
+                          child: const Text('Ajustar cantidad'),
+                        ),
+                ),
+              ),
+              IconButton.filled(
+                key: ValueKey('existencia-mas-${e.inventarioId}'),
+                tooltip: 'Agregar 1 pieza',
+                onPressed: ocupado ? null : () => onAjustar(1),
+                icon: const Icon(Icons.add),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+/// Pide cuántas piezas agregar o quitar; se cierra con la cantidad con signo.
+class _AjusteDialog extends StatefulWidget {
+  const _AjusteDialog({required this.existencia});
+  final ExistenciaSucursal existencia;
+  @override
+  State<_AjusteDialog> createState() => _AjusteDialogState();
+}
+
+class _AjusteDialogState extends State<_AjusteDialog> {
+  final _controller = TextEditingController();
+  bool _agregar = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final n = int.tryParse(_controller.text.trim());
+    if (n == null || n <= 0) {
+      setState(() => _error = 'Escribe un número entero mayor que cero.');
+      return;
+    }
+    if (n > 1000000) {
+      setState(() => _error = 'No puede superar 1,000,000.');
+      return;
+    }
+    if (!_agregar && n > widget.existencia.existencia) {
+      setState(
+        () => _error =
+            'Solo hay ${formatoPiezas(widget.existencia.existencia)} en esta sucursal.',
+      );
+      return;
+    }
+    Navigator.pop(context, _agregar ? n : -n);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existencia.sucursalNombre),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Existencia actual: ${formatoPiezas(widget.existencia.existencia)}',
+          style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+        ),
+        const SizedBox(height: 12),
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: true, label: Text('Agregar')),
+            ButtonSegment(value: false, label: Text('Quitar')),
+          ],
+          selected: {_agregar},
+          onSelectionChanged: (v) => setState(() {
+            _agregar = v.first;
+            _error = null;
+          }),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const ValueKey('existencia-cantidad'),
+          controller: _controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            labelText: 'Cantidad de piezas',
+            errorText: _error,
+          ),
+          onSubmitted: (_) => _confirmar(),
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _confirmar, child: const Text('Aplicar')),
+    ],
+  );
+}
+
+/// Sucursal del negocio donde el producto todavía no tiene existencia registrada.
+class _FilaSinAsignar extends StatelessWidget {
+  const _FilaSinAsignar({
+    required this.sucursal,
+    required this.ocupado,
+    required this.cargando,
+    required this.onAsignar,
+  });
+  final SucursalProducto sucursal;
+  final bool ocupado;
+  final bool cargando;
+  final VoidCallback onAsignar;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(sucursal.nombre, style: BarroTheme.type(14, 21)),
+              Text(
+                'Sin asignar',
+                style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+              ),
+            ],
+          ),
+        ),
+        if (cargando)
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          OutlinedButton(
+            key: ValueKey('existencia-asignar-${sucursal.id}'),
+            onPressed: ocupado ? null : onAsignar,
+            child: const Text('Asignar'),
+          ),
+      ],
+    ),
+  );
+}
+
+/// Pide la existencia inicial al asignar el producto a una sucursal.
+class _AsignarDialog extends StatefulWidget {
+  const _AsignarDialog({required this.sucursal});
+  final SucursalProducto sucursal;
+  @override
+  State<_AsignarDialog> createState() => _AsignarDialogState();
+}
+
+class _AsignarDialogState extends State<_AsignarDialog> {
+  final _controller = TextEditingController(text: '0');
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final n = int.tryParse(_controller.text.trim());
+    if (n == null || n < 0 || n > 1000000) {
+      setState(() => _error = 'Escribe un entero de 0 a 1,000,000.');
+      return;
+    }
+    Navigator.pop(context, n);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Asignar a ${widget.sucursal.nombre}'),
+    content: TextField(
+      key: const ValueKey('asignar-existencia'),
+      controller: _controller,
+      autofocus: true,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: InputDecoration(
+        labelText: 'Existencia inicial (piezas)',
+        errorText: _error,
+      ),
+      onSubmitted: (_) => _confirmar(),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _confirmar, child: const Text('Asignar')),
+    ],
+  );
 }

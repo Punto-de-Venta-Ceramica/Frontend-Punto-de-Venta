@@ -292,8 +292,9 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                           color: BarroTheme.primary,
                         ),
                       ),
-                      onPressed:
-                          _empleados.isEmpty ? null : () => _abrirAsignacion(),
+                      onPressed: _empleados.isEmpty
+                          ? null
+                          : () => _abrirAsignacion(),
                     ),
                   ),
                   const SizedBox(height: 24),
