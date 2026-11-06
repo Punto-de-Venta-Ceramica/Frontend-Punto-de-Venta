@@ -11,6 +11,7 @@ class SessionPage extends StatefulWidget {
     required this.session,
     required this.clearSession,
     this.openBusinesses,
+    this.openEmployees,
     this.openOrders,
     this.conteoNotificaciones,
     this.openNotifications,
@@ -19,6 +20,7 @@ class SessionPage extends StatefulWidget {
   final AuthSession session;
   final VoidCallback clearSession;
   final VoidCallback? openBusinesses;
+  final VoidCallback? openEmployees;
   final VoidCallback? openOrders;
   final ValueListenable<int?>? conteoNotificaciones;
   final VoidCallback? openNotifications;
@@ -124,14 +126,23 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
                 label: const Text('Pedidos'),
               ),
             ],
-            if (widget.session.role == 'PROPIETARIO' &&
-                widget.openBusinesses != null) ...[
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: widget.openBusinesses,
-                icon: const Icon(Icons.storefront_outlined),
-                label: const Text('Administrar negocios'),
-              ),
+            if (widget.session.role == 'PROPIETARIO') ...[
+              if (widget.openBusinesses != null) ...[
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: widget.openBusinesses,
+                  icon: const Icon(Icons.storefront_outlined),
+                  label: const Text('Administrar negocios'),
+                ),
+              ],
+              if (widget.openEmployees != null) ...[
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: widget.openEmployees,
+                  icon: const Icon(Icons.people_outline_rounded),
+                  label: const Text('Gestionar empleados'),
+                ),
+              ],
             ],
             const SizedBox(height: 24),
             FilledButton(
