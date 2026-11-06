@@ -79,11 +79,7 @@ class EliminarEmpleadoDialog extends StatelessWidget {
                       onPressed: ocupado ? null : () => Navigator.pop(context),
                       child: Text(
                         'Cancelar',
-                        style: BarroTheme.type(
-                          14,
-                          20,
-                          weight: FontWeight.w600,
-                        ),
+                        style: BarroTheme.type(14, 20, weight: FontWeight.w600),
                       ),
                     ),
                   ),

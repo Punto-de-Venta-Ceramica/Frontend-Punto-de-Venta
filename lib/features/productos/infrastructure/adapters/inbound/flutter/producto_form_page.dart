@@ -13,12 +13,16 @@ class ProductoFormPage extends StatefulWidget {
     required this.gestion,
     required this.onSesionExpirada,
     this.producto,
+    this.sucursal,
     super.key,
   });
   final NegocioProducto negocio;
   final GestionProductosUseCase gestion;
   final VoidCallback onSesionExpirada;
   final Producto? producto;
+
+  /// Al registrar desde una sucursal, el producto se crea solo en ella.
+  final SucursalProducto? sucursal;
   @override
   State<ProductoFormPage> createState() => _ProductoFormPageState();
 }
@@ -41,6 +45,9 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   bool _busy = false;
   String? _error;
   bool get _edicion => widget.producto != null;
+
+  /// Al registrar desde una sucursal todo va en una sola pantalla: datos y existencia.
+  bool get _unaPantalla => !_edicion && widget.sucursal != null;
 
   @override
   void initState() {
@@ -97,6 +104,8 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       final categorias = await widget.gestion.categorias(id);
       final sucursales = _edicion
           ? <SucursalProducto>[]
+          : widget.sucursal != null
+          ? [widget.sucursal!]
           : await widget.gestion.sucursales(id);
       if (!mounted) return;
       setState(() {
@@ -136,6 +145,22 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         : const [],
   );
 
+  /// Registro en una sola pantalla (sucursal): valida los datos y guarda.
+  void _registrarEnSucursal() {
+    FocusScope.of(context).unfocus();
+    final errores = _datos().validar();
+    if (errores.isNotEmpty) {
+      setState(() {
+        _errores
+          ..clear()
+          ..addAll(errores);
+        _error = null;
+      });
+      return;
+    }
+    _guardar();
+  }
+
   void _continuar() {
     FocusScope.of(context).unfocus();
     final errores = _datos().validar();
@@ -151,7 +176,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   Map<int, String> _erroresExistencias() => {
     for (final id in _seleccion)
       if (!RegExp(
-        r'^\d{1,7}$',
+        r'^\d{0,7}$',
       ).hasMatch(_controladorExistencia(id).text.trim()))
         id: 'Ingresa una cantidad entera de 0 o más.',
   };
@@ -357,72 +382,107 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     ];
   }
 
-  Widget _tarjetaSucursal(SucursalProducto s, {required bool unica}) {
-    final activa = _seleccion.contains(s.id);
+  Widget _campoExistencia(SucursalProducto s, {required bool activa}) {
     final error = _errores['existencia-${s.id}'];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(
-          color: activa ? BarroTheme.primary : BarroTheme.border,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Existencia inicial (piezas)',
+          style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
         ),
-        borderRadius: BorderRadius.circular(21),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (!unica) ...[
-                Checkbox(
-                  key: ValueKey('producto-sucursal-${s.id}'),
-                  value: activa,
-                  activeColor: BarroTheme.primary,
-                  onChanged: _busy
-                      ? null
-                      : (v) => setState(() {
-                          v == true
-                              ? _seleccion.add(s.id)
-                              : _seleccion.remove(s.id);
-                          _errores.remove('existencia-${s.id}');
-                        }),
-                ),
-                const SizedBox(width: 4),
-              ],
-              Expanded(
-                child: Text(
-                  s.nombre,
-                  style: BarroTheme.type(
-                    unica ? 16 : 15,
-                    23,
-                    weight: FontWeight.w700,
+        const SizedBox(height: 8),
+        TextField(
+          key: ValueKey('producto-existencia-${s.id}'),
+          controller: _controladorExistencia(s.id),
+          enabled: activa && !_busy,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: BarroTheme.type(14, 21),
+          decoration: productoDecoracion(hint: '0', error: error),
+          onChanged: (_) => _limpiar('existencia-${s.id}'),
+        ),
+      ],
+    );
+  }
+
+  Widget _tarjetaSucursal(SucursalProducto s, {required bool unica}) {
+    final activa = unica || _seleccion.contains(s.id);
+    void alternar() {
+      if (unica || _busy) return;
+      setState(() {
+        _seleccion.contains(s.id)
+            ? _seleccion.remove(s.id)
+            : _seleccion.add(s.id);
+        _errores.remove('existencia-${s.id}');
+      });
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Material(
+        color: activa ? const Color(0xFFFFFBF9) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(21),
+          side: BorderSide(
+            color: activa ? BarroTheme.primary : BarroTheme.border,
+            width: activa ? 1.6 : 1,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(21),
+          onTap: unica ? null : alternar,
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: productoSuave,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.storefront_outlined,
+                          color: BarroTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          s.nombre,
+                          style: BarroTheme.type(
+                            16,
+                            23,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (!unica)
+                        Checkbox(
+                          key: ValueKey('producto-sucursal-${s.id}'),
+                          value: activa,
+                          activeColor: BarroTheme.primary,
+                          onChanged: _busy ? null : (_) => alternar(),
+                        ),
+                    ],
                   ),
-                ),
+                  if (activa) ...[
+                    const SizedBox(height: 14),
+                    _campoExistencia(s, activa: true),
+                  ],
+                ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Existencia inicial (piezas)',
-            style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            key: ValueKey('producto-existencia-${s.id}'),
-            controller: _controladorExistencia(s.id),
-            enabled: activa && !_busy,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: BarroTheme.type(13, 20),
-            decoration: productoDecoracion(
-              hint: activa ? '0' : 'Selecciona la sucursal para agregar stock',
-              error: activa ? error : null,
-            ).copyWith(fillColor: activa ? Colors.white : productoSuave),
-            onChanged: (_) => _limpiar('existencia-${s.id}'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -448,9 +508,14 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       ] else ...[
         Text(
           'Sucursales y existencias iniciales',
-          style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+          style: BarroTheme.type(18, 26, weight: FontWeight.w700),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
+        Text(
+          'Selecciona la sucursal que quieres agregar a este producto.',
+          style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+        ),
+        const SizedBox(height: 18),
       ],
       if (_sucursales.isEmpty)
         const ProductoAviso(
@@ -473,9 +538,27 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     ];
   }
 
+  List<Widget> _seccionExistencia() {
+    final s = widget.sucursal!;
+    return [
+      const SizedBox(height: 24),
+      Text(
+        'Existencia',
+        style: BarroTheme.type(18, 26, weight: FontWeight.w700),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Piezas disponibles en ${s.nombre}.',
+        style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+      ),
+      const SizedBox(height: 12),
+      _campoExistencia(s, activa: true),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final enSucursales = !_edicion && _paso == 1;
+    final enSucursales = !_edicion && !_unaPantalla && _paso == 1;
     final unica = _sucursales.length == 1;
     final titulo = _edicion
         ? 'Editar producto'
@@ -488,6 +571,8 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         ? (unica
               ? 'Define la existencia inicial del producto.'
               : 'Selecciona dónde estará disponible.')
+        : _unaPantalla
+        ? 'Agrega un producto a ${widget.sucursal!.nombre}.'
         : 'Agrega un producto a tu negocio.';
     return PopScope(
       canPop: !_busy,
@@ -506,7 +591,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
           ),
           const SizedBox(height: 16),
-          if (!_edicion) ...[
+          if (!_edicion && !_unaPantalla) ...[
             ProductoPasos(paso: _paso),
             const SizedBox(height: 20),
           ],
@@ -521,16 +606,21 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             )
           else ...[
             ...(enSucursales ? _pasoSucursales() : _pasoDatos()),
+            if (_unaPantalla) ..._seccionExistencia(),
             const SizedBox(height: 32),
             ProductoBoton(
               key: const ValueKey('producto-guardar'),
               texto: _edicion
                   ? 'Guardar cambios'
-                  : enSucursales
+                  : enSucursales || _unaPantalla
                   ? 'Registrar producto'
                   : 'Continuar',
               busy: _busy,
-              onPressed: enSucursales || _edicion ? _guardar : _continuar,
+              onPressed: _edicion || enSucursales
+                  ? _guardar
+                  : _unaPantalla
+                  ? _registrarEnSucursal
+                  : _continuar,
             ),
             const SizedBox(height: 4),
             Center(

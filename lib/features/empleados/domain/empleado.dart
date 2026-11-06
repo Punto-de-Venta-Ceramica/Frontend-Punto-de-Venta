@@ -142,4 +142,3 @@ class EmpleadoFailure implements Exception {
   @override
   String toString() => message;
 }
-

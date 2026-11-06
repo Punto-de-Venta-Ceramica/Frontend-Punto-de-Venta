@@ -103,6 +103,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         registrarAlAbrir: registrar,
         onSesionExpirada: () => _cerrarSesion(context),
         onAreasCategorias: (negocio) => _abrirCatalogo(context, negocio),
+        onProductos: (negocio) => _abrirProductosNegocio(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
       ),
@@ -128,9 +129,13 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     MaterialPageRoute(
       builder: (administrarContext) => AdministrarSucursalPage(
         sucursal: sucursal,
-        onProductos: () => _abrirProductos(administrarContext, negocio),
+        onProductos: () =>
+            _abrirProductos(administrarContext, negocio, sucursal),
+        onInventario: () =>
+            _abrirProductos(administrarContext, negocio, sucursal),
         onPedidos: () => _abrirPedidos(administrarContext, negocio, sucursal),
-        onEmpleados: () => _abrirEmpleados(administrarContext, negocio),
+        onEmpleados: () =>
+            _abrirEmpleados(administrarContext, negocio, sucursal),
       ),
     ),
   );
@@ -138,15 +143,25 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   Future<void> _abrirEmpleados(
     BuildContext context,
     NegocioSucursal negocio,
+    Sucursal sucursal,
   ) => Navigator.of(context).push<void>(
     MaterialPageRoute(
-      builder: (_) => EmpleadosPage(
-        gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
-        negocioInicial: NegocioEmpleado(
-          id: negocio.id,
-          nombre: negocio.nombre,
+      builder: (empleadosContext) => EmpleadosPage(
+        onPedidos: () => _abrirPedidos(
+          empleadosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
         ),
-        onSesionExpirada: () => _cerrarSesion(context),
+        onInventario: () => _abrirProductos(
+          empleadosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+        gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
+        negocioInicial: NegocioEmpleado(id: negocio.id, nombre: negocio.nombre),
+        onSesionExpirada: () => _cerrarSesion(empleadosContext),
       ),
     ),
   );
@@ -184,35 +199,70 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     }
   }
 
-  Future<void> _abrirProductos(BuildContext context, NegocioSucursal negocio) =>
-      Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => ProductosPage(
-            gestion: GestionProductos(HttpProductoGateway(_api)),
-            negocioInicial: NegocioProducto(
-              id: negocio.id,
-              nombre: negocio.nombre,
-            ),
-            onSesionExpirada: () => _cerrarSesion(context),
-          ),
+  /// Catálogo de productos del negocio completo: todas las sucursales.
+  Future<void> _abrirProductosNegocio(
+    BuildContext context,
+    NegocioSucursal negocio,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (productosContext) => ProductosPage(
+        gestion: GestionProductos(HttpProductoGateway(_api)),
+        negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
+        onSesionExpirada: () => _cerrarSesion(productosContext),
+      ),
+    ),
+  );
+
+  /// Con [reemplazar] sustituye la pantalla actual (navegación entre módulos
+  /// de la misma sucursal) para que "Inicio" siempre regrese a Administrar.
+  Future<void> _abrirProductos(
+    BuildContext context,
+    NegocioSucursal negocio,
+    Sucursal sucursal, {
+    bool reemplazar = false,
+  }) {
+    final ruta = MaterialPageRoute<void>(
+      builder: (productosContext) => ProductosPage(
+        gestion: GestionProductos(HttpProductoGateway(_api)),
+        negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
+        onSesionExpirada: () => _cerrarSesion(productosContext),
+        sucursal: SucursalProducto(id: sucursal.id, nombre: sucursal.nombre),
+        onPedidos: () => _abrirPedidos(
+          productosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
         ),
-      );
+      ),
+    );
+    final navigator = Navigator.of(context);
+    return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
+  }
 
   Future<void> _abrirPedidos(
     BuildContext context,
     NegocioSucursal negocio,
-    Sucursal sucursal,
-  ) => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => PedidosPage(
+    Sucursal sucursal, {
+    bool reemplazar = false,
+  }) {
+    final ruta = MaterialPageRoute<void>(
+      builder: (pedidosContext) => PedidosPage(
         gestion: GestionPedidos(HttpPedidosGateway(_api)),
         sucursalId: sucursal.id,
         negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         esPropietario: _rol == 'PROPIETARIO',
         contador: _contador,
+        onInventario: () => _abrirProductos(
+          pedidosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
       ),
-    ),
-  );
+    );
+    final navigator = Navigator.of(context);
+    return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
+  }
 
   Future<void> _abrirPedidosEmpleado(BuildContext context) async {
     try {

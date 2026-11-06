@@ -23,7 +23,10 @@ class GestionEmpleados implements GestionEmpleadosUseCase {
   }
 
   @override
-  Future<List<Empleado>> listar(int negocioId, {bool incluirAsignacion = true}) {
+  Future<List<Empleado>> listar(
+    int negocioId, {
+    bool incluirAsignacion = true,
+  }) {
     _validarId(negocioId, 'negocio');
     return _gateway.listar(negocioId, incluirAsignacion: incluirAsignacion);
   }
@@ -33,7 +36,10 @@ class GestionEmpleados implements GestionEmpleadosUseCase {
     _validarId(datos.negocioId, 'negocio');
     final errores = datos.validar();
     if (errores.isNotEmpty) {
-      throw EmpleadoFailure('Revisa los campos señalados.', fieldErrors: errores);
+      throw EmpleadoFailure(
+        'Revisa los campos señalados.',
+        fieldErrors: errores,
+      );
     }
     return _gateway.registrar(datos);
   }
@@ -63,4 +69,3 @@ class GestionEmpleados implements GestionEmpleadosUseCase {
     return _gateway.eliminar(negocioId, empleadoId);
   }
 }
-

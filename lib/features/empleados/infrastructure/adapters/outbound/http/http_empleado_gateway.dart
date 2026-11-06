@@ -188,4 +188,3 @@ class HttpEmpleadoGateway implements EmpleadoGateway {
     ),
   );
 }
-

@@ -43,13 +43,24 @@ class DescuentoProducto {
 
 class ExistenciaSucursal {
   const ExistenciaSucursal({
+    required this.inventarioId,
     required this.sucursalId,
     required this.sucursalNombre,
     required this.existencia,
   });
+
+  /// Identificador del registro de inventario (producto en una sucursal).
+  final int inventarioId;
   final int sucursalId;
   final String sucursalNombre;
   final int existencia;
+
+  ExistenciaSucursal conExistencia(int existencia) => ExistenciaSucursal(
+    inventarioId: inventarioId,
+    sucursalId: sucursalId,
+    sucursalNombre: sucursalNombre,
+    existencia: existencia,
+  );
 }
 
 class Producto {
@@ -69,6 +80,12 @@ class Producto {
   final List<ExistenciaSucursal> existencias;
 
   int get existenciaTotal => existencias.fold(0, (a, e) => a + e.existencia);
+
+  /// Solo la existencia de una sucursal (la gestión de productos es por sucursal).
+  Producto soloSucursal(int sucursalId) => conExistencias([
+    for (final e in existencias)
+      if (e.sucursalId == sucursalId) e,
+  ]);
 
   Producto conExistencias(List<ExistenciaSucursal> existencias) => Producto(
     id: id,

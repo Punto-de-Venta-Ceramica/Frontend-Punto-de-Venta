@@ -12,4 +12,3 @@ abstract interface class EmpleadoGateway {
   });
   Future<void> eliminar(int negocioId, int empleadoId);
 }
-

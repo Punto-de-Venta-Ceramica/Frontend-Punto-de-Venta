@@ -4,18 +4,28 @@ import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
 import '../../../../domain/producto.dart';
 import 'producto_detalle_page.dart';
 import 'producto_form_page.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'producto_widgets.dart';
 
 class ProductosPage extends StatefulWidget {
   const ProductosPage({
     required this.gestion,
     required this.onSesionExpirada,
+    this.sucursal,
     this.negocioInicial,
+    this.onInicio,
+    this.onPedidos,
     super.key,
   });
   final GestionProductosUseCase gestion;
   final VoidCallback onSesionExpirada;
   final NegocioProducto? negocioInicial;
+
+  /// Con sucursal: solo sus productos y su existencia (acceso desde Administrar
+  /// sucursal). Sin sucursal: catálogo completo del negocio con todas las sucursales.
+  final SucursalProducto? sucursal;
+  final VoidCallback? onInicio;
+  final VoidCallback? onPedidos;
   @override
   State<ProductosPage> createState() => _ProductosPageState();
 }
@@ -107,7 +117,16 @@ class _ProductosPageState extends State<ProductosPage> {
       ]);
       if (!mounted || carga != _carga) return;
       setState(() {
-        _productos = resultados[0] as List<Producto>;
+        final todos = resultados[0] as List<Producto>;
+        final sucursalId = widget.sucursal?.id;
+        // En una sucursal: solo los productos con existencia registrada en ella.
+        _productos = sucursalId == null
+            ? todos
+            : [
+                for (final p in todos)
+                  if (p.existencias.any((e) => e.sucursalId == sucursalId))
+                    p.soloSucursal(sucursalId),
+              ];
         _areas = resultados[1] as List<AreaProducto>;
         _categorias = resultados[2] as List<CategoriaProducto>;
         _areaId = null;
@@ -150,11 +169,17 @@ class _ProductosPageState extends State<ProductosPage> {
           negocio: _negocio!,
           gestion: widget.gestion,
           onSesionExpirada: widget.onSesionExpirada,
+          sucursal: widget.sucursal,
         ),
       ),
     );
     if (!mounted || guardado == null) return;
-    await _abrirDetalle(guardado, mensaje: 'Producto guardado correctamente.');
+    await _abrirDetalle(
+      widget.sucursal == null
+          ? guardado
+          : guardado.soloSucursal(widget.sucursal!.id),
+      mensaje: 'Producto guardado correctamente.',
+    );
   }
 
   Future<void> _abrirDetalle(Producto producto, {String? mensaje}) async {
@@ -163,6 +188,7 @@ class _ProductosPageState extends State<ProductosPage> {
         builder: (_) => ProductoDetallePage(
           negocio: _negocio!,
           producto: producto,
+          sucursal: widget.sucursal,
           gestion: widget.gestion,
           onSesionExpirada: widget.onSesionExpirada,
           mensajeInicial: mensaje,
@@ -245,9 +271,19 @@ class _ProductosPageState extends State<ProductosPage> {
                 color: BarroTheme.primary,
               ),
             ),
-            Text(
-              formatoPiezas(p.existenciaTotal),
-              style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  formatoPiezas(p.existenciaTotal),
+                  style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                ),
+                if (widget.sucursal == null && p.existencias.isNotEmpty)
+                  Text(
+                    'en ${p.existencias.length} ${p.existencias.length == 1 ? 'sucursal' : 'sucursales'}',
+                    style: BarroTheme.type(11, 16, color: BarroTheme.secondary),
+                  ),
+              ],
             ),
           ],
         ),
@@ -311,7 +347,9 @@ class _ProductosPageState extends State<ProductosPage> {
       ),
       const SizedBox(height: 12),
       Text(
-        'Registra su precio, clasificación y existencias para empezar a vender.',
+        widget.sucursal != null
+            ? 'Registra su precio, clasificación y existencia en esta sucursal para empezar a vender.'
+            : 'Registra su precio, clasificación y la existencia en cada sucursal para empezar a vender.',
         textAlign: TextAlign.center,
         style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
       ),
@@ -332,7 +370,15 @@ class _ProductosPageState extends State<ProductosPage> {
         .where((c) => _areaId == null || c.areaId == _areaId)
         .toList();
     return ProductoScaffold(
-      navegacion: true,
+      // El menú solo aparece al administrar una sucursal, no en el catálogo del negocio.
+      barraInferior: widget.sucursal == null
+          ? null
+          : SucursalNavegacion(
+              seleccionada: 'Inventario',
+              onInicio:
+                  widget.onInicio ?? () => Navigator.of(context).maybePop(),
+              onPedidos: widget.onPedidos,
+            ),
       onRefresh: _busy ? () async {} : _iniciar,
       children: [
         const SizedBox(height: 20),
@@ -350,9 +396,11 @@ class _ProductosPageState extends State<ProductosPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          vacioTotal
+          widget.sucursal != null
+              ? 'Productos de ${widget.sucursal!.nombre}.'
+              : vacioTotal
               ? 'Tu catálogo, organizado por negocio.'
-              : 'Administra el catálogo de tu negocio.',
+              : 'Administra el catálogo y la existencia por sucursal.',
           style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
         ),
         const SizedBox(height: 20),

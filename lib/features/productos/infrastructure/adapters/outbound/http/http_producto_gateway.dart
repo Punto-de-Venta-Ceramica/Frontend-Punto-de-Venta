@@ -84,6 +84,7 @@ class HttpProductoGateway implements ProductoGateway {
         return (
           productoId: _id(json['productoId']),
           fila: ExistenciaSucursal(
+            inventarioId: _id(json['id']),
             sucursalId: _id(json['sucursalId']),
             sucursalNombre: _texto(json['sucursalNombre']),
             existencia: existencia,
@@ -228,6 +229,48 @@ class HttpProductoGateway implements ProductoGateway {
         final existencias = await _existencias(negocioId);
         return producto.conExistencias(existencias[producto.id] ?? const []);
       });
+
+  @override
+  Future<int> ajustarExistencia(int inventarioId, int cantidad) =>
+      _seguro(() async {
+        final json = _map(
+          await _api.requestJson(
+            'PATCH',
+            'api/inventario/$inventarioId/existencia',
+            body: {'cantidad': cantidad},
+          ),
+        );
+        final existencia = json['existencia'];
+        if (existencia is! int) throw const FormatException();
+        return existencia;
+      });
+
+  @override
+  Future<ExistenciaSucursal> asignarASucursal(
+    int productoId,
+    SucursalProducto sucursal,
+    int existencia,
+  ) => _seguro(() async {
+    final json = _map(
+      await _api.requestJson(
+        'POST',
+        'api/inventario',
+        body: {
+          'productoId': productoId,
+          'sucursalId': sucursal.id,
+          'existencia': existencia,
+        },
+      ),
+    );
+    final cantidad = json['existencia'];
+    if (cantidad is! int) throw const FormatException();
+    return ExistenciaSucursal(
+      inventarioId: _id(json['id']),
+      sucursalId: sucursal.id,
+      sucursalNombre: sucursal.nombre,
+      existencia: cantidad,
+    );
+  });
 
   @override
   Future<void> eliminar(int id) => _seguro(() async {
