@@ -7,10 +7,9 @@ class GestionPedidos {
   Future<List<Pedido>> listar(int sucursal) => _gateway.listar(sucursal);
   Future<List<ProductoPedido>> productos(int sucursal) =>
       _gateway.productos(sucursal);
-  Future<List<CortePedido>> cortes(int sucursal) => _gateway.cortes(sucursal);
   Future<void> registrar(DatosPedido datos) => _gateway.registrar(datos);
-  Future<void> pagar(int id, double monto, String metodo, int corte) =>
-      _gateway.pagar(id, monto, metodo, corte);
+  Future<void> pagar(int id, double monto, String metodo) =>
+      _gateway.pagar(id, monto, metodo);
   Future<void> cambiarEstado(int id, String estado) =>
       _gateway.cambiarEstado(id, estado);
   Future<void> cancelar(int id) => _gateway.cancelar(id);

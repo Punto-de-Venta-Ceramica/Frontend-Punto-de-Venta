@@ -19,6 +19,17 @@ class ProductoPedido {
       porcentajeDescuento! > 0 &&
       cantidad >= cantidadMinima! &&
       (cantidadMaxima == null || cantidad <= cantidadMaxima!);
+
+  /// Estima el subtotal en centavos, con el redondeo por línea del backend.
+  BigInt subtotalEstimadoCentavos(int cantidad) {
+    final precioCentavos = BigInt.from((precio * 100).round());
+    final descuento = aplicaDescuento(cantidad)
+        ? (porcentajeDescuento! * 100).round()
+        : 0;
+    final importe =
+        precioCentavos * BigInt.from(cantidad) * BigInt.from(10000 - descuento);
+    return (importe + BigInt.from(5000)) ~/ BigInt.from(10000);
+  }
 }
 
 class LineaPedido {
@@ -36,12 +47,6 @@ class AvisoPedido {
   final int id;
   final String titulo, mensaje;
   final bool leida;
-}
-
-class CortePedido {
-  const CortePedido({required this.id, required this.apertura});
-  final int id;
-  final String apertura;
 }
 
 class Pedido {
@@ -94,7 +99,6 @@ class DatosPedido {
     required this.descripcionEnvio,
     required this.monto,
     required this.metodo,
-    required this.corteId,
   });
   final int sucursalId;
   final List<LineaPedido> productos;
@@ -108,5 +112,4 @@ class DatosPedido {
       descripcionEnvio,
       metodo;
   final double monto;
-  final int? corteId;
 }

@@ -8,10 +8,12 @@ class ApiException implements Exception {
     this.message, {
     this.statusCode,
     this.fieldErrors = const {},
+    this.code,
   });
   final String message;
   final int? statusCode;
   final Map<String, String> fieldErrors;
+  final String? code;
   @override
   String toString() => message;
 }
@@ -96,7 +98,7 @@ class ApiClient {
         return http.Response.fromStream(stream);
       })().timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final message = switch (response.statusCode) {
+        var message = switch (response.statusCode) {
           400 => 'Revisa los datos del formulario.',
           401 =>
             authenticated
@@ -115,16 +117,46 @@ class ApiClient {
             'El servidor respondió HTTP ${response.statusCode}. Inténtalo más tarde.',
         };
         final fieldErrors = <String, String>{};
+        String? code;
         if (response.statusCode == 400 || response.statusCode == 409) {
           try {
             final problem = jsonDecode(utf8.decode(response.bodyBytes));
-            if (problem is Map && problem['errores'] is Map) {
-              for (final entry in (problem['errores'] as Map).entries) {
-                if (entry.key is String &&
-                    entry.value is String &&
-                    (entry.value as String).isNotEmpty) {
-                  fieldErrors[entry.key as String] = entry.value as String;
+            if (problem is Map) {
+              if (problem['errores'] is Map) {
+                for (final entry in (problem['errores'] as Map).entries) {
+                  if (entry.key is String &&
+                      entry.value is String &&
+                      (entry.value as String).isNotEmpty) {
+                    fieldErrors[entry.key as String] = entry.value as String;
+                  }
                 }
+              }
+              final ruta = path
+                  .replaceFirst(RegExp(r'^/+'), '')
+                  .split('?')
+                  .first;
+              if (response.statusCode == 400 &&
+                  (ruta == 'api/pedidos' || ruta.startsWith('api/pedidos/'))) {
+                final recibido = problem['codigo'];
+                final detalle = problem['detail'];
+                if (recibido is String) code = recibido;
+                if (code == null &&
+                    detalle is String &&
+                    (detalle.trim() ==
+                            'Debe haber un corte de caja abierto para la sucursal del pedido.' ||
+                        detalle.trim() ==
+                            'El corte de caja debe estar abierto y pertenecer a la sucursal del pedido.')) {
+                  code = 'CORTE_CAJA_NO_ABIERTO';
+                }
+                message = switch (code) {
+                  'CORTE_CAJA_NO_ABIERTO' =>
+                    'No hay un corte de caja abierto en esta sucursal. Abre uno antes de registrar un pago.',
+                  'PAGO_SUPERA_SALDO' =>
+                    'El pago supera el saldo calculado por el servidor. Actualiza el pedido y revisa el importe.',
+                  'PRODUCTO_NO_DISPONIBLE' =>
+                    'Uno de los productos ya no está disponible. Vuelve a la lista de pedidos e inicia el registro de nuevo.',
+                  _ => message,
+                };
               }
             }
           } on FormatException {
@@ -135,6 +167,7 @@ class ApiClient {
           message,
           statusCode: response.statusCode,
           fieldErrors: Map.unmodifiable(fieldErrors),
+          code: code,
         );
       }
       if (response.statusCode == 204) return null;

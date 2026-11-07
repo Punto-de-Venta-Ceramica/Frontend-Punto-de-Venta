@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
+import 'pedido_input_formatters.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 
 class RegistrarPedidoPage extends StatefulWidget {
@@ -35,10 +37,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   final _calle = TextEditingController();
   final _monto = TextEditingController(text: '0');
   List<ProductoPedido> _productos = [];
-  List<CortePedido> _cortes = [];
   final List<LineaPedido> _lineas = [];
   Map<String, String> _errores = {};
-  int? _producto, _corte;
+  int? _producto;
   String _entrega = 'LOCAL', _metodo = 'EFECTIVO';
   String? _error;
   bool _cargando = true, _guardando = false;
@@ -53,13 +54,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   Future<void> _cargar() async {
     try {
       final productos = await widget.gestion.productos(widget.sucursalId);
-      final cortes = await widget.gestion.cortes(widget.sucursalId);
       if (mounted) {
-        setState(() {
-          _productos = productos;
-          _cortes = cortes;
-          if (cortes.length == 1) _corte = cortes.first.id;
-        });
+        setState(() => _productos = productos);
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -86,8 +82,269 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     super.dispose();
   }
 
-  String? _obligatorio(String? v) =>
-      v == null || v.trim().isEmpty ? 'Este campo es obligatorio.' : null;
+  void _limpiarTexto(TextEditingController controller) {
+    final limpio = PedidoInputFormatters.limpiarEspacios(controller.text);
+    if (limpio == controller.text) return;
+    controller.value = TextEditingValue(
+      text: limpio,
+      selection: TextSelection.collapsed(offset: limpio.length),
+    );
+  }
+
+  void _limpiarTextos() {
+    for (final controller in [
+      _descripcion,
+      _envio,
+      _nombre,
+      _ciudad,
+      _colonia,
+      _calle,
+    ]) {
+      _limpiarTexto(controller);
+    }
+  }
+
+  String _resumenErrores(Map<String, String> errores) {
+    if (errores.containsKey('pagoInicial.corteCajaId')) {
+      return 'El backend activo aún solicita un corte de caja. Reinicia el backend actualizado y vuelve a intentarlo.';
+    }
+    String etiqueta(String campo) {
+      final producto = RegExp(
+        r'^productos\[(\d+)\](?:\.(\w+))?$',
+      ).firstMatch(campo);
+      if (producto != null) {
+        final numero = int.parse(producto.group(1)!) + 1;
+        return producto.group(2) == 'cantidad'
+            ? 'Cantidad del producto $numero'
+            : 'Producto $numero';
+      }
+      return switch (campo) {
+        'cliente' => 'Datos del cliente',
+        'cliente.nombre' => 'Nombre del cliente',
+        'cliente.telefono' => 'Teléfono',
+        'cliente.ciudad' => 'Ciudad',
+        'cliente.colonia' => 'Colonia',
+        'cliente.calle' => 'Calle y número',
+        'descripcion' => 'Descripción del pedido',
+        'descripcionEnvio' => 'Descripción de envío',
+        'productos' => 'Productos',
+        'tipoEntrega' => 'Tipo de entrega',
+        'pagoInicial' => 'Pago inicial',
+        'pagoInicial.monto' => 'Anticipo',
+        'pagoInicial.metodoPago' => 'Tipo de pago',
+        'sucursalId' => 'Sucursal',
+        _ => 'Dato del pedido',
+      };
+    }
+
+    return errores.entries
+        .map((error) => '${etiqueta(error.key)}: ${error.value}')
+        .join('\n');
+  }
+
+  void _limpiarErroresProductos() {
+    _errores.removeWhere(
+      (campo, _) => campo == 'productos' || campo.startsWith('productos['),
+    );
+    _error = _errores.isEmpty ? null : _resumenErrores(_errores);
+  }
+
+  BigInt get _totalEstimadoCentavos => _lineas.fold<BigInt>(
+    BigInt.zero,
+    (total, linea) =>
+        total +
+        _productos
+            .firstWhere((producto) => producto.id == linea.productoId)
+            .subtotalEstimadoCentavos(linea.cantidad),
+  );
+
+  BigInt? _leerCentavos(String texto) {
+    final importe = texto.trim().replaceAll(',', '.');
+    if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(importe)) return null;
+    final partes = importe.split('.');
+    final enteros = BigInt.tryParse(partes.first);
+    if (enteros == null) return null;
+    final decimales = partes.length == 1 ? '00' : partes.last.padRight(2, '0');
+    return enteros * BigInt.from(100) + BigInt.parse(decimales);
+  }
+
+  String _formatoCentavos(BigInt centavos) {
+    final entero = centavos ~/ BigInt.from(100);
+    final decimal = (centavos % BigInt.from(100)).toString().padLeft(2, '0');
+    return '\$$entero.$decimal';
+  }
+
+  Widget _resumenImportes() => ValueListenableBuilder<TextEditingValue>(
+    valueListenable: _monto,
+    builder: (context, valor, _) {
+      final total = _totalEstimadoCentavos;
+      final anticipo = _leerCentavos(valor.text);
+      final excedido = anticipo != null && anticipo > total;
+      final saldo = anticipo == null || excedido ? null : total - anticipo;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 24),
+          Row(
+            children: [
+              const Expanded(child: Text('Total estimado')),
+              Text(
+                _formatoCentavos(total),
+                key: const ValueKey('pedido-total-estimado'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Expanded(child: Text('Saldo pendiente estimado')),
+              Text(
+                saldo == null ? '—' : _formatoCentavos(saldo),
+                key: const ValueKey('pedido-saldo-estimado'),
+                style: BarroTheme.type(15, 22, weight: FontWeight.w700),
+              ),
+            ],
+          ),
+          if (excedido) ...[
+            const SizedBox(height: 8),
+            Text(
+              'El anticipo supera el total estimado.',
+              style: BarroTheme.type(13, 20, color: BarroTheme.error),
+            ),
+          ],
+          const Divider(height: 24),
+        ],
+      );
+    },
+  );
+
+  String _claveProducto(String texto) => texto
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp('[áàäâ]'), 'a')
+      .replaceAll(RegExp('[éèëê]'), 'e')
+      .replaceAll(RegExp('[íìïî]'), 'i')
+      .replaceAll(RegExp('[óòöô]'), 'o')
+      .replaceAll(RegExp('[úùüû]'), 'u')
+      .replaceAll('ñ', 'n{');
+
+  Future<void> _seleccionarProducto() async {
+    final ordenados = List<ProductoPedido>.of(_productos)
+      ..sort((a, b) {
+        final orden = _claveProducto(
+          a.nombre,
+        ).compareTo(_claveProducto(b.nombre));
+        return orden != 0 ? orden : a.id.compareTo(b.id);
+      });
+    var busqueda = '';
+    final elegido = await showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, actualizar) {
+          final coincidencias = ordenados
+              .where(
+                (producto) => _claveProducto(
+                  producto.nombre,
+                ).contains(_claveProducto(busqueda)),
+              )
+              .toList();
+          return AlertDialog(
+            title: const Text('Selecciona un producto'),
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            scrollable: true,
+            content: SizedBox(
+              width: 480,
+              height:
+                  (MediaQuery.sizeOf(context).height -
+                          MediaQuery.viewInsetsOf(context).bottom -
+                          200)
+                      .clamp(80.0, 380.0),
+              child: Column(
+                children: [
+                  TextField(
+                    autofocus: true,
+                    decoration: productoDecoracion(
+                      hint: 'Buscar producto',
+                    ).copyWith(prefixIcon: const Icon(Icons.search)),
+                    onChanged: (valor) => actualizar(() => busqueda = valor),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: coincidencias.isEmpty
+                        ? const Center(
+                            child: Text('No se encontraron productos.'),
+                          )
+                        : ListView.builder(
+                            itemCount: coincidencias.length,
+                            itemBuilder: (context, index) {
+                              final producto = coincidencias[index];
+                              return ListTile(
+                                title: Text(producto.nombre),
+                                subtitle: Text(formatoPrecio(producto.precio)),
+                                selected: producto.id == _producto,
+                                trailing: producto.id == _producto
+                                    ? const Icon(Icons.check)
+                                    : null,
+                                onTap: () =>
+                                    Navigator.pop(context, producto.id),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (elegido != null && mounted) {
+      setState(() {
+        _producto = elegido;
+        _limpiarErroresProductos();
+      });
+    }
+  }
+
+  Widget _selectorProducto() {
+    final seleccionados = _productos.where((p) => p.id == _producto);
+    final seleccionado = seleccionados.isEmpty ? null : seleccionados.first;
+    return InkWell(
+      onTap: _productos.isEmpty ? null : _seleccionarProducto,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: productoDecoracion(
+          error: _errores['productos'],
+        ).copyWith(
+          suffixIcon: seleccionado == null
+              ? const Icon(Icons.search)
+              : IconButton(
+                  tooltip: 'Quitar selección de producto',
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => setState(() {
+                    _producto = null;
+                    _limpiarErroresProductos();
+                  }),
+                ),
+        ),
+        child: Text(
+          seleccionado == null
+              ? 'Selecciona un producto'
+              : '${seleccionado.nombre} · ${formatoPrecio(seleccionado.precio)}',
+          style: BarroTheme.type(14, 21),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   Widget _campo(
     String label,
     TextEditingController controller, {
@@ -96,26 +353,39 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     int? maxLength,
     TextInputType? teclado,
     String? Function(String?)? validar,
+    List<TextInputFormatter>? formatos,
+    bool normalizarEspacios = false,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ProductoEtiqueta(label),
-        TextFormField(
-          controller: controller,
-          maxLength: maxLength,
-          keyboardType: teclado,
-          decoration: productoDecoracion(
-            hint: hint,
-            error: _errores[campo],
-          ).copyWith(counterText: ''),
-          validator: validar,
-          onChanged: (_) {
-            if (campo != null && _errores.containsKey(campo)) {
-              setState(() => _errores.remove(campo));
+        Focus(
+          onFocusChange: (enfocado) {
+            if (!enfocado && normalizarEspacios && mounted) {
+              _limpiarTexto(controller);
             }
           },
+          child: TextFormField(
+            controller: controller,
+            maxLength: maxLength,
+            keyboardType: teclado,
+            inputFormatters: formatos,
+            decoration: productoDecoracion(
+              hint: hint,
+              error: _errores[campo],
+            ).copyWith(counterText: ''),
+            validator: validar,
+            onChanged: (_) {
+              if (campo != null && _errores.containsKey(campo)) {
+                setState(() {
+                  _errores.remove(campo);
+                  _error = _errores.isEmpty ? null : _resumenErrores(_errores);
+                });
+              }
+            },
+          ),
         ),
       ],
     ),
@@ -130,13 +400,6 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         !RegExp(r'^\d+(?:[.,]\d{1,2})?$').hasMatch(_monto.text.trim())) {
       setState(
         () => _error = 'Ingresa un importe válido con hasta dos decimales.',
-      );
-      return;
-    }
-    if (monto > 0 && _corte == null) {
-      setState(
-        () => _error =
-            'Selecciona un corte de caja abierto para registrar el pago.',
       );
       return;
     }
@@ -159,25 +422,38 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
           descripcionEnvio: _envio.text,
           monto: monto,
           metodo: _metodo,
-          corteId: monto > 0 ? _corte : null,
         ),
       );
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.message;
           _errores = Map.of(e.fieldErrors);
-          if (_errores.keys.any((campo) => campo.startsWith('cliente.'))) {
+          _error = _errores.isNotEmpty
+              ? _resumenErrores(_errores)
+              : e.code == 'CORTE_CAJA_NO_ABIERTO'
+              ? '${e.message} También puedes registrar el pedido con anticipo 0.'
+              : e.statusCode == 400 &&
+                    e.message == 'Revisa los datos del formulario.'
+              ? 'El servidor rechazó el pedido sin indicar el motivo. Confirma que el backend esté actualizado y vuelve a intentarlo.'
+              : e.message;
+          if (e.code == 'PRODUCTO_NO_DISPONIBLE' ||
+              _errores.keys.any(
+                (campo) =>
+                    campo.startsWith('productos') ||
+                    campo == 'descripcion' ||
+                    campo == 'tipoEntrega' ||
+                    campo == 'descripcionEnvio',
+              )) {
+            _paso = 0;
+          } else if (_errores.keys.any(
+            (campo) => campo == 'cliente' || campo.startsWith('cliente.'),
+          )) {
             _paso = 1;
           } else if (_errores.keys.any(
-            (campo) =>
-                campo.startsWith('productos') ||
-                campo == 'descripcion' ||
-                campo == 'tipoEntrega' ||
-                campo == 'descripcionEnvio',
+            (campo) => campo.startsWith('pagoInicial'),
           )) {
-            _paso = 0;
+            _paso = 2;
           }
         });
       }
@@ -187,6 +463,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   }
 
   void _continuar() {
+    _limpiarTextos();
     if (!_form.currentState!.validate()) return;
     if (_paso == 0) {
       if (_producto != null && !_agregarProducto()) return;
@@ -207,10 +484,13 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
 
   bool _agregarProducto() {
     final cantidad = int.tryParse(_cantidad.text.trim());
-    if (_producto == null || cantidad == null || cantidad <= 0) {
-      setState(
-        () => _error = 'Selecciona un producto e ingresa una cantidad válida.',
-      );
+    if (_producto == null) {
+      setState(() => _error = 'Selecciona un producto antes de agregarlo.');
+      return false;
+    }
+    if (cantidad == null ||
+        PedidoInputFormatters.validarCantidad(_cantidad.text) != null) {
+      setState(() => _error = 'Ingresa una cantidad entera mayor que cero.');
       return false;
     }
     if (_lineas.any((linea) => linea.productoId == _producto)) {
@@ -228,7 +508,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       _lineas.add(LineaPedido(productoId: _producto!, cantidad: cantidad));
       _producto = null;
       _cantidad.text = '1';
-      _error = null;
+      _limpiarErroresProductos();
     });
     return true;
   }
@@ -309,18 +589,11 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   hint: 'Ej. Personalizados con logotipo',
                   maxLength: 2000,
                   campo: 'descripcion',
+                  formatos: PedidoInputFormatters.texto,
+                  normalizarEspacios: true,
                 ),
                 const ProductoEtiqueta('Producto *'),
-                ProductoSelector<int>(
-                  valor: _producto,
-                  opciones: [
-                    for (final p in _productos)
-                      (p.id, '${p.nombre} · ${formatoPrecio(p.precio)}'),
-                  ],
-                  hint: 'Selecciona un producto',
-                  error: _errores['productos'],
-                  onChanged: (v) => setState(() => _producto = v),
-                ),
+                _selectorProducto(),
                 if (_productos.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -333,10 +606,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   'Cantidad *',
                   _cantidad,
                   teclado: TextInputType.number,
-                  validar: (v) =>
-                      int.tryParse(v ?? '') == null || int.parse(v!) <= 0
-                      ? 'Ingresa una cantidad válida.'
-                      : null,
+                  maxLength: 10,
+                  formatos: PedidoInputFormatters.cantidad,
+                  validar: PedidoInputFormatters.validarCantidad,
                 ),
                 ProductoBoton(
                   texto: 'Agregar producto',
@@ -362,8 +634,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                         trailing: IconButton(
                           tooltip: 'Quitar ${producto.nombre}',
                           icon: const Icon(Icons.delete_outline),
-                          onPressed: () =>
-                              setState(() => _lineas.remove(linea)),
+                          onPressed: () => setState(() {
+                            _lineas.remove(linea);
+                            _limpiarErroresProductos();
+                          }),
                         ),
                       );
                     },
@@ -379,43 +653,56 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   onChanged: (v) => setState(() => _entrega = v!),
                 ),
                 const SizedBox(height: 14),
-                _campo('Descripción de envío', _envio, maxLength: 2000),
+                _campo(
+                  'Descripción de envío',
+                  _envio,
+                  maxLength: 2000,
+                  campo: 'descripcionEnvio',
+                  formatos: PedidoInputFormatters.texto,
+                  normalizarEspacios: true,
+                ),
               ] else if (_paso == 1) ...[
                 _campo(
                   'Nombre del cliente *',
                   _nombre,
-                  validar: _obligatorio,
+                  validar: PedidoInputFormatters.validarNombre,
+                  formatos: PedidoInputFormatters.nombre,
+                  normalizarEspacios: true,
                   campo: 'cliente.nombre',
                   maxLength: 150,
                 ),
                 _campo(
                   'Teléfono *',
                   _telefono,
-                  validar: _obligatorio,
+                  validar: PedidoInputFormatters.validarTelefono,
+                  formatos: PedidoInputFormatters.telefono,
                   campo: 'cliente.telefono',
-                  maxLength: 30,
+                  maxLength: 10,
                   teclado: TextInputType.phone,
                 ),
                 _campo(
-                  'Ciudad *',
+                  'Ciudad (opcional)',
                   _ciudad,
-                  validar: _obligatorio,
                   campo: 'cliente.ciudad',
                   maxLength: 120,
+                  formatos: PedidoInputFormatters.texto,
+                  normalizarEspacios: true,
                 ),
                 _campo(
-                  'Colonia *',
+                  'Colonia (opcional)',
                   _colonia,
-                  validar: _obligatorio,
                   campo: 'cliente.colonia',
                   maxLength: 120,
+                  formatos: PedidoInputFormatters.texto,
+                  normalizarEspacios: true,
                 ),
                 _campo(
-                  'Calle y número *',
+                  'Calle y número (opcional)',
                   _calle,
-                  validar: _obligatorio,
                   campo: 'cliente.calle',
                   maxLength: 200,
+                  formatos: PedidoInputFormatters.texto,
+                  normalizarEspacios: true,
                 ),
               ] else ...[
                 const ProductoEtiqueta('Productos del pedido'),
@@ -436,6 +723,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                       );
                     },
                   ),
+                _resumenImportes(),
                 const ProductoEtiqueta('Tipo de pago *'),
                 ProductoSelector<String>(
                   valor: _metodo,
@@ -447,28 +735,32 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                 ),
                 const SizedBox(height: 14),
                 _campo(
-                  'Cantidad pagada *',
+                  'Anticipo *',
                   _monto,
                   teclado: const TextInputType.numberWithOptions(decimal: true),
                   campo: 'pagoInicial.monto',
-                  validar: _obligatorio,
+                  formatos: PedidoInputFormatters.dinero,
+                  validar: PedidoInputFormatters.validarDinero,
                 ),
-                const ProductoEtiqueta('Corte de caja abierto'),
-                ProductoSelector<int>(
-                  valor: _corte,
-                  opciones: [for (final c in _cortes) (c.id, 'Corte #${c.id}')],
-                  onChanged: (v) => setState(() => _corte = v),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _monto,
+                  builder: (context, valor, _) {
+                    final anticipo = _leerCentavos(valor.text);
+                    if (anticipo == null || anticipo <= BigInt.zero) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Por el momento, los anticipos requieren un corte de caja abierto. La función de corte de caja aún está en desarrollo; puedes registrar el pedido con anticipo 0.',
+                        style: BarroTheme.type(13, 20, color: BarroTheme.error),
+                      ),
+                    );
+                  },
                 ),
-                if (_cortes.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'No hay corte abierto. Puedes registrar el pedido sin anticipo.',
-                    ),
-                  ),
                 const SizedBox(height: 12),
                 const Text(
-                  'El total y el descuento se calculan al guardar con los precios del catálogo.',
+                  'El total definitivo se confirma al guardar con los precios vigentes del catálogo.',
                 ),
               ],
               const SizedBox(height: 20),
