@@ -9,6 +9,9 @@ import 'features/sucursal/infrastructure/adapters/outbound/http/http_sucursal_ga
 import 'features/sucursal/infrastructure/adapters/inbound/flutter/administrar_sucursal_page.dart';
 import 'features/sucursal/infrastructure/adapters/inbound/flutter/sucursales_page.dart';
 import 'features/sucursal/domain/sucursal.dart';
+import 'features/descuentos/application/services/gestion_descuentos.dart';
+import 'features/descuentos/infrastructure/adapters/inbound/flutter/descuentos_page.dart';
+import 'features/descuentos/infrastructure/adapters/outbound/http/http_descuento_gateway.dart';
 import 'features/productos/application/services/gestion_productos.dart';
 import 'features/productos/domain/producto.dart';
 import 'features/productos/infrastructure/adapters/inbound/flutter/productos_page.dart';
@@ -60,10 +63,13 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final HttpAuthenticationGateway _authentication;
   late final ContadorNotificaciones _contador;
   String _rol = '';
+  final ValueNotifier<int> _sesionExpirada = ValueNotifier(0);
+  AuthSession? _sesionActual;
   @override
   void initState() {
     super.initState();
-    _api = ApiClient(baseUrl: ApiConfig.baseUrl, client: widget.httpClient);
+    _api = ApiClient(baseUrl: ApiConfig.baseUrl, client: widget.httpClient)
+      ..onSessionExpired = () => _sesionExpirada.value++;
     _authentication = HttpAuthenticationGateway(_api);
     _contador = ContadorNotificaciones(_api, IndicadorIconoMovil());
   }
@@ -71,6 +77,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   @override
   void dispose() {
     _contador.dispose();
+    _sesionExpirada.dispose();
     _api.close();
     super.dispose();
   }
@@ -84,7 +91,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   );
 
   void _cerrarSesion(BuildContext context) {
-    _api.bearerToken = null;
+    _api.cerrarSesion();
+    _sesionActual = null;
     _contador.cerrarSesion();
     _rol = '';
     if (!context.mounted) return;
@@ -104,6 +112,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onSesionExpirada: () => _cerrarSesion(context),
         onAreasCategorias: (negocio) => _abrirCatalogo(context, negocio),
         onProductos: (negocio) => _abrirProductosNegocio(context, negocio),
+        onDescuentos: (negocio) => _abrirDescuentosNegocio(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
       ),
@@ -199,6 +208,20 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     }
   }
 
+  /// Descuentos del negocio (no dependen de una sucursal).
+  Future<void> _abrirDescuentosNegocio(
+    BuildContext context,
+    NegocioSucursal negocio,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (descuentosContext) => DescuentosPage(
+        gestion: GestionDescuentos(HttpDescuentoGateway(_api)),
+        negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
+        onSesionExpirada: () => _cerrarSesion(descuentosContext),
+      ),
+    ),
+  );
+
   /// Catálogo de productos del negocio completo: todas las sucursales.
   Future<void> _abrirProductosNegocio(
     BuildContext context,
@@ -207,6 +230,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     MaterialPageRoute(
       builder: (productosContext) => ProductosPage(
         gestion: GestionProductos(HttpProductoGateway(_api)),
+        descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(productosContext),
       ),
@@ -224,6 +248,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     final ruta = MaterialPageRoute<void>(
       builder: (productosContext) => ProductosPage(
         gestion: GestionProductos(HttpProductoGateway(_api)),
+        descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(productosContext),
         sucursal: SucursalProducto(id: sucursal.id, nombre: sucursal.nombre),
@@ -316,13 +341,25 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         if (session is! AuthSession || session.isExpired) {
           return _login(context);
         }
-        _api.bearerToken = session.token;
+        // Este builder se ejecuta en cada reconstrucción: instalar la sesión solo una
+        // vez para no pisar los tokens ya renovados con los del inicio de sesión.
+        if (!identical(_sesionActual, session)) {
+          _sesionActual = session;
+          _api.iniciarSesion(
+            token: session.token,
+            expiresAt: session.expiresAt,
+            refreshToken: session.refreshToken,
+            refreshExpiresAt: session.refreshExpiresAt,
+          );
+        }
         _rol = session.role;
         _contador.iniciar(session.token);
         return SessionPage(
           session: session,
+          sessionExpired: _sesionExpirada,
           clearSession: () {
-            _api.bearerToken = null;
+            _api.cerrarSesion();
+            _sesionActual = null;
             _contador.cerrarSesion();
           },
           conteoNotificaciones: _contador,

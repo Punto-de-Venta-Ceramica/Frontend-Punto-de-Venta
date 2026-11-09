@@ -15,12 +15,14 @@ class SucursalesPage extends StatefulWidget {
     this.onAdministrar,
     this.onAreasCategorias,
     this.onProductos,
+    this.onDescuentos,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
   final VoidCallback onSesionExpirada;
   final void Function(NegocioSucursal negocio)? onAreasCategorias;
   final void Function(NegocioSucursal negocio)? onProductos;
+  final void Function(NegocioSucursal negocio)? onDescuentos;
   final NegocioSucursal? negocioInicial;
   final bool registrarAlAbrir;
   final void Function(NegocioSucursal negocio, Sucursal sucursal)?
@@ -318,6 +320,16 @@ class _SucursalesPageState extends State<SucursalesPage> {
                       onPressed: widget.onProductos == null
                           ? null
                           : () => widget.onProductos!(_negocio!),
+                    ),
+                    const SizedBox(height: 12),
+                    AccesoAreasCategorias(
+                      icono: Icons.percent,
+                      titulo: 'Descuentos',
+                      descripcion:
+                          'Consulta los descuentos por cantidad de tu negocio.',
+                      onPressed: widget.onDescuentos == null
+                          ? null
+                          : () => widget.onDescuentos!(_negocio!),
                     ),
                     const SizedBox(height: 28),
                   ],

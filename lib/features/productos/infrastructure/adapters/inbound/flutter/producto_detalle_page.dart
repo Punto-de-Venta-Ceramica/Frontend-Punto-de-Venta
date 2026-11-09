@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
 import '../../../../domain/producto.dart';
 import 'producto_form_page.dart';
@@ -15,11 +16,15 @@ class ProductoDetallePage extends StatefulWidget {
     required this.onSesionExpirada,
     this.sucursal,
     this.mensajeInicial,
+    this.descuentos,
     super.key,
   });
   final NegocioProducto negocio;
   final Producto producto;
   final GestionProductosUseCase gestion;
+
+  /// Para editar los descuentos (varios, opcionales) del producto.
+  final GestionDescuentosUseCase? descuentos;
   final VoidCallback onSesionExpirada;
   final String? mensajeInicial;
 
@@ -178,6 +183,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
         builder: (_) => ProductoFormPage(
           negocio: widget.negocio,
           gestion: widget.gestion,
+          descuentos: widget.descuentos,
           onSesionExpirada: widget.onSesionExpirada,
           producto: _producto,
         ),

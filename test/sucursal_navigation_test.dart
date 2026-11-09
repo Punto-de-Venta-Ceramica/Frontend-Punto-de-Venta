@@ -27,6 +27,11 @@ void main() {
                     'tipo': 'Bearer',
                     'usuarioId': 7,
                     'rol': 'PROPIETARIO',
+                    'refreshToken': 'refresh-prueba',
+                    'refreshExpiraEn': DateTime.now()
+                        .toUtc()
+                        .add(const Duration(days: 20))
+                        .toIso8601String(),
                     'expiraEn': DateTime.now()
                         .toUtc()
                         .add(const Duration(minutes: 5))

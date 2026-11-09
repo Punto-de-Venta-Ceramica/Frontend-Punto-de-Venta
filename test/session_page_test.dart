@@ -23,6 +23,8 @@ void main() {
           session: AuthSession(
             token: 'test',
             expiresAt: DateTime.now().add(const Duration(hours: 1)),
+            refreshToken: 'test-refresh',
+            refreshExpiresAt: DateTime.now().add(const Duration(days: 1)),
             userId: 1,
             role: 'PROPIETARIO',
           ),
