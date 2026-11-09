@@ -11,16 +11,22 @@ import 'package:punto_de_venta/features/login/domain/login_input.dart';
 import 'owner_registration_page_test.dart' as registration;
 import 'login_test.dart' as login;
 
-String sessionResponse({int seconds = 900}) => jsonEncode({
-  'token': 'test-jwt',
-  'tipo': 'Bearer',
-  'expiraEn': DateTime.now()
-      .toUtc()
-      .add(Duration(seconds: seconds))
-      .toIso8601String(),
-  'usuarioId': 42,
-  'rol': 'PROPIETARIO',
-});
+String sessionResponse({int seconds = 900, int refreshSeconds = 1728000}) =>
+    jsonEncode({
+      'token': 'test-jwt',
+      'tipo': 'Bearer',
+      'expiraEn': DateTime.now()
+          .toUtc()
+          .add(Duration(seconds: seconds))
+          .toIso8601String(),
+      'refreshToken': 'test-refresh',
+      'refreshExpiraEn': DateTime.now()
+          .toUtc()
+          .add(Duration(seconds: refreshSeconds))
+          .toIso8601String(),
+      'usuarioId': 42,
+      'rol': 'PROPIETARIO',
+    });
 
 void main() {
   testWidgets(
@@ -93,46 +99,49 @@ void main() {
     },
   );
 
-  testWidgets('Evita envíos repetidos y cierra la sesión al vencer el JWT', (
-    tester,
-  ) async {
-    final pending = Completer<http.Response>();
-    var calls = 0;
-    await login.openLogin(
-      tester,
-      client: MockClient((_) {
-        calls++;
-        return pending.future;
-      }),
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('login-email')),
-      'maria@ejemplo.com',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('login-password')),
-      'Registro123',
-    );
-    await tester.tap(find.byKey(const ValueKey('login-submit')));
-    await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const ValueKey('login-submit')))
-          .onPressed,
-      isNull,
-    );
-    expect(calls, 1);
-    pending.complete(http.Response(sessionResponse(seconds: 2), 200));
-    await tester.pumpAndSettle();
-    expect(find.text('Sesión iniciada'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle();
-    expect(find.text('Bienvenido de nuevo'), findsOneWidget);
-    expect(
-      find.text('Tu sesión expiró. Inicia sesión de nuevo.'),
-      findsOneWidget,
-    );
-  });
+  testWidgets(
+    'Evita envíos repetidos y cierra la sesión al vencer el token de renovación',
+    (tester) async {
+      final pending = Completer<http.Response>();
+      var calls = 0;
+      await login.openLogin(
+        tester,
+        client: MockClient((_) {
+          calls++;
+          return pending.future;
+        }),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('login-email')),
+        'maria@ejemplo.com',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('login-password')),
+        'Registro123',
+      );
+      await tester.tap(find.byKey(const ValueKey('login-submit')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('login-submit')))
+            .onPressed,
+        isNull,
+      );
+      expect(calls, 1);
+      pending.complete(
+        http.Response(sessionResponse(seconds: 900, refreshSeconds: 2), 200),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sesión iniciada'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      expect(find.text('Bienvenido de nuevo'), findsOneWidget);
+      expect(
+        find.text('Tu sesión expiró. Inicia sesión de nuevo.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final status in [400, 401, 409, 500]) {
     test('Traduce HTTP $status sin exponer el cuerpo de error', () async {

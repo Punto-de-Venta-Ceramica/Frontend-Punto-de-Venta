@@ -15,6 +15,7 @@ class SessionPage extends StatefulWidget {
     this.openOrders,
     this.conteoNotificaciones,
     this.openNotifications,
+    this.sessionExpired,
     super.key,
   });
   final AuthSession session;
@@ -24,6 +25,9 @@ class SessionPage extends StatefulWidget {
   final VoidCallback? openOrders;
   final ValueListenable<int?>? conteoNotificaciones;
   final VoidCallback? openNotifications;
+
+  /// Avisa que la sesión terminó (el token de renovación ya no sirve).
+  final Listenable? sessionExpired;
   @override
   State<SessionPage> createState() => _SessionPageState();
 }
@@ -35,10 +39,28 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _expiryTimer = Timer(
-      widget.session.expiresAt.difference(DateTime.now()),
-      () => _logout(expired: true),
+    widget.sessionExpired?.addListener(_onSessionExpired);
+    _scheduleExpiry();
+  }
+
+  void _onSessionExpired() => _logout(expired: true);
+
+  /// Cierra sesión solo cuando vence el token de renovación (no el de acceso, que
+  /// se renueva solo). Se re-programa por tramos para no depender de temporizadores
+  /// larguísimos.
+  void _scheduleExpiry() {
+    _expiryTimer?.cancel();
+    final remaining = widget.session.refreshExpiresAt.difference(
+      DateTime.now(),
     );
+    const maxStep = Duration(hours: 6);
+    if (remaining <= Duration.zero) {
+      _expiryTimer = Timer(Duration.zero, () => _logout(expired: true));
+    } else if (remaining > maxStep) {
+      _expiryTimer = Timer(maxStep, _scheduleExpiry);
+    } else {
+      _expiryTimer = Timer(remaining, () => _logout(expired: true));
+    }
   }
 
   @override
@@ -65,6 +87,7 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     _expiryTimer?.cancel();
+    widget.sessionExpired?.removeListener(_onSessionExpired);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

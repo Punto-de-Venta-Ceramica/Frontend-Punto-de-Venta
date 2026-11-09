@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
 import '../../../../domain/producto.dart';
 import 'producto_detalle_page.dart';
@@ -15,9 +16,13 @@ class ProductosPage extends StatefulWidget {
     this.negocioInicial,
     this.onInicio,
     this.onPedidos,
+    this.descuentos,
     super.key,
   });
   final GestionProductosUseCase gestion;
+
+  /// Para registrar y editar los descuentos (varios, opcionales) de cada producto.
+  final GestionDescuentosUseCase? descuentos;
   final VoidCallback onSesionExpirada;
   final NegocioProducto? negocioInicial;
 
@@ -163,17 +168,26 @@ class _ProductosPageState extends State<ProductosPage> {
 
   Future<void> _registrar() async {
     if (_busy || _negocio == null || _error != null) return;
+    var registrados = 0;
     final guardado = await Navigator.of(context).push<Producto>(
       MaterialPageRoute(
         builder: (_) => ProductoFormPage(
           negocio: _negocio!,
           gestion: widget.gestion,
+          descuentos: widget.descuentos,
           onSesionExpirada: widget.onSesionExpirada,
           sucursal: widget.sucursal,
+          onRegistrados: (cantidad) => registrados = cantidad,
         ),
       ),
     );
     if (!mounted || guardado == null) return;
+    if (registrados > 1) {
+      // Registro por lotes: se vuelve a la lista en lugar de abrir un solo producto.
+      _mensaje = '$registrados productos registrados correctamente.';
+      await _cargar(_negocio!, conservarMensaje: true);
+      return;
+    }
     await _abrirDetalle(
       widget.sucursal == null
           ? guardado
@@ -190,6 +204,7 @@ class _ProductosPageState extends State<ProductosPage> {
           producto: producto,
           sucursal: widget.sucursal,
           gestion: widget.gestion,
+          descuentos: widget.descuentos,
           onSesionExpirada: widget.onSesionExpirada,
           mensajeInicial: mensaje,
         ),

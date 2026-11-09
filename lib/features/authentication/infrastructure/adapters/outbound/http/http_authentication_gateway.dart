@@ -40,11 +40,20 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
       final expiry = DateTime.tryParse(
         data['expiraEn'] is String ? data['expiraEn'] as String : '',
       );
+      final refreshExpiry = DateTime.tryParse(
+        data['refreshExpiraEn'] is String
+            ? data['refreshExpiraEn'] as String
+            : '',
+      );
       if (data['token'] is! String ||
           (data['token'] as String).isEmpty ||
           data['tipo'] != 'Bearer' ||
           expiry == null ||
           !expiry.isAfter(DateTime.now()) ||
+          data['refreshToken'] is! String ||
+          (data['refreshToken'] as String).isEmpty ||
+          refreshExpiry == null ||
+          !refreshExpiry.isAfter(DateTime.now()) ||
           data['usuarioId'] is! int ||
           data['rol'] is! String) {
         throw const AuthenticationFailure(
@@ -54,6 +63,8 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
       return AuthSession(
         token: data['token'] as String,
         expiresAt: expiry,
+        refreshToken: data['refreshToken'] as String,
+        refreshExpiresAt: refreshExpiry,
         userId: data['usuarioId'] as int,
         role: data['rol'] as String,
       );
