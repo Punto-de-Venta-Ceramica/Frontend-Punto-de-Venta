@@ -94,22 +94,6 @@ class HttpPedidosGateway implements PedidosGateway {
           .toList();
 
   @override
-  Future<List<CortePedido>> cortes(int sucursalId) async =>
-      _lista(
-            await _api.requestJson(
-              'GET',
-              'api/pedidos/opciones/cortes?sucursalId=$sucursalId',
-            ),
-          )
-          .map(
-            (j) => CortePedido(
-              id: j['id'] as int,
-              apertura: j['apertura'] as String,
-            ),
-          )
-          .toList();
-
-  @override
   Future<void> registrar(DatosPedido d) async {
     await _api.requestJson(
       'POST',
@@ -120,9 +104,9 @@ class HttpPedidosGateway implements PedidosGateway {
         'cliente': {
           'nombre': d.cliente.trim(),
           'telefono': d.telefono.trim(),
-          'ciudad': d.ciudad.trim(),
-          'colonia': d.colonia.trim(),
-          'calle': d.calle.trim(),
+          if (d.ciudad.trim().isNotEmpty) 'ciudad': d.ciudad.trim(),
+          if (d.colonia.trim().isNotEmpty) 'colonia': d.colonia.trim(),
+          if (d.calle.trim().isNotEmpty) 'calle': d.calle.trim(),
         },
         'productos': [
           for (final producto in d.productos)
@@ -133,18 +117,17 @@ class HttpPedidosGateway implements PedidosGateway {
         'pagoInicial': {
           'monto': d.monto,
           'metodoPago': d.metodo,
-          'corteCajaId': d.corteId,
         },
       },
     );
   }
 
   @override
-  Future<void> pagar(int id, double monto, String metodo, int corteId) async =>
+  Future<void> pagar(int id, double monto, String metodo) async =>
       _api.requestJson(
         'POST',
         'api/pedidos/$id/pagos',
-        body: {'monto': monto, 'metodoPago': metodo, 'corteCajaId': corteId},
+        body: {'monto': monto, 'metodoPago': metodo},
       );
   @override
   Future<void> cambiarEstado(int id, String estado) async => _api.requestJson(

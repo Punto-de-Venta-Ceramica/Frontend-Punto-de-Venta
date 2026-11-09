@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
+import 'pedido_input_formatters.dart';
 import 'registrar_pedido_page.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'notificaciones_page.dart';
@@ -90,85 +92,116 @@ class _PedidosPageState extends State<PedidosPage> {
   }
 
   Future<void> _detalle(Pedido pedido) async {
+    String? mensajeCopia;
+    final direccion = [pedido.calle, pedido.colonia, pedido.ciudad]
+        .map((parte) => parte.trim())
+        .where((parte) => parte.isNotEmpty)
+        .join(', ');
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Detalle del pedido',
-                style: BarroTheme.type(24, 32, weight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              Text('Folio: ${pedido.folio}'),
-              Text('Cliente: ${pedido.cliente} · ${pedido.telefono}'),
-              Text(
-                'Dirección: ${pedido.calle}, ${pedido.colonia}, ${pedido.ciudad}',
-              ),
-              Text('Entrega: ${pedido.tipoEntrega}'),
-              if (pedido.descripcion.isNotEmpty) Text(pedido.descripcion),
-              const SizedBox(height: 12),
-              for (final d in pedido.productos)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (context) => StatefulBuilder(
+        builder: (context, actualizar) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Detalle del pedido',
+                  style: BarroTheme.type(24, 32, weight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    Text(
-                      '${d.cantidad} × ${d.nombre} · ${formatoPrecio(d.subtotal)}',
+                    Expanded(child: Text('Folio: ${pedido.folio}')),
+                    IconButton(
+                      tooltip: 'Copiar folio',
+                      icon: const Icon(Icons.copy_outlined),
+                      onPressed: () async {
+                        try {
+                          await Clipboard.setData(
+                            ClipboardData(text: pedido.folio),
+                          );
+                          if (context.mounted) {
+                            actualizar(() => mensajeCopia = 'Folio copiado');
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            actualizar(
+                              () =>
+                                  mensajeCopia = 'No se pudo copiar el folio.',
+                            );
+                          }
+                        }
+                      },
                     ),
-                    if (d.porcentajeDescuento > 0)
-                      Text(
-                        'Descuento de mayoreo: ${d.porcentajeDescuento.toStringAsFixed(2)} %',
-                      ),
                   ],
                 ),
-              const SizedBox(height: 12),
-              Text(
-                'Total: ${formatoPrecio(pedido.total)} · Saldo: ${formatoPrecio(pedido.saldo)}',
-              ),
-              Text(pedido.saldo == 0 ? 'Pagado' : 'Pago pendiente'),
-              if (pedido.saldo > 0 && pedido.estado != 'CANCELADO') ...[
-                const SizedBox(height: 16),
-                ProductoBoton(
-                  texto: 'Registrar pago',
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _pagar(pedido);
-                  },
-                ),
-              ],
-              if (widget.esPropietario && pedido.estado != 'CANCELADO')
-                TextButton(
-                  onPressed: () async {
-                    final confirmar = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Cancelar pedido'),
-                        content: const Text('¿Deseas cancelar este pedido?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Volver'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Cancelar pedido'),
-                          ),
-                        ],
+                if (mensajeCopia != null) Text(mensajeCopia!),
+                Text('Cliente: ${pedido.cliente} · ${pedido.telefono}'),
+                if (direccion.isNotEmpty) Text('Dirección: $direccion'),
+                Text('Entrega: ${pedido.tipoEntrega}'),
+                if (pedido.descripcion.isNotEmpty) Text(pedido.descripcion),
+                const SizedBox(height: 12),
+                for (final d in pedido.productos)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${d.cantidad} × ${d.nombre} · ${formatoPrecio(d.subtotal)}',
                       ),
-                    );
-                    if (confirmar == true && context.mounted) {
-                      Navigator.pop(context);
-                      await _accion(() => widget.gestion.cancelar(pedido.id));
-                    }
-                  },
-                  child: const Text('Cancelar pedido'),
+                      if (d.porcentajeDescuento > 0)
+                        Text(
+                          'Descuento de mayoreo: ${d.porcentajeDescuento.toStringAsFixed(2)} %',
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: 12),
+                Text(
+                  'Total: ${formatoPrecio(pedido.total)} · Saldo: ${formatoPrecio(pedido.saldo)}',
                 ),
-            ],
+                Text(pedido.saldo == 0 ? 'Pagado' : 'Pago pendiente'),
+                if (pedido.saldo > 0 && pedido.estado != 'CANCELADO') ...[
+                  const SizedBox(height: 16),
+                  ProductoBoton(
+                    texto: 'Registrar pago',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _pagar(pedido);
+                    },
+                  ),
+                ],
+                if (widget.esPropietario && pedido.estado != 'CANCELADO')
+                  TextButton(
+                    onPressed: () async {
+                      final confirmar = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Cancelar pedido'),
+                          content: const Text('¿Deseas cancelar este pedido?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Volver'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Cancelar pedido'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmar == true && context.mounted) {
+                        Navigator.pop(context);
+                        await _accion(() => widget.gestion.cancelar(pedido.id));
+                      }
+                    },
+                    child: const Text('Cancelar pedido'),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -176,21 +209,9 @@ class _PedidosPageState extends State<PedidosPage> {
   }
 
   Future<void> _pagar(Pedido pedido) async {
-    List<CortePedido> cortes;
-    try {
-      cortes = await widget.gestion.cortes(widget.sucursalId);
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
-      }
-      return;
-    }
     if (!mounted) return;
     final monto = TextEditingController();
     String metodo = 'EFECTIVO';
-    int? corte = cortes.isEmpty ? null : cortes.first.id;
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -210,27 +231,12 @@ class _PedidosPageState extends State<PedidosPage> {
               ),
               TextField(
                 controller: monto,
+                inputFormatters: PedidoInputFormatters.dinero,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
                 decoration: const InputDecoration(labelText: 'Cantidad pagada'),
               ),
-              DropdownButtonFormField<int>(
-                initialValue: corte,
-                decoration: const InputDecoration(
-                  labelText: 'Corte de caja abierto',
-                ),
-                items: [
-                  for (final c in cortes)
-                    DropdownMenuItem(
-                      value: c.id,
-                      child: Text('Corte #${c.id}'),
-                    ),
-                ],
-                onChanged: (v) => update(() => corte = v),
-              ),
-              if (cortes.isEmpty)
-                const Text('No hay un corte abierto para esta sucursal.'),
             ],
           ),
           actions: [
@@ -245,23 +251,16 @@ class _PedidosPageState extends State<PedidosPage> {
                     !valor.isFinite ||
                     valor <= 0 ||
                     valor > pedido.saldo ||
-                    corte == null ||
                     !RegExp(
                       r'^\d+(?:[.,]\d{1,2})?$',
                     ).hasMatch(monto.text.trim())) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Revisa el importe y selecciona un corte abierto.',
-                      ),
-                    ),
+                    const SnackBar(content: Text('Revisa el importe.')),
                   );
                   return;
                 }
                 Navigator.pop(context);
-                _accion(
-                  () => widget.gestion.pagar(pedido.id, valor, metodo, corte!),
-                );
+                _accion(() => widget.gestion.pagar(pedido.id, valor, metodo));
               },
               child: const Text('Guardar pago'),
             ),
