@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
+import '../../../../application/services/imagenes_producto.dart';
 import '../../../../domain/producto.dart';
 import 'producto_detalle_page.dart';
 import 'producto_form_page.dart';
@@ -17,12 +18,14 @@ class ProductosPage extends StatefulWidget {
     this.onInicio,
     this.onPedidos,
     this.descuentos,
+    this.imagenes,
     super.key,
   });
   final GestionProductosUseCase gestion;
 
   /// Para registrar y editar los descuentos (varios, opcionales) de cada producto.
   final GestionDescuentosUseCase? descuentos;
+  final ImagenesProducto? imagenes;
   final VoidCallback onSesionExpirada;
   final NegocioProducto? negocioInicial;
 
@@ -175,6 +178,7 @@ class _ProductosPageState extends State<ProductosPage> {
           negocio: _negocio!,
           gestion: widget.gestion,
           descuentos: widget.descuentos,
+          imagenes: widget.imagenes,
           onSesionExpirada: widget.onSesionExpirada,
           sucursal: widget.sucursal,
           onRegistrados: (cantidad) => registrados = cantidad,
@@ -205,6 +209,7 @@ class _ProductosPageState extends State<ProductosPage> {
           sucursal: widget.sucursal,
           gestion: widget.gestion,
           descuentos: widget.descuentos,
+          imagenes: widget.imagenes,
           onSesionExpirada: widget.onSesionExpirada,
           mensajeInicial: mensaje,
         ),
@@ -266,7 +271,19 @@ class _ProductosPageState extends State<ProductosPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(p.nombre, style: BarroTheme.type(16, 23, weight: FontWeight.w700)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                p.nombre,
+                style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 12),
+            ProductoImagen(url: p.imagenUrl, size: 64),
+          ],
+        ),
         const SizedBox(height: 4),
         Text(
           _clasificacion(p),

@@ -37,6 +37,8 @@ class HttpProductoGateway implements ProductoGateway {
     return value;
   }
 
+  String? _textoOpcional(Object? value) => value == null ? null : _texto(value);
+
   double _numero(Object? value) {
     if (value is! num) throw const FormatException();
     return value.toDouble();
@@ -55,6 +57,8 @@ class HttpProductoGateway implements ProductoGateway {
       nombre: _texto(json['nombre']),
       precio: _numero(json['precio']),
       categoriaId: _id(json['categoriaId']),
+      imagenUrl: _textoOpcional(json['imagenUrl']),
+      imagenPublicId: _textoOpcional(json['imagenPublicId']),
       descuento: d == null
           ? null
           : DescuentoProducto(
@@ -199,6 +203,8 @@ class HttpProductoGateway implements ProductoGateway {
               'nombre': datos.nombre.trim(),
               'precio': datos.precioNumero,
               'categoriaId': datos.categoriaId,
+              'imagenUrl': datos.imagenUrl,
+              'imagenPublicId': datos.imagenPublicId,
               'descuento': _descuento(datos),
               'existencias': [
                 for (final e in datos.existencias)
@@ -222,6 +228,8 @@ class HttpProductoGateway implements ProductoGateway {
               'nombre': datos.nombre.trim(),
               'precio': datos.precioNumero,
               'categoriaId': datos.categoriaId,
+              'imagenUrl': datos.imagenUrl,
+              'imagenPublicId': datos.imagenPublicId,
               'descuento': _descuento(datos),
             },
           ),

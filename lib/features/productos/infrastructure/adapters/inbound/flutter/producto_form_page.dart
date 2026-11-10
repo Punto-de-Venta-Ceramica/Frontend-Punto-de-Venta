@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -5,6 +6,8 @@ import 'package:punto_de_venta/features/descuentos/application/ports/inbound/ges
 import 'package:punto_de_venta/features/descuentos/domain/descuento.dart';
 import 'package:punto_de_venta/features/descuentos/infrastructure/adapters/inbound/flutter/descuento_widgets.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
+import '../../../../application/services/imagenes_producto.dart';
+import '../../../../domain/imagen_producto.dart';
 import '../../../../domain/producto.dart';
 import 'producto_widgets.dart';
 
@@ -37,6 +40,7 @@ class ProductoFormPage extends StatefulWidget {
     required this.negocio,
     required this.gestion,
     required this.onSesionExpirada,
+    this.imagenes,
     this.descuentos,
     this.producto,
     this.sucursal,
@@ -49,6 +53,7 @@ class ProductoFormPage extends StatefulWidget {
   final void Function(int cantidad)? onRegistrados;
   final NegocioProducto negocio;
   final GestionProductosUseCase gestion;
+  final ImagenesProducto? imagenes;
   final VoidCallback onSesionExpirada;
 
   /// Descuentos opcionales del producto (varios). Sin esto no se muestra la sección.
@@ -76,6 +81,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
 
   /// El producto ya se creó pero algo posterior falló: reintentar lo edita.
   Producto? _productoGuardado;
+  ArchivoImagenProducto? _imagenPendiente;
+  String? _imagenUrl;
+  String? _imagenPublicId;
+  double? _progresoImagen;
 
   /// "Crear más productos": al registrar, el formulario se reinicia para el siguiente.
   bool _crearMas = false;
@@ -93,6 +102,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   bool _busy = false;
   String? _error;
   bool get _edicion => widget.producto != null;
+  bool get _permiteTomarFoto =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   /// Al registrar desde una sucursal todo va en una sola pantalla: datos y existencia.
   bool get _unaPantalla => !_edicion && widget.sucursal != null;
@@ -105,6 +118,8 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _nombre.text = p.nombre;
       _precio.text = p.precio.toStringAsFixed(2);
       _categoriaId = p.categoriaId;
+      _imagenUrl = p.imagenUrl;
+      _imagenPublicId = p.imagenPublicId;
     }
     _cargar();
   }
@@ -189,6 +204,8 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     nombre: _nombre.text,
     precio: _precio.text,
     categoriaId: _categoriaId,
+    imagenUrl: _imagenUrl,
+    imagenPublicId: _imagenPublicId,
     existencias: conExistencias
         ? [
             for (final id in _seleccion)
@@ -256,6 +273,107 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         id: 'Ingresa una cantidad entera de 0 o más.',
   };
 
+  Future<void> _seleccionarImagen({required bool camara}) async {
+    final servicio = widget.imagenes;
+    if (_busy || servicio == null) return;
+    try {
+      final archivo = camara
+          ? await servicio.tomarFoto()
+          : await servicio.elegirImagen();
+      if (!mounted || archivo == null) return;
+      setState(() {
+        _imagenPendiente = archivo;
+        _error = null;
+        _aviso = null;
+      });
+    } on ImagenProductoException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.mensaje);
+    }
+  }
+
+  void _quitarImagen() {
+    if (_busy) return;
+    setState(() {
+      _imagenPendiente = null;
+      _imagenUrl = null;
+      _imagenPublicId = null;
+      _progresoImagen = null;
+      _error = null;
+    });
+  }
+
+  Widget _seccionImagen() {
+    if (widget.imagenes == null) return const SizedBox.shrink();
+    final hayImagen = _imagenPendiente != null || _imagenUrl != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        const ProductoEtiqueta('Imagen del producto'),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ProductoImagen(
+              url: _imagenUrl,
+              bytes: _imagenPendiente?.bytes,
+              size: 104,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () => _seleccionarImagen(camara: false),
+                        icon: const Icon(Icons.upload_file_outlined),
+                        label: const Text('Subir imagen'),
+                      ),
+                      if (_permiteTomarFoto)
+                        OutlinedButton.icon(
+                          onPressed: _busy
+                              ? null
+                              : () => _seleccionarImagen(camara: true),
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          label: const Text('Tomar foto'),
+                        ),
+                      if (hayImagen)
+                        TextButton.icon(
+                          onPressed: _busy ? null : _quitarImagen,
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Quitar imagen'),
+                        ),
+                    ],
+                  ),
+                  Text(
+                    'PNG o JPEG. Se optimiza al guardar.',
+                    style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (_progresoImagen != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Subiendo imagen: ${(_progresoImagen! * 100).round()}%',
+            style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+          ),
+          const SizedBox(height: 4),
+          LinearProgressIndicator(value: _progresoImagen),
+        ],
+      ],
+    );
+  }
+
   Future<void> _guardar() async {
     if (_busy) return;
     FocusScope.of(context).unfocus();
@@ -279,6 +397,29 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _aviso = null;
     });
     try {
+      final imagenPendiente = _imagenPendiente;
+      if (imagenPendiente != null) {
+        final servicio = widget.imagenes;
+        if (servicio == null) {
+          throw const ImagenProductoException(
+            'No está disponible el servicio de imágenes.',
+          );
+        }
+        setState(() => _progresoImagen = 0);
+        final subida = await servicio.subir(
+          imagenPendiente,
+          alProgresar: (fraccion) {
+            if (mounted) setState(() => _progresoImagen = fraccion);
+          },
+        );
+        if (!mounted) return;
+        setState(() {
+          _imagenUrl = subida.url;
+          _imagenPublicId = subida.publicId;
+          _imagenPendiente = null;
+          _progresoImagen = null;
+        });
+      }
       final existente = _edicion ? widget.producto! : _productoGuardado;
       var guardado = existente != null
           ? await widget.gestion.editar(
@@ -333,6 +474,13 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       Navigator.of(context).pop<Producto>(guardado);
     } on ProductoFailure catch (e) {
       if (mounted) _fallo(e);
+    } on ImagenProductoException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.mensaje;
+        _progresoImagen = null;
+      });
     }
   }
 
@@ -356,6 +504,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _erroresFilas.clear();
       _errores.clear();
       _productoGuardado = null;
+      _imagenPendiente = null;
+      _imagenUrl = null;
+      _imagenPublicId = null;
+      _progresoImagen = null;
       _paso = 0;
       _seleccion
         ..clear()
@@ -484,6 +636,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         _nombre,
         hint: 'Ej. Taza cerámica esmaltada',
       ),
+      _seccionImagen(),
       const SizedBox(height: 20),
       _texto(
         'precio',
@@ -582,9 +735,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         inputFormatters: formatos,
         style: BarroTheme.type(14, 21),
         decoration: productoDecoracion(
-          error: _erroresFilas[indice]?[clave == 'minimo'
-              ? 'cantidadMinima'
-              : 'porcentaje'],
+          error:
+              _erroresFilas[indice]?[clave == 'minimo'
+                  ? 'cantidadMinima'
+                  : 'porcentaje'],
         ),
         onChanged: (_) {
           if (_erroresFilas.containsKey(indice) || _error != null) {
@@ -1000,7 +1154,9 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
               texto: _edicion
                   ? 'Guardar cambios'
                   : enSucursales || _unaPantalla
-                  ? (_crearMas ? 'Registrar y crear otro' : 'Registrar producto')
+                  ? (_crearMas
+                        ? 'Registrar y crear otro'
+                        : 'Registrar producto')
                   : 'Continuar',
               busy: _busy,
               onPressed: _edicion || enSucursales

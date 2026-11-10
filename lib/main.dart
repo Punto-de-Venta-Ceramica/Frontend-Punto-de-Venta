@@ -13,9 +13,11 @@ import 'features/descuentos/application/services/gestion_descuentos.dart';
 import 'features/descuentos/infrastructure/adapters/inbound/flutter/descuentos_page.dart';
 import 'features/descuentos/infrastructure/adapters/outbound/http/http_descuento_gateway.dart';
 import 'features/productos/application/services/gestion_productos.dart';
+import 'features/productos/application/services/imagenes_producto.dart';
 import 'features/productos/domain/producto.dart';
 import 'features/productos/infrastructure/adapters/inbound/flutter/productos_page.dart';
 import 'features/productos/infrastructure/adapters/outbound/http/http_producto_gateway.dart';
+import 'features/productos/infrastructure/imagenes_producto.dart';
 import 'features/pedidos/application/gestion_pedidos.dart';
 import 'features/pedidos/infrastructure/adapters/outbound/http_pedidos_gateway.dart';
 import 'features/pedidos/infrastructure/adapters/inbound/pedidos_page.dart';
@@ -61,6 +63,7 @@ class PuntoDeVentaApp extends StatefulWidget {
 class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final ApiClient _api;
   late final HttpAuthenticationGateway _authentication;
+  late final ImagenesProducto _imagenesProducto;
   late final ContadorNotificaciones _contador;
   String _rol = '';
   final ValueNotifier<int> _sesionExpirada = ValueNotifier(0);
@@ -71,6 +74,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _api = ApiClient(baseUrl: ApiConfig.baseUrl, client: widget.httpClient)
       ..onSessionExpired = () => _sesionExpirada.value++;
     _authentication = HttpAuthenticationGateway(_api);
+    _imagenesProducto = crearImagenesProducto();
     _contador = ContadorNotificaciones(_api, IndicadorIconoMovil());
   }
 
@@ -231,6 +235,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       builder: (productosContext) => ProductosPage(
         gestion: GestionProductos(HttpProductoGateway(_api)),
         descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
+        imagenes: _imagenesProducto,
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(productosContext),
       ),
@@ -249,6 +254,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       builder: (productosContext) => ProductosPage(
         gestion: GestionProductos(HttpProductoGateway(_api)),
         descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
+        imagenes: _imagenesProducto,
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(productosContext),
         sucursal: SucursalProducto(id: sucursal.id, nombre: sucursal.nombre),

@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -10,6 +13,62 @@ String formatoPrecio(double valor) => '\$${valor.toStringAsFixed(2)}';
 
 String formatoPiezas(int cantidad) =>
     '$cantidad ${cantidad == 1 ? 'pieza' : 'piezas'}';
+
+class ProductoImagen extends StatelessWidget {
+  const ProductoImagen({required this.size, this.url, this.bytes, super.key});
+
+  final double size;
+  final String? url;
+  final Uint8List? bytes;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: productoSuave,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: BarroTheme.border),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: _contenido(),
+  );
+
+  Widget _contenido() {
+    final seleccionada = bytes;
+    if (seleccionada != null) {
+      return Image.memory(
+        seleccionada,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _placeholder(error: true),
+      );
+    }
+    final direccion = url?.trim();
+    if (direccion == null || direccion.isEmpty) return _placeholder();
+    return CachedNetworkImage(
+      imageUrl: direccion,
+      fit: BoxFit.cover,
+      placeholder: (_, _) => _placeholder(cargando: true),
+      errorWidget: (_, _, _) => _placeholder(error: true),
+    );
+  }
+
+  Widget _placeholder({bool cargando = false, bool error = false}) => Container(
+    color: productoSuave,
+    alignment: Alignment.center,
+    child: cargando
+        ? const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(
+            error ? Icons.broken_image_outlined : Icons.image_outlined,
+            color: BarroTheme.secondary,
+            size: size * 0.38,
+          ),
+  );
+}
 
 class ProductoCabecera extends StatelessWidget {
   const ProductoCabecera({this.rol = 'Propietario', super.key});

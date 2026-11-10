@@ -70,6 +70,8 @@ class Producto {
     required this.precio,
     required this.categoriaId,
     this.descuento,
+    this.imagenUrl,
+    this.imagenPublicId,
     this.existencias = const [],
   });
   final int id;
@@ -77,6 +79,8 @@ class Producto {
   final double precio;
   final int categoriaId;
   final DescuentoProducto? descuento;
+  final String? imagenUrl;
+  final String? imagenPublicId;
   final List<ExistenciaSucursal> existencias;
 
   int get existenciaTotal => existencias.fold(0, (a, e) => a + e.existencia);
@@ -93,6 +97,8 @@ class Producto {
     precio: precio,
     categoriaId: categoriaId,
     descuento: descuento,
+    imagenUrl: imagenUrl,
+    imagenPublicId: imagenPublicId,
     existencias: existencias,
   );
 }
@@ -109,6 +115,8 @@ class DatosProducto {
     required this.nombre,
     required this.precio,
     required this.categoriaId,
+    this.imagenUrl,
+    this.imagenPublicId,
     this.cantidadMinima = '',
     this.porcentaje = '',
     this.existencias = const [],
@@ -116,6 +124,8 @@ class DatosProducto {
   final String nombre;
   final String precio;
   final int? categoriaId;
+  final String? imagenUrl;
+  final String? imagenPublicId;
   final String cantidadMinima;
   final String porcentaje;
   final List<ExistenciaInicial> existencias;
