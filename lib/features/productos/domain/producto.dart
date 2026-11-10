@@ -68,7 +68,10 @@ class Producto {
     required this.id,
     required this.nombre,
     required this.precio,
-    required this.categoriaId,
+    this.categoriaId,
+    this.categoriaNombre,
+    this.areaId,
+    this.areaNombre,
     this.descuento,
     this.imagenUrl,
     this.imagenPublicId,
@@ -77,13 +80,24 @@ class Producto {
   final int id;
   final String nombre;
   final double precio;
-  final int categoriaId;
+
+  /// Categoría y área: solo vienen en el detalle del producto, no en el listado.
+  final int? categoriaId;
+  final String? categoriaNombre;
+  final int? areaId;
+  final String? areaNombre;
   final DescuentoProducto? descuento;
   final String? imagenUrl;
   final String? imagenPublicId;
   final List<ExistenciaSucursal> existencias;
 
   int get existenciaTotal => existencias.fold(0, (a, e) => a + e.existencia);
+
+  /// "Área · Categoría" cuando el detalle ya las trae; vacío en caso contrario.
+  String get clasificacion => [
+    ?areaNombre,
+    ?categoriaNombre,
+  ].join(' · ');
 
   /// Solo la existencia de una sucursal (la gestión de productos es por sucursal).
   Producto soloSucursal(int sucursalId) => conExistencias([
@@ -96,11 +110,55 @@ class Producto {
     nombre: nombre,
     precio: precio,
     categoriaId: categoriaId,
+    categoriaNombre: categoriaNombre,
+    areaId: areaId,
+    areaNombre: areaNombre,
     descuento: descuento,
     imagenUrl: imagenUrl,
     imagenPublicId: imagenPublicId,
     existencias: existencias,
   );
+}
+
+/// Filtros del listado; se aplican en el servidor para que la paginación sea correcta.
+class FiltroProductos {
+  const FiltroProductos({
+    this.areaId,
+    this.categoriaId,
+    this.buscar = '',
+    this.sucursalId,
+  });
+  final int? areaId;
+  final int? categoriaId;
+  final String buscar;
+  final int? sucursalId;
+
+  FiltroProductos copiarCon({
+    int? areaId,
+    int? categoriaId,
+    String? buscar,
+    bool limpiarArea = false,
+    bool limpiarCategoria = false,
+  }) => FiltroProductos(
+    areaId: limpiarArea ? null : (areaId ?? this.areaId),
+    categoriaId: limpiarCategoria ? null : (categoriaId ?? this.categoriaId),
+    buscar: buscar ?? this.buscar,
+    sucursalId: sucursalId,
+  );
+}
+
+/// Una página del listado (pagina empieza en 0).
+class PaginaProductos {
+  const PaginaProductos({
+    required this.productos,
+    required this.pagina,
+    required this.ultima,
+    required this.total,
+  });
+  final List<Producto> productos;
+  final int pagina;
+  final bool ultima;
+  final int total;
 }
 
 class ExistenciaInicial {

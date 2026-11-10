@@ -15,15 +15,23 @@ String formatoPiezas(int cantidad) =>
     '$cantidad ${cantidad == 1 ? 'pieza' : 'piezas'}';
 
 class ProductoImagen extends StatelessWidget {
-  const ProductoImagen({required this.size, this.url, this.bytes, super.key});
+  const ProductoImagen({
+    required this.size,
+    this.ancho,
+    this.url,
+    this.bytes,
+    super.key,
+  });
 
+  /// Alto (y ancho, si `ancho` es null) del recuadro.
   final double size;
+  final double? ancho;
   final String? url;
   final Uint8List? bytes;
 
   @override
   Widget build(BuildContext context) => Container(
-    width: size,
+    width: ancho ?? size,
     height: size,
     decoration: BoxDecoration(
       color: productoSuave,

@@ -40,7 +40,7 @@ class ProductoDetallePage extends StatefulWidget {
 
 class _ProductoDetallePageState extends State<ProductoDetallePage> {
   late Producto _producto = widget.producto;
-  String _clasificacion = '';
+  bool _cargando = true;
   String? _mensaje;
   String? _error;
   bool _busy = false;
@@ -62,7 +62,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   void initState() {
     super.initState();
     _mensaje = widget.mensajeInicial;
-    _cargarClasificacion();
+    _cargarDetalle();
     if (!_modoSucursal) _cargarSucursales();
   }
 
@@ -121,22 +121,24 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
     });
   }
 
-  Future<void> _cargarClasificacion() async {
+  /// El listado trae solo lo mínimo: categoría, área y existencias se piden aquí.
+  Future<void> _cargarDetalle() async {
     try {
-      final areas = await widget.gestion.areas(widget.negocio.id);
-      final categorias = await widget.gestion.categorias(widget.negocio.id);
+      final detalle = await widget.gestion.consultar(
+        widget.producto.id,
+        widget.negocio.id,
+      );
       if (!mounted) return;
-      final categoria = categorias
-          .where((c) => c.id == _producto.categoriaId)
-          .firstOrNull;
-      final area = areas.where((a) => a.id == categoria?.areaId).firstOrNull;
       setState(() {
-        _clasificacion = categoria == null
-            ? ''
-            : [if (area != null) area.nombre, categoria.nombre].join(' · ');
+        _producto = _modoSucursal
+            ? detalle.soloSucursal(widget.sucursal!.id)
+            : detalle;
+        _cargando = false;
       });
     } on ProductoFailure catch (e) {
-      if (mounted) _fallo(e);
+      if (!mounted) return;
+      setState(() => _cargando = false);
+      _fallo(e);
     }
   }
 
@@ -201,7 +203,6 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       _mensaje = 'Cambios guardados correctamente.';
       _error = null;
     });
-    _cargarClasificacion();
   }
 
   Future<void> _eliminar() async {
@@ -246,10 +247,10 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             'Detalle del producto',
             style: BarroTheme.type(28, 36, weight: FontWeight.w700),
           ),
-          if (_clasificacion.isNotEmpty) ...[
+          if (p.clasificacion.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
-              _clasificacion,
+              p.clasificacion,
               style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
             ),
           ],
@@ -273,6 +274,14 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Solo visualización de la imagen del producto.
+                ProductoImagen(
+                  key: const ValueKey('producto-detalle-imagen'),
+                  size: 260,
+                  ancho: double.infinity,
+                  url: p.imagenUrl,
+                ),
+                const SizedBox(height: 16),
                 Text(
                   p.nombre,
                   style: BarroTheme.type(22, 30, weight: FontWeight.w700),
@@ -345,7 +354,14 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
               border: Border.all(color: BarroTheme.border),
               borderRadius: BorderRadius.circular(21),
             ),
-            child: p.existencias.isEmpty && _sinAsignar.isEmpty
+            child: _cargando
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : p.existencias.isEmpty && _sinAsignar.isEmpty
                 ? Text(
                     'Este producto aún no tiene existencias registradas.',
                     style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
@@ -390,7 +406,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
           ProductoBoton(
             key: const ValueKey('producto-editar'),
             texto: 'Editar producto',
-            onPressed: _busy ? null : _editar,
+            onPressed: _busy || _cargando ? null : _editar,
           ),
           // Eliminar da de baja el producto en todo el negocio: solo desde el modo negocio.
           if (!_modoSucursal) ...[
@@ -398,7 +414,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             ProductoBotonPeligro(
               key: const ValueKey('producto-eliminar'),
               texto: 'Eliminar producto',
-              onPressed: _busy ? null : _eliminar,
+              onPressed: _busy || _cargando ? null : _eliminar,
             ),
           ],
         ],
