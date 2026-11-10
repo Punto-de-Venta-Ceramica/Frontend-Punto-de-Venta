@@ -396,7 +396,7 @@ void main() {
         baseUrl: 'https://example.test',
         client: MockClient((r) async {
           final ruta = r.url.path + (r.url.hasQuery ? '?${r.url.query}' : '');
-          if (ruta.endsWith('api/productos?negocioId=7')) {
+          if (ruta.endsWith('api/productos/catalogo?negocioId=7')) {
             return _json('[{"id":3,"nombre":"Olla","categoriaId":10}]');
           }
           if (ruta.endsWith('/areas')) {

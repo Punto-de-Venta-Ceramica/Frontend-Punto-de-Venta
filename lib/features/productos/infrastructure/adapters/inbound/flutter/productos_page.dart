@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
@@ -45,8 +47,16 @@ class _ProductosPageState extends State<ProductosPage> {
   List<AreaProducto> _areas = [];
   List<CategoriaProducto> _categorias = [];
   final _busqueda = TextEditingController();
+  Timer? _espera;
   int? _areaId;
   int? _categoriaId;
+  int _pagina = 0;
+  int _total = 0;
+  bool _ultima = true;
+
+  /// Recargando la lista por un filtro, o pidiendo la página siguiente.
+  bool _listando = false;
+  bool _cargandoMas = false;
   bool _busy = true;
   String? _error;
   String? _mensaje;
@@ -60,6 +70,7 @@ class _ProductosPageState extends State<ProductosPage> {
 
   @override
   void dispose() {
+    _espera?.cancel();
     _busqueda.dispose();
     super.dispose();
   }
@@ -119,26 +130,25 @@ class _ProductosPageState extends State<ProductosPage> {
             return <T>[];
           });
       final resultados = await Future.wait<Object>([
-        widget.gestion.listar(negocio.id),
+        widget.gestion.listar(
+          negocio.id,
+          filtro: FiltroProductos(sucursalId: widget.sucursal?.id),
+        ),
         opcional(widget.gestion.areas(negocio.id)),
         opcional(widget.gestion.categorias(negocio.id)),
       ]);
       if (!mounted || carga != _carga) return;
+      final pagina = resultados[0] as PaginaProductos;
       setState(() {
-        final todos = resultados[0] as List<Producto>;
-        final sucursalId = widget.sucursal?.id;
-        // En una sucursal: solo los productos con existencia registrada en ella.
-        _productos = sucursalId == null
-            ? todos
-            : [
-                for (final p in todos)
-                  if (p.existencias.any((e) => e.sucursalId == sucursalId))
-                    p.soloSucursal(sucursalId),
-              ];
+        _productos = pagina.productos;
+        _pagina = pagina.pagina;
+        _ultima = pagina.ultima;
+        _total = pagina.total;
         _areas = resultados[1] as List<AreaProducto>;
         _categorias = resultados[2] as List<CategoriaProducto>;
         _areaId = null;
         _categoriaId = null;
+        _busqueda.clear();
         _busy = false;
       });
     } on ProductoFailure catch (e) {
@@ -146,27 +156,70 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  CategoriaProducto? _categoria(int id) =>
-      _categorias.where((c) => c.id == id).firstOrNull;
+  FiltroProductos get _filtroActual => FiltroProductos(
+    areaId: _areaId,
+    categoriaId: _categoriaId,
+    buscar: _busqueda.text,
+    sucursalId: widget.sucursal?.id,
+  );
 
-  String _clasificacion(Producto p) {
-    final categoria = _categoria(p.categoriaId);
-    if (categoria == null) return 'Sin clasificar';
-    final area = _areas.where((a) => a.id == categoria.areaId).firstOrNull;
-    return [if (area != null) area.nombre, categoria.nombre].join(' · ');
+  /// Los filtros se aplican en el servidor y reinician la paginación.
+  Future<void> _aplicarFiltros() async {
+    final negocio = _negocio;
+    if (negocio == null) return;
+    final carga = ++_carga;
+    setState(() {
+      _listando = true;
+      _error = null;
+    });
+    try {
+      final pagina = await widget.gestion.listar(negocio.id, filtro: _filtroActual);
+      if (!mounted || carga != _carga) return;
+      setState(() {
+        _productos = pagina.productos;
+        _pagina = pagina.pagina;
+        _ultima = pagina.ultima;
+        _total = pagina.total;
+        _listando = false;
+      });
+    } on ProductoFailure catch (e) {
+      if (mounted && carga == _carga) {
+        setState(() => _listando = false);
+        _fallo(e);
+      }
+    }
   }
 
-  List<Producto> get _filtrados {
-    final texto = _busqueda.text.trim().toLowerCase();
-    return _productos.where((p) {
-      final categoria = _categoria(p.categoriaId);
-      if (texto.isNotEmpty && !p.nombre.toLowerCase().contains(texto)) {
-        return false;
+  void _alBuscar(String _) {
+    _espera?.cancel();
+    _espera = Timer(const Duration(milliseconds: 400), _aplicarFiltros);
+  }
+
+  Future<void> _masProductos() async {
+    final negocio = _negocio;
+    if (negocio == null || _cargandoMas || _listando || _ultima) return;
+    final carga = _carga;
+    setState(() => _cargandoMas = true);
+    try {
+      final pagina = await widget.gestion.listar(
+        negocio.id,
+        pagina: _pagina + 1,
+        filtro: _filtroActual,
+      );
+      if (!mounted || carga != _carga) return;
+      setState(() {
+        _productos = [..._productos, ...pagina.productos];
+        _pagina = pagina.pagina;
+        _ultima = pagina.ultima;
+        _total = pagina.total;
+        _cargandoMas = false;
+      });
+    } on ProductoFailure catch (e) {
+      if (mounted) {
+        setState(() => _cargandoMas = false);
+        _fallo(e);
       }
-      if (_areaId != null && categoria?.areaId != _areaId) return false;
-      if (_categoriaId != null && p.categoriaId != _categoriaId) return false;
-      return true;
-    }).toList();
+    }
   }
 
   Future<void> _registrar() async {
@@ -255,98 +308,65 @@ class _ProductosPageState extends State<ProductosPage> {
               child: Text(o.$2, overflow: TextOverflow.ellipsis),
             ),
         ],
-        onChanged: _busy ? null : onChanged,
+        onChanged: _busy || _listando ? null : onChanged,
       ),
     ),
   );
 
   Widget _tarjeta(Producto p) => Container(
     margin: const EdgeInsets.only(bottom: 16),
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
     decoration: BoxDecoration(
       color: Colors.white,
       border: Border.all(color: BarroTheme.border),
       borderRadius: BorderRadius.circular(21),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: () => _abrirDetalle(p),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                p.nombre,
-                style: BarroTheme.type(16, 23, weight: FontWeight.w700),
-              ),
+            ProductoImagen(
+              key: ValueKey('producto-imagen-${p.id}'),
+              size: 200,
+              ancho: double.infinity,
+              url: p.imagenUrl,
             ),
-            const SizedBox(width: 12),
-            ProductoImagen(url: p.imagenUrl, size: 64),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _clasificacion(p),
-          style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              formatoPrecio(p.precio),
-              style: BarroTheme.type(
-                24,
-                30,
-                weight: FontWeight.w700,
-                color: BarroTheme.primary,
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  formatoPiezas(p.existenciaTotal),
-                  style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
-                ),
-                if (widget.sucursal == null && p.existencias.isNotEmpty)
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'en ${p.existencias.length} ${p.existencias.length == 1 ? 'sucursal' : 'sucursales'}',
-                    style: BarroTheme.type(11, 16, color: BarroTheme.secondary),
+                    p.nombre,
+                    style: BarroTheme.type(18, 25, weight: FontWeight.w700),
                   ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    formatoPrecio(p.precio),
+                    style: BarroTheme.type(
+                      24,
+                      30,
+                      weight: FontWeight.w700,
+                      color: BarroTheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _abrirDetalle(p),
+                child: const Text('Ver producto →'),
+              ),
             ),
           ],
         ),
-        if (p.descuento != null) ...[
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: productoSuave,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              p.descuento!.resumen,
-              style: BarroTheme.type(
-                11,
-                16,
-                weight: FontWeight.w700,
-                color: BarroTheme.primary,
-              ),
-            ),
-          ),
-        ],
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () => _abrirDetalle(p),
-            child: const Text('Ver producto →'),
-          ),
-        ),
-      ],
+      ),
     ),
   );
 
@@ -397,7 +417,6 @@ class _ProductosPageState extends State<ProductosPage> {
   Widget build(BuildContext context) {
     final vacioTotal =
         !_busy && _error == null && _negocio != null && _productos.isEmpty;
-    final filtrados = _filtrados;
     final categoriasVisibles = _categorias
         .where((c) => _areaId == null || c.areaId == _areaId)
         .toList();
@@ -465,7 +484,7 @@ class _ProductosPageState extends State<ProductosPage> {
             controller: _busqueda,
             style: BarroTheme.type(14, 21),
             decoration: productoDecoracion(hint: 'Buscar producto...'),
-            onChanged: (_) => setState(() {}),
+            onChanged: _alBuscar,
           ),
           const SizedBox(height: 12),
           Row(
@@ -475,17 +494,23 @@ class _ProductosPageState extends State<ProductosPage> {
                   'Todas las áreas',
                   _areaId,
                   [for (final a in _areas) (a.id, a.nombre)],
-                  (id) => setState(() {
-                    _areaId = id;
-                    _categoriaId = null;
-                  }),
+                  (id) {
+                    setState(() {
+                      _areaId = id;
+                      _categoriaId = null;
+                    });
+                    _aplicarFiltros();
+                  },
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _filtro('Todas las categorías', _categoriaId, [
                   for (final c in categoriasVisibles) (c.id, c.nombre),
-                ], (id) => setState(() => _categoriaId = id)),
+                ], (id) {
+                  setState(() => _categoriaId = id);
+                  _aplicarFiltros();
+                }),
               ),
             ],
           ),
@@ -493,13 +518,31 @@ class _ProductosPageState extends State<ProductosPage> {
           ProductoBoton(texto: '+ Registrar producto', onPressed: _registrar),
           const SizedBox(height: 20),
           Text(
-            '${filtrados.length} ${filtrados.length == 1 ? 'producto registrado' : 'productos registrados'}',
+            '$_total ${_total == 1 ? 'producto registrado' : 'productos registrados'}',
             style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
           ),
           const SizedBox(height: 16),
-          if (filtrados.isEmpty)
-            const ProductoAviso('Ningún producto coincide con tu búsqueda.'),
-          for (final p in filtrados) _tarjeta(p),
+          if (_listando)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+            if (_productos.isEmpty)
+              const ProductoAviso('Ningún producto coincide con tu búsqueda.'),
+            for (final p in _productos) _tarjeta(p),
+            if (!_ultima)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _cargandoMas
+                    ? const Center(child: CircularProgressIndicator())
+                    : OutlinedButton(
+                        key: const ValueKey('productos-ver-mas'),
+                        onPressed: _masProductos,
+                        child: const Text('Ver más productos'),
+                      ),
+              ),
+          ],
         ],
         const SizedBox(height: 12),
         Center(

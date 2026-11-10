@@ -43,9 +43,13 @@ class GestionProductos implements GestionProductosUseCase {
   }
 
   @override
-  Future<List<Producto>> listar(int negocioId) {
+  Future<PaginaProductos> listar(
+    int negocioId, {
+    int pagina = 0,
+    FiltroProductos filtro = const FiltroProductos(),
+  }) {
     _validarId(negocioId);
-    return _gateway.listar(negocioId);
+    return _gateway.listar(negocioId, pagina: pagina, filtro: filtro);
   }
 
   @override

@@ -56,7 +56,10 @@ class HttpProductoGateway implements ProductoGateway {
       id: _id(json['id']),
       nombre: _texto(json['nombre']),
       precio: _numero(json['precio']),
-      categoriaId: _id(json['categoriaId']),
+      categoriaId: json['categoriaId'] == null ? null : _id(json['categoriaId']),
+      categoriaNombre: _textoOpcional(json['categoriaNombre']),
+      areaId: json['areaId'] == null ? null : _id(json['areaId']),
+      areaNombre: _textoOpcional(json['areaNombre']),
       imagenUrl: _textoOpcional(json['imagenUrl']),
       imagenPublicId: _textoOpcional(json['imagenPublicId']),
       descuento: d == null
@@ -171,16 +174,33 @@ class HttpProductoGateway implements ProductoGateway {
   );
 
   @override
-  Future<List<Producto>> listar(int negocioId) => _seguro(() async {
-    final productos = _lista(
-      await _api.requestJson('GET', 'api/productos?negocioId=$negocioId'),
-      _producto,
+  Future<PaginaProductos> listar(
+    int negocioId, {
+    int pagina = 0,
+    FiltroProductos filtro = const FiltroProductos(),
+  }) => _seguro(() async {
+    final consulta = <String>[
+      'negocioId=$negocioId',
+      'page=$pagina',
+      if (filtro.areaId != null) 'areaId=${filtro.areaId}',
+      if (filtro.categoriaId != null) 'categoriaId=${filtro.categoriaId}',
+      if (filtro.sucursalId != null) 'sucursalId=${filtro.sucursalId}',
+      if (filtro.buscar.trim().isNotEmpty)
+        'buscar=${Uri.encodeQueryComponent(filtro.buscar.trim())}',
+    ].join('&');
+    final json = _map(await _api.requestJson('GET', 'api/productos?$consulta'));
+    final total = json['totalElementos'];
+    final numeroPagina = json['pagina'];
+    final ultima = json['ultima'];
+    if (total is! int || numeroPagina is! int || ultima is! bool) {
+      throw const FormatException();
+    }
+    return PaginaProductos(
+      productos: _lista(json['contenido'], _producto),
+      pagina: numeroPagina,
+      ultima: ultima,
+      total: total,
     );
-    final existencias = await _existencias(negocioId);
-    return [
-      for (final p in productos)
-        p.conExistencias(existencias[p.id] ?? const []),
-    ];
   });
 
   @override
