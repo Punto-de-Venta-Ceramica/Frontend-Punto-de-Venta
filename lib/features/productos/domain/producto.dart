@@ -94,10 +94,7 @@ class Producto {
   int get existenciaTotal => existencias.fold(0, (a, e) => a + e.existencia);
 
   /// "Área · Categoría" cuando el detalle ya las trae; vacío en caso contrario.
-  String get clasificacion => [
-    ?areaNombre,
-    ?categoriaNombre,
-  ].join(' · ');
+  String get clasificacion => [?areaNombre, ?categoriaNombre].join(' · ');
 
   /// Solo la existencia de una sucursal (la gestión de productos es por sucursal).
   Producto soloSucursal(int sucursalId) => conExistencias([

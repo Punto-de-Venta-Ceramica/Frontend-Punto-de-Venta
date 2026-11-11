@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import '../../../../domain/producto.dart';
+import '../../outbound/imagenes/cloudinary_url.dart';
 
 const productoSuave = Color(0xFFF7E7DF);
 const productoErrorSuave = Color(0xFFFFF0EE);
@@ -53,11 +55,21 @@ class ProductoImagen extends StatelessWidget {
     }
     final direccion = url?.trim();
     if (direccion == null || direccion.isEmpty) return _placeholder();
-    return CachedNetworkImage(
-      imageUrl: direccion,
-      fit: BoxFit.cover,
-      placeholder: (_, _) => _placeholder(cargando: true),
-      errorWidget: (_, _, _) => _placeholder(error: true),
+    // Se pide a Cloudinary solo el tamaño que ocupa el recuadro en pantalla.
+    return LayoutBuilder(
+      builder: (context, restricciones) {
+        final ancho = restricciones.maxWidth.isFinite
+            ? restricciones.maxWidth
+            : size;
+        final ladoPx =
+            math.max(ancho, size) * MediaQuery.devicePixelRatioOf(context);
+        return CachedNetworkImage(
+          imageUrl: urlImagenCloudinary(direccion, ladoPx),
+          fit: BoxFit.cover,
+          placeholder: (_, _) => _placeholder(cargando: true),
+          errorWidget: (_, _, _) => _placeholder(error: true),
+        );
+      },
     );
   }
 
@@ -117,11 +129,15 @@ class ProductoNegocioPanel extends StatelessWidget {
     required this.negocio,
     this.negocios = const [],
     this.onChanged,
+    this.sucursal,
     super.key,
   });
   final NegocioProducto negocio;
   final List<NegocioProducto> negocios;
   final ValueChanged<NegocioProducto>? onChanged;
+
+  /// Nombre de la sucursal que se administra: sustituye al del negocio.
+  final String? sucursal;
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
@@ -134,7 +150,7 @@ class ProductoNegocioPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'NEGOCIO',
+          sucursal != null ? 'SUCURSAL' : 'NEGOCIO',
           style: BarroTheme.type(
             11,
             16,
@@ -142,7 +158,12 @@ class ProductoNegocioPanel extends StatelessWidget {
             color: BarroTheme.secondary,
           ),
         ),
-        if (negocios.length > 1)
+        if (sucursal != null)
+          Text(
+            sucursal!,
+            style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+          )
+        else if (negocios.length > 1)
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: negocio.id,

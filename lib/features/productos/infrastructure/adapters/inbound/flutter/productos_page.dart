@@ -173,7 +173,10 @@ class _ProductosPageState extends State<ProductosPage> {
       _error = null;
     });
     try {
-      final pagina = await widget.gestion.listar(negocio.id, filtro: _filtroActual);
+      final pagina = await widget.gestion.listar(
+        negocio.id,
+        filtro: _filtroActual,
+      );
       if (!mounted || carga != _carga) return;
       setState(() {
         _productos = pagina.productos;
@@ -430,7 +433,12 @@ class _ProductosPageState extends State<ProductosPage> {
                   widget.onInicio ?? () => Navigator.of(context).maybePop(),
               onPedidos: widget.onPedidos,
             ),
-      onRefresh: _busy ? () async {} : _iniciar,
+      onRefresh: _busy
+          ? () async {}
+          : () {
+              widget.gestion.descartarCache();
+              return _iniciar();
+            },
       children: [
         const SizedBox(height: 20),
         if (_negocio != null) ...[
@@ -438,6 +446,7 @@ class _ProductosPageState extends State<ProductosPage> {
             negocio: _negocio!,
             negocios: _negocios,
             onChanged: _busy ? null : _cargar,
+            sucursal: widget.sucursal?.nombre,
           ),
           const SizedBox(height: 20),
         ],
@@ -505,12 +514,15 @@ class _ProductosPageState extends State<ProductosPage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _filtro('Todas las categorías', _categoriaId, [
-                  for (final c in categoriasVisibles) (c.id, c.nombre),
-                ], (id) {
-                  setState(() => _categoriaId = id);
-                  _aplicarFiltros();
-                }),
+                child: _filtro(
+                  'Todas las categorías',
+                  _categoriaId,
+                  [for (final c in categoriasVisibles) (c.id, c.nombre)],
+                  (id) {
+                    setState(() => _categoriaId = id);
+                    _aplicarFiltros();
+                  },
+                ),
               ),
             ],
           ),

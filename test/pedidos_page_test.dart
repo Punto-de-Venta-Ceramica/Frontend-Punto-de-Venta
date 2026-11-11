@@ -106,7 +106,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Aplica descuento de mayoreo'), findsOneWidget);
     expect(find.text('Selecciona un producto'), findsOneWidget);
-    expect(tester.widget<TextFormField>(find.byType(TextFormField).at(1)).controller!.text, '1');
+    expect(
+      tester
+          .widget<TextFormField>(find.byType(TextFormField).at(1))
+          .controller!
+          .text,
+      '1',
+    );
     await tester.ensureVisible(find.text('Selecciona un producto'));
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
@@ -141,7 +147,9 @@ void main() {
     final saldo = find.byKey(const ValueKey('pedido-saldo-estimado'));
     expect(tester.widget<Text>(total).data, r'$230.00');
     expect(tester.widget<Text>(saldo).data, r'$230.00');
-    final avisoAnticipo = find.textContaining('La función de corte de caja aún está en desarrollo');
+    final avisoAnticipo = find.textContaining(
+      'La función de corte de caja aún está en desarrollo',
+    );
     expect(avisoAnticipo, findsNothing);
     await tester.enterText(find.byType(TextFormField).first, '5a0 ');
     await tester.pump();

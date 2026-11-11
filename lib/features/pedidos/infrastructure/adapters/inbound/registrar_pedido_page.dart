@@ -15,10 +15,12 @@ class RegistrarPedidoPage extends StatefulWidget {
     required this.sucursalId,
     required this.negocio,
     required this.esPropietario,
+    this.sucursalNombre,
     super.key,
   });
   final GestionPedidos gestion;
   final int sucursalId;
+  final String? sucursalNombre;
   final NegocioProducto negocio;
   final bool esPropietario;
   @override
@@ -526,7 +528,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         icon: const Icon(Icons.arrow_back, size: 18),
         label: const Text('Pedidos'),
       ),
-      ProductoNegocioPanel(negocio: widget.negocio),
+      ProductoNegocioPanel(
+        negocio: widget.negocio,
+        sucursal: widget.sucursalNombre,
+      ),
       const SizedBox(height: 12),
       Text(
         'Registrar pedido',

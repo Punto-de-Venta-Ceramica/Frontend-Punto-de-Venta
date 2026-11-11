@@ -17,8 +17,12 @@ class EmpleadosPage extends StatefulWidget {
     this.onInicio,
     this.onPedidos,
     this.onInventario,
+    this.sucursalNombre,
     super.key,
   });
+
+  /// Con valor, el encabezado muestra la sucursal en lugar del negocio.
+  final String? sucursalNombre;
 
   final GestionEmpleadosUseCase gestion;
   final NegocioEmpleado negocioInicial;
@@ -112,6 +116,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
         builder: (_) => NuevoEmpleadoPage(
           gestion: widget.gestion,
           negocio: _negocio,
+          sucursalNombre: widget.sucursalNombre,
           onSesionExpirada: widget.onSesionExpirada,
         ),
       ),
@@ -132,6 +137,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
         builder: (_) => AsignarSucursalesPage(
           gestion: widget.gestion,
           negocio: _negocio,
+          sucursalNombre: widget.sucursalNombre,
           onSesionExpirada: widget.onSesionExpirada,
           empleadoSeleccionadoId: empleadoId,
         ),
@@ -220,6 +226,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                   const SucursalCabecera(),
                   const SizedBox(height: 16),
                   NegocioSucursalPanel(
+                    sucursal: widget.sucursalNombre,
                     negocio: NegocioSucursal(
                       id: _negocio.id,
                       nombre: _negocio.nombre,

@@ -34,29 +34,32 @@ ApiClient _client(
   );
 
 void main() {
-  test('un 401 renueva el acceso en segundo plano y reintenta la petición', () async {
-    final seen = <String>[];
-    var refreshes = 0;
-    final api = _client(
-      MockClient((r) async {
-        if (r.url.path == '/api/auth/refresh') {
-          refreshes++;
-          expect(jsonDecode(r.body), {'refreshToken': 'refresh-1'});
-          return http.Response(_refreshBody('acceso-nuevo'), 200);
-        }
-        seen.add(r.headers['Authorization']!);
-        return r.headers['Authorization'] == 'Bearer acceso-nuevo'
-            ? http.Response('{"ok":true}', 200)
-            : http.Response('', 401);
-      }),
-    );
+  test(
+    'un 401 renueva el acceso en segundo plano y reintenta la petición',
+    () async {
+      final seen = <String>[];
+      var refreshes = 0;
+      final api = _client(
+        MockClient((r) async {
+          if (r.url.path == '/api/auth/refresh') {
+            refreshes++;
+            expect(jsonDecode(r.body), {'refreshToken': 'refresh-1'});
+            return http.Response(_refreshBody('acceso-nuevo'), 200);
+          }
+          seen.add(r.headers['Authorization']!);
+          return r.headers['Authorization'] == 'Bearer acceso-nuevo'
+              ? http.Response('{"ok":true}', 200)
+              : http.Response('', 401);
+        }),
+      );
 
-    final data = await api.getJson('api/negocios');
+      final data = await api.getJson('api/negocios');
 
-    expect(data['ok'], true);
-    expect(refreshes, 1);
-    expect(seen, ['Bearer acceso-viejo', 'Bearer acceso-nuevo']);
-  });
+      expect(data['ok'], true);
+      expect(refreshes, 1);
+      expect(seen, ['Bearer acceso-viejo', 'Bearer acceso-nuevo']);
+    },
+  );
 
   test('renueva antes de enviar si el acceso está por vencer', () async {
     final seen = <String>[];
@@ -122,7 +125,10 @@ void main() {
       onExpired: () => expired++,
     );
 
-    await expectLater(api.getJson('api/negocios'), throwsA(isA<ApiException>()));
+    await expectLater(
+      api.getJson('api/negocios'),
+      throwsA(isA<ApiException>()),
+    );
     expect(expired, 0);
     expect(api.bearerToken, 'acceso-viejo');
   });
@@ -140,7 +146,10 @@ void main() {
       onExpired: () => expired++,
     );
 
-    await expectLater(api.getJson('api/negocios'), throwsA(isA<ApiException>()));
+    await expectLater(
+      api.getJson('api/negocios'),
+      throwsA(isA<ApiException>()),
+    );
     expect(calls, 0);
     expect(expired, 1);
   });

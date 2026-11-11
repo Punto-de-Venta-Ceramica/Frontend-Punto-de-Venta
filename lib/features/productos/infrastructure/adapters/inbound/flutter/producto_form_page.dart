@@ -1115,7 +1115,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         children: [
           SizedBox(key: _arriba, height: 14),
           ProductoEnlaceVolver(onPressed: _busy ? null : _terminar),
-          ProductoNegocioPanel(negocio: widget.negocio),
+          ProductoNegocioPanel(
+            negocio: widget.negocio,
+            sucursal: widget.sucursal?.nombre,
+          ),
           const SizedBox(height: 16),
           Text(titulo, style: BarroTheme.type(28, 36, weight: FontWeight.w700)),
           const SizedBox(height: 4),

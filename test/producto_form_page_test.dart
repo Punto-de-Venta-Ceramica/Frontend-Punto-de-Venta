@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/services/gestion_productos.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
@@ -25,7 +26,7 @@ class _Gateway implements ProductoGateway {
   ];
 
   @override
-  Future<Producto> crear(int negocioId, DatosProducto datos) async {
+  Future<Producto> crear(DatosProducto datos) async {
     creado = datos;
     return Producto(
       id: 1,
@@ -52,7 +53,7 @@ Future<_Gateway> _abrir(
     MaterialApp(
       home: ProductoFormPage(
         negocio: const NegocioProducto(id: 1, nombre: 'Barro Centro'),
-        gestion: GestionProductos(gateway),
+        gestion: GestionProductos(gateway, const _SinExistencias()),
         onSesionExpirada: () {},
         sucursal: sucursal,
       ),
@@ -131,4 +132,15 @@ void main() {
     );
     expect(find.byKey(const ValueKey('producto-existencia-11')), findsNothing);
   });
+}
+
+class _SinExistencias implements ExistenciasGateway {
+  const _SinExistencias();
+
+  @override
+  Future<List<ExistenciaSucursal>> porProducto(int productoId) async =>
+      const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
