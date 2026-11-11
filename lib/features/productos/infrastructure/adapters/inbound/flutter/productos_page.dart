@@ -446,6 +446,7 @@ class _ProductosPageState extends State<ProductosPage> {
             negocio: _negocio!,
             negocios: _negocios,
             onChanged: _busy ? null : _cargar,
+            sucursal: widget.sucursal?.nombre,
           ),
           const SizedBox(height: 20),
         ],

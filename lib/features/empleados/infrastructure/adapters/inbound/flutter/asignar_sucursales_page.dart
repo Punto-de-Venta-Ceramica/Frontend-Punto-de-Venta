@@ -11,8 +11,11 @@ class AsignarSucursalesPage extends StatefulWidget {
     required this.negocio,
     required this.onSesionExpirada,
     this.empleadoSeleccionadoId,
+    this.sucursalNombre,
     super.key,
   });
+
+  final String? sucursalNombre;
 
   final GestionEmpleadosUseCase gestion;
   final NegocioEmpleado negocio;
@@ -395,6 +398,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                     ),
                   ),
                   NegocioSucursalPanel(
+                    sucursal: widget.sucursalNombre,
                     negocio: NegocioSucursal(
                       id: widget.negocio.id,
                       nombre: widget.negocio.nombre,

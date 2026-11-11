@@ -21,10 +21,12 @@ class PedidosPage extends StatefulWidget {
     required this.esPropietario,
     required this.contador,
     this.onInventario,
+    this.sucursalNombre,
     super.key,
   });
   final GestionPedidos gestion;
   final int sucursalId;
+  final String? sucursalNombre;
   final NegocioProducto negocio;
   final bool esPropietario;
   final ContadorNotificaciones contador;
@@ -72,6 +74,7 @@ class _PedidosPageState extends State<PedidosPage> {
           sucursalId: widget.sucursalId,
           negocio: widget.negocio,
           esPropietario: widget.esPropietario,
+          sucursalNombre: widget.sucursalNombre,
         ),
       ),
     );
@@ -291,7 +294,10 @@ class _PedidosPageState extends State<PedidosPage> {
       onRefresh: _cargar,
       children: [
         const SizedBox(height: 20),
-        ProductoNegocioPanel(negocio: widget.negocio),
+        ProductoNegocioPanel(
+          negocio: widget.negocio,
+          sucursal: widget.sucursalNombre,
+        ),
         const SizedBox(height: 20),
         Row(
           children: [

@@ -129,11 +129,15 @@ class ProductoNegocioPanel extends StatelessWidget {
     required this.negocio,
     this.negocios = const [],
     this.onChanged,
+    this.sucursal,
     super.key,
   });
   final NegocioProducto negocio;
   final List<NegocioProducto> negocios;
   final ValueChanged<NegocioProducto>? onChanged;
+
+  /// Nombre de la sucursal que se administra: sustituye al del negocio.
+  final String? sucursal;
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
@@ -146,7 +150,7 @@ class ProductoNegocioPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'NEGOCIO',
+          sucursal != null ? 'SUCURSAL' : 'NEGOCIO',
           style: BarroTheme.type(
             11,
             16,
@@ -154,7 +158,12 @@ class ProductoNegocioPanel extends StatelessWidget {
             color: BarroTheme.secondary,
           ),
         ),
-        if (negocios.length > 1)
+        if (sucursal != null)
+          Text(
+            sucursal!,
+            style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+          )
+        else if (negocios.length > 1)
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: negocio.id,

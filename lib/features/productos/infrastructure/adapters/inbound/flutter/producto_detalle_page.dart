@@ -200,6 +200,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
           imagenes: widget.imagenes,
           onSesionExpirada: widget.onSesionExpirada,
           producto: _producto,
+          sucursal: widget.sucursal,
         ),
       ),
     );
@@ -249,18 +250,24 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
           ProductoEnlaceVolver(
             onPressed: _busy ? null : () => Navigator.pop(context),
           ),
-          ProductoNegocioPanel(negocio: widget.negocio),
+          ProductoNegocioPanel(
+            negocio: widget.negocio,
+            sucursal: widget.sucursal?.nombre,
+          ),
           const SizedBox(height: 16),
           Text(
             'Detalle del producto',
             style: BarroTheme.type(28, 36, weight: FontWeight.w700),
           ),
-          if (p.clasificacion.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              p.clasificacion,
-              style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
-            ),
+          if (p.areaNombre != null || p.categoriaNombre != null) ...[
+            const SizedBox(height: 8),
+            if (p.areaNombre != null)
+              _DatoClasificacion(etiqueta: 'Área', valor: p.areaNombre!),
+            if (p.categoriaNombre != null)
+              _DatoClasificacion(
+                etiqueta: 'Categoría',
+                valor: p.categoriaNombre!,
+              ),
           ],
           const SizedBox(height: 20),
           if (_mensaje != null) ...[
@@ -429,6 +436,32 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       ),
     );
   }
+}
+
+/// "Área: Cocina y comedor" — etiqueta en gris y valor en negrita.
+class _DatoClasificacion extends StatelessWidget {
+  const _DatoClasificacion({required this.etiqueta, required this.valor});
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 2),
+    child: Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: '$etiqueta: ',
+            style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+          ),
+          TextSpan(
+            text: valor,
+            style: BarroTheme.type(14, 21, weight: FontWeight.w700),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _FilaExistencia extends StatelessWidget {

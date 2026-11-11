@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
+import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
 import '../../../../application/ports/inbound/gestion_empleados_use_case.dart';
 import '../../../../domain/empleado.dart';
 import 'widgets/credenciales_empleado_dialog.dart';
@@ -10,8 +11,11 @@ class NuevoEmpleadoPage extends StatefulWidget {
     required this.gestion,
     required this.negocio,
     required this.onSesionExpirada,
+    this.sucursalNombre,
     super.key,
   });
+
+  final String? sucursalNombre;
 
   final GestionEmpleadosUseCase gestion;
   final NegocioEmpleado negocio;
@@ -219,6 +223,16 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
                     style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
                   ),
                 ),
+                if (widget.sucursalNombre != null) ...[
+                  NegocioSucursalPanel(
+                    negocio: NegocioSucursal(
+                      id: widget.negocio.id,
+                      nombre: widget.negocio.nombre,
+                    ),
+                    sucursal: widget.sucursalNombre,
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 if (_errorGeneral != null) ...[
                   SucursalAviso(_errorGeneral!, error: true),
                   const SizedBox(height: 20),

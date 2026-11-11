@@ -193,6 +193,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         ),
         gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
         negocioInicial: NegocioEmpleado(id: negocio.id, nombre: negocio.nombre),
+        sucursalNombre: sucursal.nombre,
         onSesionExpirada: () => _cerrarSesion(empleadosContext),
       ),
     ),
@@ -301,6 +302,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       builder: (pedidosContext) => PedidosPage(
         gestion: GestionPedidos(HttpPedidosGateway(_api)),
         sucursalId: sucursal.id,
+        sucursalNombre: sucursal.nombre,
         negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         esPropietario: _rol == 'PROPIETARIO',
         contador: _contador,
@@ -327,6 +329,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           builder: (_) => PedidosPage(
             gestion: GestionPedidos(HttpPedidosGateway(_api)),
             sucursalId: asignacion['sucursalId'] as int,
+            sucursalNombre: asignacion['sucursal'] as String?,
             negocio: NegocioProducto(
               id: asignacion['negocioId'] as int,
               nombre: asignacion['negocio'] as String,
