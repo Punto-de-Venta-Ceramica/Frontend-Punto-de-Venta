@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/services/gestion_productos.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
@@ -27,7 +28,7 @@ class _Productos implements ProductoGateway {
   ];
 
   @override
-  Future<Producto> crear(int negocioId, DatosProducto datos) async {
+  Future<Producto> crear(DatosProducto datos) async {
     creados.add(datos);
     return Producto(
       id: creados.length,
@@ -67,7 +68,10 @@ Future<(_Productos, _Anfitrion)> _abrir(WidgetTester tester) async {
                       MaterialPageRoute(
                         builder: (_) => ProductoFormPage(
                           negocio: _negocio,
-                          gestion: GestionProductos(productos),
+                          gestion: GestionProductos(
+                            productos,
+                            const _SinExistencias(),
+                          ),
                           onSesionExpirada: () {},
                           sucursal: _sucursal,
                           onRegistrados: (n) => anfitrion.registrados = n,
@@ -111,10 +115,8 @@ Future<void> _datos(WidgetTester tester, String nombre, String precio) async {
   await tester.enterText(find.byKey(const ValueKey('producto-precio')), precio);
 }
 
-String _texto(WidgetTester tester, String clave) => tester
-    .widget<TextField>(find.byKey(ValueKey(clave)))
-    .controller!
-    .text;
+String _texto(WidgetTester tester, String clave) =>
+    tester.widget<TextField>(find.byKey(ValueKey(clave))).controller!.text;
 
 void main() {
   testWidgets('"Crear más productos" viene desactivado', (tester) async {
@@ -241,4 +243,15 @@ void main() {
     expect(_texto(tester, 'producto-nombre'), 'Olla');
     expect(find.text('Ingresa un precio mayor que cero.'), findsOneWidget);
   });
+}
+
+class _SinExistencias implements ExistenciasGateway {
+  const _SinExistencias();
+
+  @override
+  Future<List<ExistenciaSucursal>> porProducto(int productoId) async =>
+      const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

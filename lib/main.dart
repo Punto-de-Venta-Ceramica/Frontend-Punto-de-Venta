@@ -16,6 +16,8 @@ import 'features/productos/application/services/gestion_productos.dart';
 import 'features/productos/application/services/imagenes_producto.dart';
 import 'features/productos/domain/producto.dart';
 import 'features/productos/infrastructure/adapters/inbound/flutter/productos_page.dart';
+import 'features/productos/infrastructure/adapters/outbound/cache/cache_productos.dart';
+import 'features/productos/infrastructure/adapters/outbound/http/http_existencias_gateway.dart';
 import 'features/productos/infrastructure/adapters/outbound/http/http_producto_gateway.dart';
 import 'features/productos/infrastructure/imagenes_producto.dart';
 import 'features/pedidos/application/gestion_pedidos.dart';
@@ -65,6 +67,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final HttpAuthenticationGateway _authentication;
   late final ImagenesProducto _imagenesProducto;
   late final ContadorNotificaciones _contador;
+  late final CacheProductos _productos;
   String _rol = '';
   final ValueNotifier<int> _sesionExpirada = ValueNotifier(0);
   AuthSession? _sesionActual;
@@ -76,7 +79,17 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _authentication = HttpAuthenticationGateway(_api);
     _imagenesProducto = crearImagenesProducto();
     _contador = ContadorNotificaciones(_api, IndicadorIconoMovil());
+    _productos = CacheProductos(
+      HttpProductoGateway(_api),
+      HttpExistenciasGateway(_api),
+    );
   }
+
+  GestionProductos get _gestionProductos => GestionProductos(
+    _productos.productos,
+    _productos.existencias,
+    cache: _productos,
+  );
 
   @override
   void dispose() {
@@ -98,6 +111,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _api.cerrarSesion();
     _sesionActual = null;
     _contador.cerrarSesion();
+    _productos.descartar();
     _rol = '';
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
@@ -124,15 +138,20 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   );
 
   Future<void> _abrirCatalogo(BuildContext context, NegocioSucursal negocio) =>
-      Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => CatalogoPage(
-            negocio: NegocioCatalogo(id: negocio.id, nombre: negocio.nombre),
-            gestion: GestionCatalogo(HttpCatalogoGateway(_api)),
-            onSesionExpirada: () => _cerrarSesion(context),
-          ),
-        ),
-      );
+      Navigator.of(context)
+          .push<void>(
+            MaterialPageRoute(
+              builder: (_) => CatalogoPage(
+                negocio: NegocioCatalogo(
+                  id: negocio.id,
+                  nombre: negocio.nombre,
+                ),
+                gestion: GestionCatalogo(HttpCatalogoGateway(_api)),
+                onSesionExpirada: () => _cerrarSesion(context),
+              ),
+            ),
+          )
+          .whenComplete(_productos.descartar);
 
   Future<void> _abrirAdministracion(
     BuildContext context,
@@ -216,15 +235,17 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   Future<void> _abrirDescuentosNegocio(
     BuildContext context,
     NegocioSucursal negocio,
-  ) => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (descuentosContext) => DescuentosPage(
-        gestion: GestionDescuentos(HttpDescuentoGateway(_api)),
-        negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
-        onSesionExpirada: () => _cerrarSesion(descuentosContext),
-      ),
-    ),
-  );
+  ) => Navigator.of(context)
+      .push<void>(
+        MaterialPageRoute(
+          builder: (descuentosContext) => DescuentosPage(
+            gestion: GestionDescuentos(HttpDescuentoGateway(_api)),
+            negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
+            onSesionExpirada: () => _cerrarSesion(descuentosContext),
+          ),
+        ),
+      )
+      .whenComplete(_productos.descartar);
 
   /// Catálogo de productos del negocio completo: todas las sucursales.
   Future<void> _abrirProductosNegocio(
@@ -233,7 +254,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   ) => Navigator.of(context).push<void>(
     MaterialPageRoute(
       builder: (productosContext) => ProductosPage(
-        gestion: GestionProductos(HttpProductoGateway(_api)),
+        gestion: _gestionProductos,
         descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
         imagenes: _imagenesProducto,
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
@@ -252,7 +273,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   }) {
     final ruta = MaterialPageRoute<void>(
       builder: (productosContext) => ProductosPage(
-        gestion: GestionProductos(HttpProductoGateway(_api)),
+        gestion: _gestionProductos,
         descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
         imagenes: _imagenesProducto,
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
@@ -367,6 +388,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             _api.cerrarSesion();
             _sesionActual = null;
             _contador.cerrarSesion();
+            _productos.descartar();
           },
           conteoNotificaciones: _contador,
           openNotifications: () => Navigator.of(context).push(

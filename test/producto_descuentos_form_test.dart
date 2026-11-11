@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/outbound/descuento_gateway.dart';
 import 'package:punto_de_venta/features/descuentos/application/services/gestion_descuentos.dart';
 import 'package:punto_de_venta/features/descuentos/domain/descuento.dart';
+import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/services/gestion_productos.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
@@ -31,7 +32,7 @@ class _Productos implements ProductoGateway {
   ];
 
   @override
-  Future<Producto> crear(int negocioId, DatosProducto datos) async {
+  Future<Producto> crear(DatosProducto datos) async {
     creado = datos;
     return Producto(
       id: 5,
@@ -42,7 +43,7 @@ class _Productos implements ProductoGateway {
   }
 
   @override
-  Future<Producto> editar(int id, int negocioId, DatosProducto datos) async {
+  Future<Producto> editar(int id, DatosProducto datos) async {
     editados++;
     return Producto(
       id: id,
@@ -53,12 +54,8 @@ class _Productos implements ProductoGateway {
   }
 
   @override
-  Future<Producto> consultar(int id, int negocioId) async => Producto(
-    id: id,
-    nombre: 'Olla',
-    precio: 40,
-    categoriaId: 1,
-  );
+  Future<Producto> consultar(int id) async =>
+      Producto(id: id, nombre: 'Olla', precio: 40, categoriaId: 1);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -82,7 +79,9 @@ class _Descuentos implements DescuentoGateway {
 
   @override
   Future<Descuento> crear(int negocioId, DatosDescuento datos) async {
-    llamadas.add('crear ${datos.nombre} ${datos.cantidadMinima} ${datos.porcentaje}');
+    llamadas.add(
+      'crear ${datos.nombre} ${datos.cantidadMinima} ${datos.porcentaje}',
+    );
     final d = Descuento(
       id: _siguiente++,
       nombre: datos.nombre,
@@ -210,7 +209,7 @@ Future<void> _abrir(
     MaterialApp(
       home: ProductoFormPage(
         negocio: _negocio,
-        gestion: GestionProductos(productos),
+        gestion: GestionProductos(productos, const _SinExistencias()),
         descuentos: GestionDescuentos(descuentos),
         onSesionExpirada: () {},
         producto: editar,
@@ -247,12 +246,7 @@ Future<void> _escribir(WidgetTester tester, String clave, String texto) async {
   await tester.enterText(finder, texto);
 }
 
-const _producto = Producto(
-  id: 5,
-  nombre: 'Olla',
-  precio: 40,
-  categoriaId: 1,
-);
+const _producto = Producto(id: 5, nombre: 'Olla', precio: 40, categoriaId: 1);
 
 void main() {
   group('registro', () {
@@ -291,7 +285,10 @@ void main() {
       for (var i = 0; i < 3; i++) {
         await _tocar(tester, 'producto-descuento-agregar');
       }
-      expect(find.text('Puedes agregar más descuentos si lo deseas.'), findsOneWidget);
+      expect(
+        find.text('Puedes agregar más descuentos si lo deseas.'),
+        findsOneWidget,
+      );
       expect(find.text('A partir de (piezas)'), findsNWidgets(3));
       // Sin interruptor de activo por descuento al registrar.
       expect(
@@ -319,30 +316,34 @@ void main() {
       ]);
     });
 
-    testWidgets('no guarda el producto si un descuento es inválido o repetido', (
-      tester,
-    ) async {
-      final productos = _Productos();
-      final descuentos = _Descuentos();
-      await _abrir(tester, productos: productos, descuentos: descuentos);
-      await _llenarProducto(tester);
-      await _tocar(tester, 'producto-descuento-agregar');
-      await _tocar(tester, 'producto-descuento-agregar');
-      await _escribir(tester, 'producto-descuento-minimo-0', '3');
-      await _escribir(tester, 'producto-descuento-porcentaje-0', '10');
-      await _escribir(tester, 'producto-descuento-minimo-1', '3');
-      await _escribir(tester, 'producto-descuento-porcentaje-1', '150');
+    testWidgets(
+      'no guarda el producto si un descuento es inválido o repetido',
+      (tester) async {
+        final productos = _Productos();
+        final descuentos = _Descuentos();
+        await _abrir(tester, productos: productos, descuentos: descuentos);
+        await _llenarProducto(tester);
+        await _tocar(tester, 'producto-descuento-agregar');
+        await _tocar(tester, 'producto-descuento-agregar');
+        await _escribir(tester, 'producto-descuento-minimo-0', '3');
+        await _escribir(tester, 'producto-descuento-porcentaje-0', '10');
+        await _escribir(tester, 'producto-descuento-minimo-1', '3');
+        await _escribir(tester, 'producto-descuento-porcentaje-1', '150');
 
-      await _tocar(tester, 'producto-guardar');
+        await _tocar(tester, 'producto-guardar');
 
-      expect(productos.creado, isNull);
-      expect(descuentos.llamadas, isEmpty);
-      expect(find.text('Ya hay un descuento desde 3 piezas.'), findsOneWidget);
-      expect(
-        find.text('Usa un valor mayor que 0 y hasta 100.'),
-        findsOneWidget,
-      );
-    });
+        expect(productos.creado, isNull);
+        expect(descuentos.llamadas, isEmpty);
+        expect(
+          find.text('Ya hay un descuento desde 3 piezas.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Usa un valor mayor que 0 y hasta 100.'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('edición', () {
@@ -397,7 +398,9 @@ void main() {
       await _escribir(tester, 'producto-descuento-porcentaje-0', '12');
       await _tocar(tester, 'producto-descuento-quitar-1');
       expect(
-        find.text('Los descuentos que quitaste se eliminarán al guardar los cambios.'),
+        find.text(
+          'Los descuentos que quitaste se eliminarán al guardar los cambios.',
+        ),
         findsOneWidget,
       );
       // Nada se elimina hasta guardar.
@@ -439,49 +442,46 @@ void main() {
   });
 
   group('GestionDescuentos.guardarDeProducto', () {
-    test('un reintento tras un fallo parcial no duplica lo ya creado', () async {
-      final gateway = _Descuentos()..fallosDeAsignar = 1;
-      final gestion = GestionDescuentos(gateway);
-      final lineas = [
-        LineaDescuento(cantidadMinima: '2', porcentaje: '10'),
-        LineaDescuento(cantidadMinima: '5', porcentaje: '20'),
-      ];
+    test(
+      'un reintento tras un fallo parcial no duplica lo ya creado',
+      () async {
+        final gateway = _Descuentos()..fallosDeAsignar = 1;
+        final gestion = GestionDescuentos(gateway);
+        final lineas = [
+          LineaDescuento(cantidadMinima: '2', porcentaje: '10'),
+          LineaDescuento(cantidadMinima: '5', porcentaje: '20'),
+        ];
 
-      await expectLater(
-        gestion.guardarDeProducto(7, 5, 'Olla', lineas, <int>{}),
-        throwsA(isA<DescuentoFailure>()),
-      );
-      // Se creó la primera pero no quedó asignada.
-      expect(gateway.filas, hasLength(1));
-      expect(lineas.first.id, 100);
+        await expectLater(
+          gestion.guardarDeProducto(7, 5, 'Olla', lineas, <int>{}),
+          throwsA(isA<DescuentoFailure>()),
+        );
+        // Se creó la primera pero no quedó asignada.
+        expect(gateway.filas, hasLength(1));
+        expect(lineas.first.id, 100);
 
-      await gestion.guardarDeProducto(7, 5, 'Olla', lineas, <int>{});
+        await gestion.guardarDeProducto(7, 5, 'Olla', lineas, <int>{});
 
-      expect(gateway.filas, hasLength(2));
-      expect(gateway.filas.every((d) => d.productoIds.contains(5)), isTrue);
-    });
+        expect(gateway.filas, hasLength(2));
+        expect(gateway.filas.every((d) => d.productoIds.contains(5)), isTrue);
+      },
+    );
 
     test('rechaza líneas inválidas sin llamar al servidor', () async {
       final gateway = _Descuentos();
       final gestion = GestionDescuentos(gateway);
 
       await expectLater(
-        gestion.guardarDeProducto(
-          7,
-          5,
-          'Olla',
-          [LineaDescuento(cantidadMinima: '0', porcentaje: '10')],
-          <int>{},
-        ),
+        gestion.guardarDeProducto(7, 5, 'Olla', [
+          LineaDescuento(cantidadMinima: '0', porcentaje: '10'),
+        ], <int>{}),
         throwsA(isA<DescuentoFailure>()),
       );
       expect(gateway.llamadas, isEmpty);
     });
 
     test('delProducto separa propios de compartidos', () async {
-      final gestion = GestionDescuentos(
-        _Descuentos([_propioA, _compartido]),
-      );
+      final gestion = GestionDescuentos(_Descuentos([_propioA, _compartido]));
 
       final r = await gestion.delProducto(7, 5);
 
@@ -489,4 +489,15 @@ void main() {
       expect(r.compartidos, 1);
     });
   });
+}
+
+class _SinExistencias implements ExistenciasGateway {
+  const _SinExistencias();
+
+  @override
+  Future<List<ExistenciaSucursal>> porProducto(int productoId) async =>
+      const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

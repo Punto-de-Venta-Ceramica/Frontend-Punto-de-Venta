@@ -205,88 +205,93 @@ void main() {
       expect(find.text('1 empleado en tu negocio'), findsOneWidget);
     });
 
-    testWidgets('diálogo de credenciales muestra correo y contraseña generada', (
-      tester,
-    ) async {
-      const creado = EmpleadoCreado(
-        id: 5,
-        negocioId: 10,
-        nombre: 'Ana Torres',
-        correoElectronico: 'ana.torres@correo.com',
-        passwordGenerada: 'ClaveTemp987!',
-        sucursalNombre: 'Sucursal Centro',
-      );
+    testWidgets(
+      'diálogo de credenciales muestra correo y contraseña generada',
+      (tester) async {
+        const creado = EmpleadoCreado(
+          id: 5,
+          negocioId: 10,
+          nombre: 'Ana Torres',
+          correoElectronico: 'ana.torres@correo.com',
+          passwordGenerada: 'ClaveTemp987!',
+          sucursalNombre: 'Sucursal Centro',
+        );
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: CredencialesEmpleadoDialog(empleadoCreado: creado),
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      expect(find.text('¡Empleado registrado!'), findsOneWidget);
-      expect(find.text('ana.torres@correo.com'), findsOneWidget);
-      expect(find.text('ClaveTemp987!'), findsOneWidget);
-      expect(find.text('Sucursal Centro'), findsOneWidget);
-      expect(find.text('Copiar credenciales'), findsOneWidget);
-      expect(find.text('Entendido y continuar'), findsOneWidget);
-    });
-
-    testWidgets('formulario nuevo empleado valida y registra mostrando credenciales', (
-      tester,
-    ) async {
-      final fake = GestionEmpleadosFake();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: NuevoEmpleadoPage(
-            gestion: fake,
-            negocio: const NegocioEmpleado(
-              id: 10,
-              nombre: 'Cerámica del Centro',
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: CredencialesEmpleadoDialog(empleadoCreado: creado),
             ),
-            onSesionExpirada: () {},
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.text('Nuevo empleado'), findsOneWidget);
+        expect(find.text('¡Empleado registrado!'), findsOneWidget);
+        expect(find.text('ana.torres@correo.com'), findsOneWidget);
+        expect(find.text('ClaveTemp987!'), findsOneWidget);
+        expect(find.text('Sucursal Centro'), findsOneWidget);
+        expect(find.text('Copiar credenciales'), findsOneWidget);
+        expect(find.text('Entendido y continuar'), findsOneWidget);
+      },
+    );
 
-      final boton = find.widgetWithText(FilledButton, 'Registrar empleado');
+    testWidgets(
+      'formulario nuevo empleado valida y registra mostrando credenciales',
+      (tester) async {
+        final fake = GestionEmpleadosFake();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: NuevoEmpleadoPage(
+              gestion: fake,
+              negocio: const NegocioEmpleado(
+                id: 10,
+                nombre: 'Cerámica del Centro',
+              ),
+              onSesionExpirada: () {},
+            ),
+          ),
+        );
 
-      // Intentar enviar vacío
-      await tester.ensureVisible(boton);
-      await tester.tap(boton);
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.text('El nombre es obligatorio.'), findsOneWidget);
-      expect(find.text('El correo electrónico es obligatorio.'), findsOneWidget);
+        expect(find.text('Nuevo empleado'), findsOneWidget);
 
-      // Llenar datos válidos
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Escribe el nombre'),
-        'Laura',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Escribe el apellido paterno'),
-        'Soto',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'nombre@correo.com'),
-        'laura.soto@correo.com',
-      );
+        final boton = find.widgetWithText(FilledButton, 'Registrar empleado');
 
-      await tester.ensureVisible(boton);
-      await tester.tap(boton);
-      await tester.pumpAndSettle();
+        // Intentar enviar vacío
+        await tester.ensureVisible(boton);
+        await tester.tap(boton);
+        await tester.pumpAndSettle();
 
-      expect(fake.registrados, 1);
-      expect(find.byType(CredencialesEmpleadoDialog), findsOneWidget);
-      expect(find.text('ClaveSegura123!'), findsOneWidget);
-    });
+        expect(find.text('El nombre es obligatorio.'), findsOneWidget);
+        expect(
+          find.text('El correo electrónico es obligatorio.'),
+          findsOneWidget,
+        );
+
+        // Llenar datos válidos
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Escribe el nombre'),
+          'Laura',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Escribe el apellido paterno'),
+          'Soto',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'nombre@correo.com'),
+          'laura.soto@correo.com',
+        );
+
+        await tester.ensureVisible(boton);
+        await tester.tap(boton);
+        await tester.pumpAndSettle();
+
+        expect(fake.registrados, 1);
+        expect(find.byType(CredencialesEmpleadoDialog), findsOneWidget);
+        expect(find.text('ClaveSegura123!'), findsOneWidget);
+      },
+    );
   });
 }

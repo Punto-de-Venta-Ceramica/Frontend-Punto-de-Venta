@@ -62,6 +62,14 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   void initState() {
     super.initState();
     _mensaje = widget.mensajeInicial;
+    // Lo guardado se muestra de inmediato; _cargarDetalle trae existencias frescas.
+    final guardado = widget.gestion.detalleGuardado(widget.producto.id);
+    if (guardado != null) {
+      _producto = _modoSucursal
+          ? guardado.soloSucursal(widget.sucursal!.id)
+          : guardado;
+      _cargando = false;
+    }
     _cargarDetalle();
     if (!_modoSucursal) _cargarSucursales();
   }

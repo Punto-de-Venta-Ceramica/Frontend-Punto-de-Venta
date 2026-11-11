@@ -260,7 +260,10 @@ void main() {
         cantidadMaxima: '5',
         porcentaje: '150',
       ).validar();
-      expect(errores.keys, containsAll(['nombre', 'cantidadMinima', 'porcentaje']));
+      expect(
+        errores.keys,
+        containsAll(['nombre', 'cantidadMinima', 'porcentaje']),
+      );
 
       final tope = const DatosDescuento(
         nombre: 'X',
@@ -378,44 +381,50 @@ void main() {
       );
     });
 
-    test('una respuesta con formato inesperado falla con mensaje claro', () async {
-      final api = ApiClient(
-        baseUrl: 'https://example.test',
-        client: MockClient((_) async => _json('[{"id":1,"nombre":"X"}]')),
-      );
-      addTearDown(api.close);
+    test(
+      'una respuesta con formato inesperado falla con mensaje claro',
+      () async {
+        final api = ApiClient(
+          baseUrl: 'https://example.test',
+          client: MockClient((_) async => _json('[{"id":1,"nombre":"X"}]')),
+        );
+        addTearDown(api.close);
 
-      await expectLater(
-        HttpDescuentoGateway(api).listar(7),
-        throwsA(isA<DescuentoFailure>()),
-      );
-    });
+        await expectLater(
+          HttpDescuentoGateway(api).listar(7),
+          throwsA(isA<DescuentoFailure>()),
+        );
+      },
+    );
 
-    test('el catálogo une productos, categorías y áreas con su contexto', () async {
-      final api = ApiClient(
-        baseUrl: 'https://example.test',
-        client: MockClient((r) async {
-          final ruta = r.url.path + (r.url.hasQuery ? '?${r.url.query}' : '');
-          if (ruta.endsWith('api/productos/catalogo?negocioId=7')) {
-            return _json('[{"id":3,"nombre":"Olla","categoriaId":10}]');
-          }
-          if (ruta.endsWith('/areas')) {
-            return _json('[{"id":20,"nombre":"Cocina"}]');
-          }
-          if (ruta.endsWith('/areas/20/categorias')) {
-            return _json('[{"id":10,"areaId":20,"nombre":"Ollas"}]');
-          }
-          return _json('[]', 404);
-        }),
-      );
-      addTearDown(api.close);
+    test(
+      'el catálogo une productos, categorías y áreas con su contexto',
+      () async {
+        final api = ApiClient(
+          baseUrl: 'https://example.test',
+          client: MockClient((r) async {
+            final ruta = r.url.path + (r.url.hasQuery ? '?${r.url.query}' : '');
+            if (ruta.endsWith('api/productos/catalogo?negocioId=7')) {
+              return _json('[{"id":3,"nombre":"Olla","categoriaId":10}]');
+            }
+            if (ruta.endsWith('/areas')) {
+              return _json('[{"id":20,"nombre":"Cocina"}]');
+            }
+            if (ruta.endsWith('/areas/20/categorias')) {
+              return _json('[{"id":10,"areaId":20,"nombre":"Ollas"}]');
+            }
+            return _json('[]', 404);
+          }),
+        );
+        addTearDown(api.close);
 
-      final c = await HttpDescuentoGateway(api).catalogo(7);
+        final c = await HttpDescuentoGateway(api).catalogo(7);
 
-      expect(c.productos.single.contexto, 'Ollas');
-      expect(c.categorias.single.contexto, 'Cocina');
-      expect(c.areas.single.nombre, 'Cocina');
-    });
+        expect(c.productos.single.contexto, 'Ollas');
+        expect(c.categorias.single.contexto, 'Cocina');
+        expect(c.areas.single.nombre, 'Cocina');
+      },
+    );
   });
 
   group('DescuentosPage', () {
@@ -438,12 +447,16 @@ void main() {
     testWidgets('sin descuentos ofrece registrar el primero', (tester) async {
       await _abrirLista(tester, _Gateway());
 
-      expect(find.text('Aún no tienes descuentos registrados.'), findsOneWidget);
+      expect(
+        find.text('Aún no tienes descuentos registrados.'),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('descuento-registrar')), findsOneWidget);
     });
 
     testWidgets('un error se muestra y permite reintentar', (tester) async {
-      final gateway = _Gateway()..fallo = const DescuentoFailure('Sin conexión.');
+      final gateway = _Gateway()
+        ..fallo = const DescuentoFailure('Sin conexión.');
       await _abrirLista(tester, gateway);
 
       expect(find.text('Sin conexión.'), findsOneWidget);
@@ -451,7 +464,10 @@ void main() {
       await tester.tap(find.text('Reintentar'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Aún no tienes descuentos registrados.'), findsOneWidget);
+      expect(
+        find.text('Aún no tienes descuentos registrados.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('registrar un descuento lo agrega a la lista', (tester) async {
@@ -481,7 +497,10 @@ void main() {
       expect(gateway.llamadas, isEmpty);
       expect(find.text('Escribe el nombre del descuento.'), findsOneWidget);
       expect(find.text('Indica al menos 1 pieza.'), findsOneWidget);
-      expect(find.text('Usa un valor mayor que 0 y hasta 100.'), findsOneWidget);
+      expect(
+        find.text('Usa un valor mayor que 0 y hasta 100.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('editar actualiza los datos del descuento', (tester) async {
@@ -534,7 +553,9 @@ void main() {
       expect(gateway.llamadas, isEmpty);
 
       await _tocar(tester, 'descuento-eliminar');
-      await tester.tap(find.byKey(const ValueKey('descuento-confirmar-eliminar')));
+      await tester.tap(
+        find.byKey(const ValueKey('descuento-confirmar-eliminar')),
+      );
       await tester.pumpAndSettle();
 
       expect(gateway.llamadas, ['eliminar 1']);
@@ -608,7 +629,10 @@ void main() {
 
       expect(gateway.llamadas, ['quitar producto 3']);
       expect(find.text('Productos (0)'), findsOneWidget);
-      expect(find.text('Se quitó Olla michoacana del descuento.'), findsOneWidget);
+      expect(
+        find.text('Se quitó Olla michoacana del descuento.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('el selector filtra por búsqueda', (tester) async {
@@ -654,7 +678,10 @@ void main() {
         MaterialApp(
           home: SucursalesPage(
             gestion: _GestionSucursales(),
-            negocioInicial: const NegocioSucursal(id: 7, nombre: 'Barro Centro'),
+            negocioInicial: const NegocioSucursal(
+              id: 7,
+              nombre: 'Barro Centro',
+            ),
             onSesionExpirada: () {},
             onDescuentos: (negocio) => abierto = negocio,
           ),

@@ -2,6 +2,7 @@ import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import '../../../../application/ports/outbound/producto_gateway.dart';
 import '../../../../domain/producto.dart';
 
+/// Habla solo con el catálogo; las existencias van por [HttpExistenciasGateway].
 class HttpProductoGateway implements ProductoGateway {
   const HttpProductoGateway(this._api);
   final ApiClient _api;
@@ -56,7 +57,9 @@ class HttpProductoGateway implements ProductoGateway {
       id: _id(json['id']),
       nombre: _texto(json['nombre']),
       precio: _numero(json['precio']),
-      categoriaId: json['categoriaId'] == null ? null : _id(json['categoriaId']),
+      categoriaId: json['categoriaId'] == null
+          ? null
+          : _id(json['categoriaId']),
       categoriaNombre: _textoOpcional(json['categoriaNombre']),
       areaId: json['areaId'] == null ? null : _id(json['areaId']),
       areaNombre: _textoOpcional(json['areaNombre']),
@@ -79,32 +82,6 @@ class HttpProductoGateway implements ProductoGateway {
           'porcentaje': datos.porcentajeNumero,
         }
       : null;
-
-  /// Panel de inventario del negocio agrupado por producto.
-  Future<Map<int, List<ExistenciaSucursal>>> _existencias(int negocioId) async {
-    final filas = _lista(
-      await _api.requestJson('GET', 'api/inventario?negocioId=$negocioId'),
-      (data) {
-        final json = _map(data);
-        final existencia = json['existencia'];
-        if (existencia is! int) throw const FormatException();
-        return (
-          productoId: _id(json['productoId']),
-          fila: ExistenciaSucursal(
-            inventarioId: _id(json['id']),
-            sucursalId: _id(json['sucursalId']),
-            sucursalNombre: _texto(json['sucursalNombre']),
-            existencia: existencia,
-          ),
-        );
-      },
-    );
-    final porProducto = <int, List<ExistenciaSucursal>>{};
-    for (final f in filas) {
-      porProducto.putIfAbsent(f.productoId, () => []).add(f.fila);
-    }
-    return porProducto;
-  }
 
   @override
   Future<List<NegocioProducto>> negocios() => _seguro(
@@ -204,99 +181,47 @@ class HttpProductoGateway implements ProductoGateway {
   });
 
   @override
-  Future<Producto> consultar(int id, int negocioId) => _seguro(() async {
-    final producto = _producto(
-      await _api.requestJson('GET', 'api/productos/$id'),
-    );
-    final existencias = await _existencias(negocioId);
-    return producto.conExistencias(existencias[producto.id] ?? const []);
-  });
+  Future<Producto> consultar(int id) => _seguro(
+    () async => _producto(await _api.requestJson('GET', 'api/productos/$id')),
+  );
 
   @override
-  Future<Producto> crear(int negocioId, DatosProducto datos) =>
-      _seguro(() async {
-        final producto = _producto(
-          await _api.requestJson(
-            'POST',
-            'api/productos',
-            body: {
-              'nombre': datos.nombre.trim(),
-              'precio': datos.precioNumero,
-              'categoriaId': datos.categoriaId,
-              'imagenUrl': datos.imagenUrl,
-              'imagenPublicId': datos.imagenPublicId,
-              'descuento': _descuento(datos),
-              'existencias': [
-                for (final e in datos.existencias)
-                  {'sucursalId': e.sucursalId, 'existencia': e.existencia},
-              ],
-            },
-          ),
-        );
-        final existencias = await _existencias(negocioId);
-        return producto.conExistencias(existencias[producto.id] ?? const []);
-      });
-
-  @override
-  Future<Producto> editar(int id, int negocioId, DatosProducto datos) =>
-      _seguro(() async {
-        final producto = _producto(
-          await _api.requestJson(
-            'PUT',
-            'api/productos/$id',
-            body: {
-              'nombre': datos.nombre.trim(),
-              'precio': datos.precioNumero,
-              'categoriaId': datos.categoriaId,
-              'imagenUrl': datos.imagenUrl,
-              'imagenPublicId': datos.imagenPublicId,
-              'descuento': _descuento(datos),
-            },
-          ),
-        );
-        final existencias = await _existencias(negocioId);
-        return producto.conExistencias(existencias[producto.id] ?? const []);
-      });
-
-  @override
-  Future<int> ajustarExistencia(int inventarioId, int cantidad) =>
-      _seguro(() async {
-        final json = _map(
-          await _api.requestJson(
-            'PATCH',
-            'api/inventario/$inventarioId/existencia',
-            body: {'cantidad': cantidad},
-          ),
-        );
-        final existencia = json['existencia'];
-        if (existencia is! int) throw const FormatException();
-        return existencia;
-      });
-
-  @override
-  Future<ExistenciaSucursal> asignarASucursal(
-    int productoId,
-    SucursalProducto sucursal,
-    int existencia,
-  ) => _seguro(() async {
-    final json = _map(
+  Future<Producto> crear(DatosProducto datos) => _seguro(() async {
+    return _producto(
       await _api.requestJson(
         'POST',
-        'api/inventario',
+        'api/productos',
         body: {
-          'productoId': productoId,
-          'sucursalId': sucursal.id,
-          'existencia': existencia,
+          'nombre': datos.nombre.trim(),
+          'precio': datos.precioNumero,
+          'categoriaId': datos.categoriaId,
+          'imagenUrl': datos.imagenUrl,
+          'imagenPublicId': datos.imagenPublicId,
+          'descuento': _descuento(datos),
+          'existencias': [
+            for (final e in datos.existencias)
+              {'sucursalId': e.sucursalId, 'existencia': e.existencia},
+          ],
         },
       ),
     );
-    final cantidad = json['existencia'];
-    if (cantidad is! int) throw const FormatException();
-    return ExistenciaSucursal(
-      inventarioId: _id(json['id']),
-      sucursalId: sucursal.id,
-      sucursalNombre: sucursal.nombre,
-      existencia: cantidad,
+  });
+
+  @override
+  Future<Producto> editar(int id, DatosProducto datos) => _seguro(() async {
+    return _producto(
+      await _api.requestJson(
+        'PUT',
+        'api/productos/$id',
+        body: {
+          'nombre': datos.nombre.trim(),
+          'precio': datos.precioNumero,
+          'categoriaId': datos.categoriaId,
+          'imagenUrl': datos.imagenUrl,
+          'imagenPublicId': datos.imagenPublicId,
+          'descuento': _descuento(datos),
+        },
+      ),
     );
   });
 

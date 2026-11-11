@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import '../../../../domain/producto.dart';
+import '../../outbound/imagenes/cloudinary_url.dart';
 
 const productoSuave = Color(0xFFF7E7DF);
 const productoErrorSuave = Color(0xFFFFF0EE);
@@ -53,11 +55,21 @@ class ProductoImagen extends StatelessWidget {
     }
     final direccion = url?.trim();
     if (direccion == null || direccion.isEmpty) return _placeholder();
-    return CachedNetworkImage(
-      imageUrl: direccion,
-      fit: BoxFit.cover,
-      placeholder: (_, _) => _placeholder(cargando: true),
-      errorWidget: (_, _, _) => _placeholder(error: true),
+    // Se pide a Cloudinary solo el tamaño que ocupa el recuadro en pantalla.
+    return LayoutBuilder(
+      builder: (context, restricciones) {
+        final ancho = restricciones.maxWidth.isFinite
+            ? restricciones.maxWidth
+            : size;
+        final ladoPx =
+            math.max(ancho, size) * MediaQuery.devicePixelRatioOf(context);
+        return CachedNetworkImage(
+          imageUrl: urlImagenCloudinary(direccion, ladoPx),
+          fit: BoxFit.cover,
+          placeholder: (_, _) => _placeholder(cargando: true),
+          errorWidget: (_, _, _) => _placeholder(error: true),
+        );
+      },
     );
   }
 
