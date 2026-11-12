@@ -4,8 +4,15 @@ import '../../../../domain/producto.dart';
 
 /// Habla solo con el catálogo; las existencias van por [HttpExistenciasGateway].
 class HttpProductoGateway implements ProductoGateway {
-  const HttpProductoGateway(this._api);
+  const HttpProductoGateway(this._api, {this.sucursalEmpleado});
   final ApiClient _api;
+
+  /// Sucursal del empleado: el backend solo le permite consultar el catálogo
+  /// de una sucursal a la que está asignado.
+  final int? sucursalEmpleado;
+
+  String get _alcance =>
+      sucursalEmpleado == null ? '' : '?sucursalId=$sucursalEmpleado';
 
   Future<T> _seguro<T>(Future<T> Function() operacion) async {
     try {
@@ -99,7 +106,7 @@ class HttpProductoGateway implements ProductoGateway {
       _seguro(() => _areas(negocioId));
 
   Future<List<AreaProducto>> _areas(int negocioId) async => _lista(
-    await _api.requestJson('GET', 'api/negocios/$negocioId/areas'),
+    await _api.requestJson('GET', 'api/negocios/$negocioId/areas$_alcance'),
     (data) {
       final json = _map(data);
       return AreaProducto(id: _id(json['id']), nombre: _texto(json['nombre']));
@@ -108,29 +115,30 @@ class HttpProductoGateway implements ProductoGateway {
 
   /// El backend lista las categorías por área, así que se consolidan todas.
   @override
-  Future<List<CategoriaProducto>> categorias(int negocioId) =>
-      _seguro(() async {
-        final areas = await _areas(negocioId);
-        final porArea = await Future.wait([
-          for (final area in areas)
-            _api
-                .requestJson(
-                  'GET',
-                  'api/negocios/$negocioId/areas/${area.id}/categorias',
-                )
-                .then(
-                  (data) => _lista(data, (item) {
-                    final json = _map(item);
-                    return CategoriaProducto(
-                      id: _id(json['id']),
-                      areaId: _id(json['areaId']),
-                      nombre: _texto(json['nombre']),
-                    );
-                  }),
-                ),
-        ]);
-        return [for (final categorias in porArea) ...categorias];
-      });
+  Future<List<CategoriaProducto>> categorias(int negocioId) => _seguro(
+    () async {
+      final areas = await _areas(negocioId);
+      final porArea = await Future.wait([
+        for (final area in areas)
+          _api
+              .requestJson(
+                'GET',
+                'api/negocios/$negocioId/areas/${area.id}/categorias$_alcance',
+              )
+              .then(
+                (data) => _lista(data, (item) {
+                  final json = _map(item);
+                  return CategoriaProducto(
+                    id: _id(json['id']),
+                    areaId: _id(json['areaId']),
+                    nombre: _texto(json['nombre']),
+                  );
+                }),
+              ),
+      ]);
+      return [for (final categorias in porArea) ...categorias];
+    },
+  );
 
   @override
   Future<List<SucursalProducto>> sucursales(int negocioId) => _seguro(
@@ -162,6 +170,8 @@ class HttpProductoGateway implements ProductoGateway {
       if (filtro.areaId != null) 'areaId=${filtro.areaId}',
       if (filtro.categoriaId != null) 'categoriaId=${filtro.categoriaId}',
       if (filtro.sucursalId != null) 'sucursalId=${filtro.sucursalId}',
+      if (filtro.precioMinimo != null) 'precioMinimo=${filtro.precioMinimo}',
+      if (filtro.precioMaximo != null) 'precioMaximo=${filtro.precioMaximo}',
       if (filtro.buscar.trim().isNotEmpty)
         'buscar=${Uri.encodeQueryComponent(filtro.buscar.trim())}',
     ].join('&');
@@ -182,7 +192,8 @@ class HttpProductoGateway implements ProductoGateway {
 
   @override
   Future<Producto> consultar(int id) => _seguro(
-    () async => _producto(await _api.requestJson('GET', 'api/productos/$id')),
+    () async =>
+        _producto(await _api.requestJson('GET', 'api/productos/$id$_alcance')),
   );
 
   @override

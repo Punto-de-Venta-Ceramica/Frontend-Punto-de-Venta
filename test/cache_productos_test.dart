@@ -115,6 +115,10 @@ void main() {
 
     ahora = ahora.add(const Duration(minutes: 6));
     await gestion.listar(1);
+    expect(productos.listados, 2, reason: 'el listado dura 10 minutos');
+
+    ahora = ahora.add(const Duration(minutes: 5));
+    await gestion.listar(1);
     expect(productos.listados, 3);
   });
 

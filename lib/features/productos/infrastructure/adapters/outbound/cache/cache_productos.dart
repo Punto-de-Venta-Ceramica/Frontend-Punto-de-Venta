@@ -13,7 +13,7 @@ class CacheProductos implements ProductosEnCache {
     ProductoGateway productos,
     ExistenciasGateway existencias, {
     Duration vigenciaCatalogos = const Duration(minutes: 30),
-    Duration vigenciaListado = const Duration(minutes: 5),
+    Duration vigenciaListado = const Duration(minutes: 10),
     DateTime Function()? ahora,
   }) : productos = CachedProductoGateway(
          productos,
@@ -61,7 +61,7 @@ class CachedProductoGateway implements ProductoGateway {
   CachedProductoGateway(
     this._origen, {
     this.vigenciaCatalogos = const Duration(minutes: 30),
-    this.vigenciaListado = const Duration(minutes: 5),
+    this.vigenciaListado = const Duration(minutes: 10),
     DateTime Function()? ahora,
   }) : _ahora = ahora ?? DateTime.now;
 
@@ -94,6 +94,7 @@ class CachedProductoGateway implements ProductoGateway {
 
   static String _clavePagina(int negocioId, int pagina, FiltroProductos f) =>
       '$negocioId|${f.areaId}|${f.categoriaId}|${f.sucursalId}|'
+      '${f.precioMinimo}|${f.precioMaximo}|'
       '${f.buscar.trim().toLowerCase()}|$pagina';
 
   Producto _guardar(Producto producto) => _detalles[producto.id] = producto;
