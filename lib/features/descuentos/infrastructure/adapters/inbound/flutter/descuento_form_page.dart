@@ -73,6 +73,12 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
       for (final entry in e.fieldErrors.entries) {
         _errores[entry.key.split('.').last] = entry.value;
       }
+      // El rango choca con otro descuento: se señala dónde corregir.
+      if (e.traslape && _maximo.text.trim().isNotEmpty) {
+        _errores['cantidadMaxima'] = 'Ajusta el rango.';
+      } else if (e.traslape) {
+        _errores['cantidadMinima'] = 'Ajusta el rango.';
+      }
     });
   }
 

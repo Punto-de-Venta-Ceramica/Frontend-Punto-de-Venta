@@ -633,7 +633,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                         title: Text('${linea.cantidad} × ${producto.nombre}'),
                         subtitle: Text(
                           descuento
-                              ? 'Aplica descuento de mayoreo: ${producto.porcentajeDescuento!.toStringAsFixed(2)} %'
+                              ? 'Aplica descuento de mayoreo: ${producto.porcentajePara(linea.cantidad)!.toStringAsFixed(2)} %'
                               : 'Sin descuento de mayoreo',
                         ),
                         trailing: IconButton(
@@ -723,7 +723,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
-                          '${linea.cantidad} × ${producto.nombre} · ${descuento ? 'descuento de mayoreo ${producto.porcentajeDescuento!.toStringAsFixed(2)} %' : 'sin descuento de mayoreo'}',
+                          '${linea.cantidad} × ${producto.nombre} · ${descuento ? 'descuento de mayoreo ${producto.porcentajePara(linea.cantidad)!.toStringAsFixed(2)} %' : 'sin descuento de mayoreo'}',
                         ),
                       );
                     },

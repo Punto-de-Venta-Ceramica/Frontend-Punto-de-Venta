@@ -75,13 +75,16 @@ class _Existencias implements ExistenciasGateway {
   Future<ExistenciaSucursal> asignar(
     int productoId,
     SucursalProducto sucursal,
-    int existencia,
+    int? existencia,
   ) async => ExistenciaSucursal(
     inventarioId: 8,
     sucursalId: sucursal.id,
     sucursalNombre: sucursal.nombre,
-    existencia: existencia,
+    existencia: existencia ?? 0,
   );
+
+  @override
+  Future<void> quitar(int inventarioId) async {}
 }
 
 void main() {
@@ -173,6 +176,16 @@ void main() {
     expect(gestion.detalleGuardado(3)?.existenciaTotal, 7);
     await gestion.listar(1);
     expect(productos.listados, 2, reason: 'asignar descarta los listados');
+  });
+
+  test('quitar de una sucursal corrige el detalle guardado', () async {
+    await gestion.consultar(3, 1);
+    await gestion.listar(1);
+
+    await gestion.quitarDeSucursal(7);
+    expect(gestion.detalleGuardado(3)?.existencias, isEmpty);
+    await gestion.listar(1);
+    expect(productos.listados, 2, reason: 'quitar descarta los listados');
   });
 
   test('si falla el producto se informa su error', () async {

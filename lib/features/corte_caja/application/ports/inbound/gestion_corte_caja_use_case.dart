@@ -21,4 +21,3 @@ abstract class GestionCorteCajaUseCase {
     int size = 20,
   });
 }
-

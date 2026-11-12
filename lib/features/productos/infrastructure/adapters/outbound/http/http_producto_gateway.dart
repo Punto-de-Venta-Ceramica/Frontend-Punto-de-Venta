@@ -59,7 +59,6 @@ class HttpProductoGateway implements ProductoGateway {
 
   Producto _producto(Object? data) {
     final json = _map(data);
-    final d = json['descuento'];
     return Producto(
       id: _id(json['id']),
       nombre: _texto(json['nombre']),
@@ -72,14 +71,24 @@ class HttpProductoGateway implements ProductoGateway {
       areaNombre: _textoOpcional(json['areaNombre']),
       imagenUrl: _textoOpcional(json['imagenUrl']),
       imagenPublicId: _textoOpcional(json['imagenPublicId']),
-      descuento: d == null
-          ? null
-          : DescuentoProducto(
-              cantidadMinima: _map(d)['cantidadMinima'] is int
-                  ? _map(d)['cantidadMinima'] as int
-                  : throw const FormatException(),
-              porcentaje: _numero(_map(d)['porcentaje']),
-            ),
+      // El listado no trae descuentos; el detalle trae la lista de escalones.
+      descuentos: json['descuentos'] == null
+          ? const []
+          : _lista(json['descuentos'], _descuentoProducto),
+    );
+  }
+
+  DescuentoProducto _descuentoProducto(Object? data) {
+    final json = _map(data);
+    final minimo = json['cantidadMinima'];
+    final maximo = json['cantidadMaxima'];
+    if (minimo is! int || (maximo != null && maximo is! int)) {
+      throw const FormatException();
+    }
+    return DescuentoProducto(
+      cantidadMinima: minimo,
+      cantidadMaxima: maximo as int?,
+      porcentaje: _numero(json['porcentaje']),
     );
   }
 

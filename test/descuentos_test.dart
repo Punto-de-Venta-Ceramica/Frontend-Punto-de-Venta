@@ -381,6 +381,49 @@ void main() {
       );
     });
 
+    test('un rango cruzado muestra el mensaje breve del servidor', () async {
+      const detalle =
+          'Se cruza con «Mayoreo» (10 a 20 piezas) en el mismo producto. Ajusta los rangos.';
+      final api = ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient(
+          (_) async => _json(
+            jsonEncode({'detail': detalle, 'codigo': 'DESCUENTO_TRASLAPADO'}),
+            409,
+          ),
+        ),
+      );
+      addTearDown(api.close);
+
+      await expectLater(
+        HttpDescuentoGateway(api).asignar(7, 1, DestinoDescuento.producto, 3),
+        throwsA(
+          isA<DescuentoFailure>()
+              .having((e) => e.traslape, 'traslape', isTrue)
+              .having((e) => e.message, 'message', detalle),
+        ),
+      );
+    });
+
+    test('un 404 muestra el motivo que da el servidor', () async {
+      const detalle =
+          'El producto no existe, está dado de baja o no pertenece al negocio.';
+      final api = ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient(
+          (_) async => _json(jsonEncode({'detail': detalle}), 404),
+        ),
+      );
+      addTearDown(api.close);
+
+      await expectLater(
+        HttpDescuentoGateway(api).asignar(7, 1, DestinoDescuento.producto, 3),
+        throwsA(
+          isA<DescuentoFailure>().having((e) => e.message, 'message', detalle),
+        ),
+      );
+    });
+
     test(
       'una respuesta con formato inesperado falla con mensaje claro',
       () async {

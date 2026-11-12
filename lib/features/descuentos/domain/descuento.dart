@@ -32,9 +32,7 @@ class Descuento {
       ? porcentaje.toStringAsFixed(0)
       : porcentaje.toString();
 
-  String get rango => cantidadMaxima == null
-      ? 'Desde $cantidadMinima piezas'
-      : 'De $cantidadMinima a $cantidadMaxima piezas';
+  String get rango => textoRango(cantidadMinima, cantidadMaxima);
 
   String get resumen => '$porcentajeTexto % · $rango';
 
@@ -208,15 +206,45 @@ class LineaDescuento {
 /// existen solo para él y se editan desde su formulario; los [compartidos] se
 /// administran en el módulo de Descuentos.
 class DescuentosDeProducto {
-  const DescuentosDeProducto({this.propios = const [], this.compartidos = 0});
+  const DescuentosDeProducto({
+    this.propios = const [],
+    this.compartidos = const [],
+  });
   final List<Descuento> propios;
-  final int compartidos;
+  final List<Descuento> compartidos;
 }
 
-/// Errores por posición de la lista: `{0: {'cantidadMinima': '...'}}`.
-Map<int, Map<String, String>> validarLineasDescuento(
-  List<LineaDescuento> lineas,
+/// Descuento compartido activo cuyo rango se cruza con el que tendrá la línea
+/// al guardarse ([maximo] según [maximosDeLineas]). El servidor no admite dos
+/// descuentos activos del mismo producto con rangos cruzados. Una línea
+/// desactivada no choca con nada.
+Descuento? compartidoQueSeCruza(
+  LineaDescuento linea,
+  int? maximo,
+  List<Descuento> compartidos,
 ) {
+  final minimo = linea.cantidadMinimaNumero;
+  if (!linea.activo || minimo == null || minimo < 1) return null;
+  for (final d in compartidos) {
+    if (!d.activo) continue;
+    final empiezaAntes = maximo == null || d.cantidadMinima <= maximo;
+    final terminaDespues =
+        d.cantidadMaxima == null || minimo <= d.cantidadMaxima!;
+    if (empiezaAntes && terminaDespues) return d;
+  }
+  return null;
+}
+
+/// Mensaje breve de un cruce: "Se cruza con «Mayoreo» (de 10 a 20 piezas)."
+String mensajeCruce(Descuento d) =>
+    'Se cruza con «${d.nombre}» (${d.rango.toLowerCase()}).';
+
+/// Errores por posición de la lista: `{0: {'cantidadMinima': '...'}}`.
+/// Con [compartidos] también señala las líneas que chocarían con ellos.
+Map<int, Map<String, String>> validarLineasDescuento(
+  List<LineaDescuento> lineas, {
+  List<Descuento> compartidos = const [],
+}) {
   final errores = <int, Map<String, String>>{};
   final vistas = <int, int>{};
   for (final (i, linea) in lineas.indexed) {
@@ -234,8 +262,59 @@ Map<int, Map<String, String>> validarLineasDescuento(
     }
     if (campos.isNotEmpty) errores[i] = campos;
   }
+  if (errores.isEmpty && compartidos.isNotEmpty) {
+    final maximos = maximosDeLineas(lineas, compartidos: compartidos);
+    for (final (i, linea) in lineas.indexed) {
+      final cruce = compartidoQueSeCruza(linea, maximos[linea], compartidos);
+      if (cruce != null) errores[i] = {'cantidadMinima': mensajeCruce(cruce)};
+    }
+  }
   return errores;
 }
+
+/// Hasta cuántas piezas aplica cada línea del formulario de producto (null = sin
+/// tope). Las líneas son escalones "a partir de N": cada una termina donde
+/// empieza la siguiente activa, así sus rangos nunca se cruzan (5–10, 11–20,
+/// 21+). Un descuento [compartidos] activo que empiece después también la
+/// corta (desde 2 + «Mayoreo» 10–20 → 2–9). Si el descuento ya tenía un tope
+/// menor, se respeta. Requiere mínimos válidos y distintos (ver
+/// [validarLineasDescuento]).
+Map<LineaDescuento, int?> maximosDeLineas(
+  List<LineaDescuento> lineas, {
+  List<Descuento> compartidos = const [],
+}) {
+  final maximos = Map<LineaDescuento, int?>.identity();
+  for (final linea in lineas) {
+    final minimo = linea.cantidadMinimaNumero;
+    if (minimo == null) continue;
+    int? siguiente;
+    for (final otra in lineas) {
+      final m = otra.cantidadMinimaNumero;
+      if (identical(otra, linea) || !otra.activo || m == null || m <= minimo) {
+        continue;
+      }
+      if (siguiente == null || m < siguiente) siguiente = m;
+    }
+    for (final d in compartidos) {
+      final m = d.cantidadMinima;
+      if (!d.activo || m <= minimo) continue;
+      if (siguiente == null || m < siguiente) siguiente = m;
+    }
+    final previo = linea.original?.cantidadMaxima;
+    final previoValido = previo != null && previo >= minimo;
+    if (siguiente == null) {
+      maximos[linea] = previoValido ? previo : null;
+    } else {
+      final limite = siguiente - 1;
+      maximos[linea] = previoValido && previo <= limite ? previo : limite;
+    }
+  }
+  return maximos;
+}
+
+/// Texto breve del rango, p. ej. "De 5 a 10 piezas" o "Desde 21 piezas".
+String textoRango(int minimo, int? maximo) =>
+    maximo == null ? 'Desde $minimo piezas' : 'De $minimo a $maximo piezas';
 
 /// Resultado de guardar, activar/desactivar o eliminar desde el formulario.
 class ResultadoDescuento {
@@ -254,8 +333,12 @@ class DescuentoFailure implements Exception {
     this.message, {
     this.fieldErrors = const {},
     this.sesionExpirada = false,
+    this.traslape = false,
   });
   final String message;
   final Map<String, String> fieldErrors;
   final bool sesionExpirada;
+
+  /// El rango de piezas se cruza con otro descuento activo del mismo elemento.
+  final bool traslape;
 }

@@ -27,18 +27,27 @@ class CategoriaProducto {
   final String nombre;
 }
 
+/// Escalón de descuento por cantidad vigente para el producto.
 class DescuentoProducto {
   const DescuentoProducto({
     required this.cantidadMinima,
     required this.porcentaje,
+    this.cantidadMaxima,
   });
   final int cantidadMinima;
+
+  /// Sin tope cuando es null.
+  final int? cantidadMaxima;
   final double porcentaje;
 
   String get porcentajeTexto => porcentaje == porcentaje.roundToDouble()
       ? porcentaje.toStringAsFixed(0)
       : porcentaje.toString();
-  String get resumen => '$porcentajeTexto % desde $cantidadMinima piezas';
+
+  /// Ej.: "10 % de 5 a 10 piezas" o "15 % desde 21 piezas".
+  String get resumen => cantidadMaxima == null
+      ? '$porcentajeTexto % desde $cantidadMinima piezas'
+      : '$porcentajeTexto % de $cantidadMinima a $cantidadMaxima piezas';
 }
 
 class ExistenciaSucursal {
@@ -72,7 +81,7 @@ class Producto {
     this.categoriaNombre,
     this.areaId,
     this.areaNombre,
-    this.descuento,
+    this.descuentos = const [],
     this.imagenUrl,
     this.imagenPublicId,
     this.existencias = const [],
@@ -86,7 +95,9 @@ class Producto {
   final String? categoriaNombre;
   final int? areaId;
   final String? areaNombre;
-  final DescuentoProducto? descuento;
+
+  /// Escalones vigentes, ordenados por cantidad mínima (solo en el detalle).
+  final List<DescuentoProducto> descuentos;
   final String? imagenUrl;
   final String? imagenPublicId;
   final List<ExistenciaSucursal> existencias;
@@ -110,7 +121,7 @@ class Producto {
     categoriaNombre: categoriaNombre,
     areaId: areaId,
     areaNombre: areaNombre,
-    descuento: descuento,
+    descuentos: descuentos,
     imagenUrl: imagenUrl,
     imagenPublicId: imagenPublicId,
     existencias: existencias,

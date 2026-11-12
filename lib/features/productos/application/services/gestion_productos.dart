@@ -124,14 +124,20 @@ class GestionProductos implements GestionProductosUseCase {
   Future<ExistenciaSucursal> asignarASucursal(
     int productoId,
     SucursalProducto sucursal,
-    int existencia,
+    int? existencia,
   ) {
     _validarId(productoId);
     _validarId(sucursal.id);
-    if (existencia < 0 || existencia > 1000000) {
+    if (existencia != null && (existencia < 0 || existencia > 1000000)) {
       throw const ProductoFailure('Indica una existencia de 0 a 1,000,000.');
     }
     return _existencias.asignar(productoId, sucursal, existencia);
+  }
+
+  @override
+  Future<void> quitarDeSucursal(int inventarioId) {
+    _validarId(inventarioId);
+    return _existencias.quitar(inventarioId);
   }
 
   @override

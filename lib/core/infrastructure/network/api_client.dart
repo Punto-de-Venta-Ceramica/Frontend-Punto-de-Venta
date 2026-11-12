@@ -9,11 +9,15 @@ class ApiException implements Exception {
     this.statusCode,
     this.fieldErrors = const {},
     this.code,
+    this.detail,
   });
   final String message;
   final int? statusCode;
   final Map<String, String> fieldErrors;
   final String? code;
+
+  /// Texto `detail` del problema que envió el servidor (400, 404 o 409), si lo hay.
+  final String? detail;
   @override
   String toString() => message;
 }
@@ -265,10 +269,19 @@ class ApiClient {
         };
         final fieldErrors = <String, String>{};
         String? code;
-        if (response.statusCode == 400 || response.statusCode == 409) {
+        String? detail;
+        if (response.statusCode == 400 ||
+            response.statusCode == 404 ||
+            response.statusCode == 409) {
           try {
             final problem = jsonDecode(utf8.decode(response.bodyBytes));
             if (problem is Map) {
+              final textoDetalle = problem['detail'];
+              if (textoDetalle is String && textoDetalle.trim().isNotEmpty) {
+                detail = textoDetalle.trim();
+              }
+              final codigo = problem['codigo'];
+              if (codigo is String) code = codigo;
               if (problem['errores'] is Map) {
                 for (final entry in (problem['errores'] as Map).entries) {
                   if (entry.key is String &&
@@ -315,6 +328,7 @@ class ApiClient {
           statusCode: response.statusCode,
           fieldErrors: Map.unmodifiable(fieldErrors),
           code: code,
+          detail: detail,
         );
       }
       if (response.statusCode == 204) return null;

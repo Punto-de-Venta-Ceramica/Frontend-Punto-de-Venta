@@ -85,10 +85,16 @@ class HttpPedidosGateway implements PedidosGateway {
               id: j['id'] as int,
               nombre: j['nombre'] as String,
               precio: (j['precio'] as num).toDouble(),
-              cantidadMinima: j['cantidadMinima'] as int?,
-              cantidadMaxima: j['cantidadMaxima'] as int?,
-              porcentajeDescuento: (j['porcentajeDescuento'] as num?)
-                  ?.toDouble(),
+              descuentos: ((j['descuentos'] as List?) ?? const [])
+                  .cast<Map<String, dynamic>>()
+                  .map(
+                    (d) => EscalonDescuento(
+                      cantidadMinima: d['cantidadMinima'] as int,
+                      cantidadMaxima: d['cantidadMaxima'] as int?,
+                      porcentaje: (d['porcentaje'] as num).toDouble(),
+                    ),
+                  )
+                  .toList(),
             ),
           )
           .toList();

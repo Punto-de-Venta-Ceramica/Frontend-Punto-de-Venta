@@ -31,7 +31,9 @@ class GestionCorteCaja implements GestionCorteCajaUseCase {
     required double totalReal,
   }) {
     if (totalReal < 0) {
-      throw const CorteCajaFailure('El efectivo contado no puede ser negativo.');
+      throw const CorteCajaFailure(
+        'El efectivo contado no puede ser negativo.',
+      );
     }
     return _gateway.cerrarCorte(corteId: corteId, totalReal: totalReal);
   }
@@ -45,7 +47,5 @@ class GestionCorteCaja implements GestionCorteCajaUseCase {
     int sucursalId, {
     int page = 0,
     int size = 20,
-  }) =>
-      _gateway.listarHistorial(sucursalId, page: page, size: size);
+  }) => _gateway.listarHistorial(sucursalId, page: page, size: size);
 }
-

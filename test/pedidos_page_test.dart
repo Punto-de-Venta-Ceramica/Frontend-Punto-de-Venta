@@ -22,8 +22,7 @@ class _Gateway implements PedidosGateway {
       id: 3,
       nombre: 'Taza',
       precio: 100,
-      cantidadMinima: 2,
-      porcentajeDescuento: 10,
+      descuentos: [EscalonDescuento(cantidadMinima: 2, porcentaje: 10)],
     ),
     const ProductoPedido(id: 4, nombre: 'Plato', precio: 50),
     const ProductoPedido(id: 5, nombre: 'Ánfora', precio: 80),
@@ -346,11 +345,31 @@ void main() {
       id: 9,
       nombre: 'Ejemplo',
       precio: 0.05,
-      cantidadMinima: 1,
-      porcentajeDescuento: 10,
+      descuentos: [EscalonDescuento(cantidadMinima: 1, porcentaje: 10)],
     );
     expect(producto.subtotalEstimadoCentavos(1), BigInt.from(5));
     expect(producto.subtotalEstimadoCentavos(2), BigInt.from(9));
+  });
+
+  test('aplica solo el escalón en que cae la cantidad', () {
+    const olla = ProductoPedido(
+      id: 10,
+      nombre: 'Olla',
+      precio: 100,
+      descuentos: [
+        EscalonDescuento(cantidadMinima: 5, cantidadMaxima: 10, porcentaje: 5),
+        EscalonDescuento(
+          cantidadMinima: 11,
+          cantidadMaxima: 20,
+          porcentaje: 10,
+        ),
+        EscalonDescuento(cantidadMinima: 21, porcentaje: 15),
+      ],
+    );
+    expect(olla.porcentajePara(4), isNull);
+    expect(olla.porcentajePara(5), 5);
+    expect(olla.porcentajePara(15), 10);
+    expect(olla.porcentajePara(30), 15);
   });
 
   test('valida límites numéricos y nombres sin números', () {

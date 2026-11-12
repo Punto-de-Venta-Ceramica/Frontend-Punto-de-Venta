@@ -27,8 +27,9 @@ abstract interface class GestionDescuentosUseCase {
     int productoId,
     String nombreProducto,
     List<LineaDescuento> lineas,
-    Set<int> eliminar,
-  );
+    Set<int> eliminar, {
+    List<Descuento> compartidos,
+  });
 
   /// Idempotentes. Devuelven el descuento con sus asignaciones actualizadas.
   Future<Descuento> asignar(

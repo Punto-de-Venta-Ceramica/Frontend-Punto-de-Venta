@@ -286,7 +286,10 @@ class CorteRealizadoPage extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        _fila('Fondo Inicial', formatDinero(corte.montoInicial)),
+                        _fila(
+                          'Fondo Inicial',
+                          formatDinero(corte.montoInicial),
+                        ),
                         const SizedBox(height: 10),
                         _fila(
                           'Efectivo esperado',
@@ -295,7 +298,9 @@ class CorteRealizadoPage extends StatelessWidget {
                         const SizedBox(height: 10),
                         _fila(
                           'Efectivo contado',
-                          formatDinero(corte.totalReal ?? corte.efectivoEsperado),
+                          formatDinero(
+                            corte.totalReal ?? corte.efectivoEsperado,
+                          ),
                           colorValor: BarroTheme.primary,
                         ),
                         const Padding(

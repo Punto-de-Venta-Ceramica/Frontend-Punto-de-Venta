@@ -26,4 +26,3 @@ abstract class CorteCajaGateway {
     int size = 20,
   });
 }
-

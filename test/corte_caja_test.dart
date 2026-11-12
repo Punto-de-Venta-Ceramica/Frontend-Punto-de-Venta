@@ -281,30 +281,31 @@ void main() {
       },
     );
 
-    testWidgets('DetalleMovimientosPage muestra productos y alerta de cancelación', (
-      tester,
-    ) async {
-      final corte = _crearCorteEjemplo();
+    testWidgets(
+      'DetalleMovimientosPage muestra productos y alerta de cancelación',
+      (tester) async {
+        final corte = _crearCorteEjemplo();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: DetalleMovimientosPage(
-            corte: corte,
-            esPropietario: true,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DetalleMovimientosPage(corte: corte, esPropietario: true),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Detalle del día'), findsOneWidget);
-      expect(find.text('Productos vendidos'), findsOneWidget);
-      expect(find.text('Maceta mediana'), findsOneWidget);
-      expect(find.text('Jabonero'), findsOneWidget);
-      expect(find.text('Pagos y cancelaciones'), findsOneWidget);
-      expect(find.text('Pedido P-018 cancelado'), findsOneWidget);
-      expect(find.text('Descontado automáticamente del corte'), findsOneWidget);
-      expect(find.text('Volver al resumen'), findsOneWidget);
-    });
+        expect(find.text('Detalle del día'), findsOneWidget);
+        expect(find.text('Productos vendidos'), findsOneWidget);
+        expect(find.text('Maceta mediana'), findsOneWidget);
+        expect(find.text('Jabonero'), findsOneWidget);
+        expect(find.text('Pagos y cancelaciones'), findsOneWidget);
+        expect(find.text('Pedido P-018 cancelado'), findsOneWidget);
+        expect(
+          find.text('Descontado automáticamente del corte'),
+          findsOneWidget,
+        );
+        expect(find.text('Volver al resumen'), findsOneWidget);
+      },
+    );
 
     testWidgets('CorteRealizadoPage muestra el respaldo contable del corte', (
       tester,
@@ -318,10 +319,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: CorteRealizadoPage(
-            corte: corte,
-            esPropietario: true,
-          ),
+          home: CorteRealizadoPage(corte: corte, esPropietario: true),
         ),
       );
       await tester.pumpAndSettle();
@@ -338,4 +336,3 @@ void main() {
     });
   });
 }
-

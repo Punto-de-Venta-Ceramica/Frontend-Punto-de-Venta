@@ -49,7 +49,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
 
   // Controladores para apertura y cierre
   final TextEditingController _contadoCtrl = TextEditingController();
-  final TextEditingController _aperturaCtrl = TextEditingController(text: '0.00');
+  final TextEditingController _aperturaCtrl = TextEditingController(
+    text: '0.00',
+  );
   double _diferencia = 0.0;
   bool _guardando = false;
 
@@ -126,7 +128,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     final monto = double.tryParse(montoStr);
     if (monto == null || monto < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa un monto inicial válido mayor o igual a 0.')),
+        const SnackBar(
+          content: Text('Ingresa un monto inicial válido mayor o igual a 0.'),
+        ),
       );
       return;
     }
@@ -155,9 +159,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         widget.onSesionExpirada?.call();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -173,7 +177,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     final contado = double.tryParse(contadoStr);
     if (contado == null || contado < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa una cantidad de efectivo contado válida.')),
+        const SnackBar(
+          content: Text('Ingresa una cantidad de efectivo contado válida.'),
+        ),
       );
       return;
     }
@@ -242,9 +248,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         widget.onSesionExpirada?.call();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -289,8 +295,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     bottomNavigationBar: widget.esPropietario
         ? SucursalNavegacion(
             seleccionada: 'Caja',
-            onInicio:
-                widget.onInicio ?? () => Navigator.of(context).maybePop(),
+            onInicio: widget.onInicio ?? () => Navigator.of(context).maybePop(),
             onPedidos: widget.onPedidos,
             onInventario: widget.onInventario,
             onCaja: () {},
@@ -512,7 +517,11 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                     const SizedBox(height: 4),
                     Text(
                       'Revisa los movimientos del día',
-                      style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+                      style: BarroTheme.type(
+                        14,
+                        20,
+                        color: BarroTheme.secondary,
+                      ),
                     ),
                   ],
                 ),
@@ -837,7 +846,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                     decimal: true,
                   ),
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d*\.?\d{0,2}'),
+                    ),
                   ],
                   style: BarroTheme.type(17, 22, weight: FontWeight.w700),
                   decoration: InputDecoration(
@@ -927,48 +938,47 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     required Color colorFondo,
     required Color colorBorde,
     required Color colorTexto,
-  }) =>
-      Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colorFondo,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: colorBorde),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  }) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: colorFondo,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: colorBorde),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(icono, size: 15, color: colorTexto),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: BarroTheme.type(
-                      11,
-                      15,
-                      weight: FontWeight.w500,
-                      color: BarroTheme.secondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            Icon(icono, size: 15, color: colorTexto),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                label,
+                style: BarroTheme.type(
+                  11,
+                  15,
+                  weight: FontWeight.w500,
+                  color: BarroTheme.secondary,
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              formatDinero(valor),
-              style: BarroTheme.type(
-                16,
-                21,
-                weight: FontWeight.w700,
-                color: colorTexto,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-      );
+        const SizedBox(height: 6),
+        Text(
+          formatDinero(valor),
+          style: BarroTheme.type(
+            16,
+            21,
+            weight: FontWeight.w700,
+            color: colorTexto,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _filaResumen(
     String concepto,

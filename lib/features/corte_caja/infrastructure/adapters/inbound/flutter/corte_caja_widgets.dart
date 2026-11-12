@@ -156,22 +156,14 @@ class SucursalCorteCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Corte $folioCorte - ${formatFecha(fecha)}',
-                  style: BarroTheme.type(
-                    12,
-                    16,
-                    color: BarroTheme.placeholder,
-                  ),
+                  style: BarroTheme.type(12, 16, color: BarroTheme.placeholder),
                 ),
               ],
               if (usuarioNombre != null) ...[
                 const SizedBox(height: 2),
                 Text(
                   'Realiza: $usuarioNombre · Sesión actual',
-                  style: BarroTheme.type(
-                    12,
-                    16,
-                    color: BarroTheme.placeholder,
-                  ),
+                  style: BarroTheme.type(12, 16, color: BarroTheme.placeholder),
                 ),
               ],
             ],
@@ -294,11 +286,7 @@ class TarjetaCancelacionPedido extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 'Anticipo previo: ${formatDinero(detalle.monto)} · ${detalle.metodoPago}',
-                style: BarroTheme.type(
-                  13,
-                  18,
-                  color: BarroTheme.secondary,
-                ),
+                style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
               ),
               const SizedBox(height: 2),
               Text(
@@ -317,4 +305,3 @@ class TarjetaCancelacionPedido extends StatelessWidget {
     ),
   );
 }
-
