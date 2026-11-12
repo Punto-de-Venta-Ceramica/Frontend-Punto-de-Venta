@@ -153,7 +153,8 @@ void main() {
     expect(avisoAnticipo, findsNothing);
     await tester.enterText(find.byType(TextFormField).first, '5a0 ');
     await tester.pump();
-    expect(avisoAnticipo, findsOneWidget);
+    // El corte de caja ya existe: capturar un anticipo no muestra el aviso.
+    expect(avisoAnticipo, findsNothing);
     expect(tester.widget<Text>(saldo).data, r'$180.00');
     await tester.enterText(find.byType(TextFormField).first, '10,50');
     await tester.pump();

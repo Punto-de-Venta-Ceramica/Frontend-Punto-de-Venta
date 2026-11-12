@@ -19,6 +19,7 @@ class EmpleadosPage extends StatefulWidget {
     this.onInventario,
     this.sucursalNombre,
     this.sucursalId,
+    this.onCaja,
     super.key,
   });
 
@@ -35,6 +36,7 @@ class EmpleadosPage extends StatefulWidget {
   final VoidCallback? onInicio;
   final VoidCallback? onPedidos;
   final VoidCallback? onInventario;
+  final VoidCallback? onCaja;
 
   @override
   State<EmpleadosPage> createState() => _EmpleadosPageState();
@@ -211,12 +213,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: BarroTheme.background,
-    bottomNavigationBar: SucursalNavegacion(
-      seleccionada: 'Inicio',
-      onInicio: widget.onInicio ?? () => Navigator.pop(context),
-      onPedidos: widget.onPedidos,
-      onInventario: widget.onInventario,
-    ),
+
     body: SafeArea(
       bottom: false,
       child: Align(

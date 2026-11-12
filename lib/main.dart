@@ -39,10 +39,12 @@ import 'features/empleados/application/services/gestion_empleados.dart';
 import 'features/empleados/domain/empleado.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleados_page.dart';
 import 'features/empleados/infrastructure/adapters/outbound/http/http_empleado_gateway.dart';
+import 'features/corte_caja/application/services/gestion_corte_caja.dart';
+import 'features/corte_caja/infrastructure/adapters/outbound/http/http_corte_caja_gateway.dart';
+import 'features/corte_caja/infrastructure/adapters/inbound/flutter/corte_caja_page.dart';
 
 import 'features/empleados/domain/sucursal_asignada.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleado_inicio_page.dart';
-import 'features/caja/infrastructure/adapters/inbound/flutter/caja_page.dart';
 import 'features/inventario/infrastructure/adapters/inbound/flutter/inventario_empleado_page.dart';
 import 'features/inventario/infrastructure/adapters/outbound/http/http_inventario_gateway.dart';
 
@@ -175,6 +177,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onPedidos: () => _abrirPedidos(administrarContext, negocio, sucursal),
         onEmpleados: () =>
             _abrirEmpleados(administrarContext, negocio, sucursal),
+        onCorteCaja: () =>
+            _abrirCorteCaja(administrarContext, negocio, sucursal),
       ),
     ),
   );
@@ -193,6 +197,40 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     ),
   );
 
+  Future<void> _abrirCorteCaja(
+    BuildContext context,
+    NegocioSucursal negocio,
+    Sucursal sucursal, {
+    bool reemplazar = false,
+  }) {
+    final ruta = MaterialPageRoute<void>(
+      builder: (cajaContext) => CorteCajaPage(
+        gestion: GestionCorteCaja(HttpCorteCajaGateway(_api)),
+        sucursalId: sucursal.id,
+        sucursalNombre: sucursal.nombre,
+        negocioNombre: negocio.nombre,
+        usuarioNombre: _sesionActual?.role ?? 'Propietario',
+        esPropietario: true,
+        onSesionExpirada: () => _cerrarSesion(context),
+        onInicio: () => Navigator.of(cajaContext).popUntil((r) => r.isFirst),
+        onPedidos: () => _abrirPedidos(
+          cajaContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+        onInventario: () => _abrirProductos(
+          cajaContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+      ),
+    );
+    final navigator = Navigator.of(context);
+    return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
+  }
+
   Future<void> _abrirEmpleados(
     BuildContext context,
     NegocioSucursal negocio,
@@ -207,6 +245,12 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           reemplazar: true,
         ),
         onInventario: () => _abrirProductos(
+          empleadosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+        onCaja: () => _abrirCorteCaja(
           empleadosContext,
           negocio,
           sucursal,
@@ -275,6 +319,12 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           sucursal,
           reemplazar: true,
         ),
+        onCaja: () => _abrirCorteCaja(
+          productosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
       ),
     );
     final navigator = Navigator.of(context);
@@ -296,6 +346,12 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         esPropietario: _rol == 'PROPIETARIO',
         contador: _contador,
         onInventario: () => _abrirProductos(
+          pedidosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+        onCaja: () => _abrirCorteCaja(
           pedidosContext,
           negocio,
           sucursal,
@@ -328,9 +384,14 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       esPropietario: false,
       contador: _contador,
     ),
-    construirCaja: (s) => CajaPage(
-      negocio: NegocioProducto(id: s.negocioId, nombre: s.negocio),
+    construirCaja: (s) => CorteCajaPage(
+      gestion: GestionCorteCaja(HttpCorteCajaGateway(_api)),
+      sucursalId: s.sucursalId,
       sucursalNombre: s.sucursal,
+      negocioNombre: s.negocio,
+      usuarioNombre: _sesionActual?.role ?? 'Empleado',
+      esPropietario: false,
+      onSesionExpirada: () => _cerrarSesion(context),
     ),
     construirInventario: (s) => InventarioEmpleadoPage(
       gateway: HttpInventarioGateway(_api),

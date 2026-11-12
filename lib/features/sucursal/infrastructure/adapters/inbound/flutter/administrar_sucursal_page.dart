@@ -12,6 +12,7 @@ class AdministrarSucursalPage extends StatelessWidget {
     this.onProductos,
     this.onInventario,
     this.onPedidos,
+    this.onCorteCaja,
     super.key,
   });
   final Sucursal sucursal;
@@ -19,6 +20,7 @@ class AdministrarSucursalPage extends StatelessWidget {
   final VoidCallback? onProductos;
   final VoidCallback? onInventario;
   final VoidCallback? onPedidos;
+  final VoidCallback? onCorteCaja;
 
   void _noDisponible(BuildContext context, String modulo) =>
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,6 +100,7 @@ class AdministrarSucursalPage extends StatelessWidget {
     bottomNavigationBar: SucursalNavegacion(
       onInventario: onInventario,
       onPedidos: onPedidos,
+      onCaja: onCorteCaja,
     ),
     body: SafeArea(
       bottom: false,
@@ -175,6 +178,14 @@ class AdministrarSucursalPage extends StatelessWidget {
                   descripcion: 'Crea productos y gestiona inventario',
                   onTap: onProductos,
                   modulo: 'productos',
+                ),
+                _opcion(
+                  context,
+                  icono: Icons.point_of_sale_outlined,
+                  titulo: 'Corte de caja',
+                  descripcion: 'Revisa movimientos y realiza el corte diario',
+                  onTap: onCorteCaja,
+                  modulo: 'corte-caja',
                 ),
                 Center(
                   child: TextButton(
