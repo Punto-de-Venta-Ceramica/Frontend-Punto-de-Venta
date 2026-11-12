@@ -4,8 +4,12 @@ import '../../../../domain/producto.dart';
 
 /// Habla solo con `/api/inventario`.
 class HttpExistenciasGateway implements ExistenciasGateway {
-  const HttpExistenciasGateway(this._api);
+  const HttpExistenciasGateway(this._api, {this.alcanceEmpleado});
   final ApiClient _api;
+
+  /// (negocioId, sucursalId) del empleado: consulta las existencias desde el
+  /// panel de su sucursal, pues el detalle por producto es del propietario.
+  final (int, int)? alcanceEmpleado;
 
   Future<T> _seguro<T>(Future<T> Function() operacion) async {
     try {
@@ -39,15 +43,19 @@ class HttpExistenciasGateway implements ExistenciasGateway {
   }
 
   @override
-  Future<List<ExistenciaSucursal>> porProducto(int productoId) =>
-      _seguro(() async {
-        final data = await _api.requestJson(
-          'GET',
-          'api/inventario?productoId=$productoId',
-        );
-        if (data is! List) throw const FormatException();
-        return [
-          for (final item in data)
+  Future<List<ExistenciaSucursal>> porProducto(int productoId) => _seguro(
+    () async {
+      final alcance = alcanceEmpleado;
+      final data = await _api.requestJson(
+        'GET',
+        alcance == null
+            ? 'api/inventario?productoId=$productoId'
+            : 'api/inventario?negocioId=${alcance.$1}&sucursalId=${alcance.$2}',
+      );
+      if (data is! List) throw const FormatException();
+      return [
+        for (final item in data)
+          if (alcance == null || _map(item)['productoId'] == productoId)
             () {
               final json = _map(item);
               final sucursalNombre = json['sucursalNombre'];
@@ -59,8 +67,9 @@ class HttpExistenciasGateway implements ExistenciasGateway {
                 existencia: _existencia(json['existencia']),
               );
             }(),
-        ];
-      });
+      ];
+    },
+  );
 
   @override
   Future<int> ajustar(int inventarioId, int cantidad) => _seguro(() async {

@@ -19,9 +19,13 @@ class ProductoDetallePage extends StatefulWidget {
     this.mensajeInicial,
     this.descuentos,
     this.imagenes,
+    this.soloLectura = false,
     super.key,
   });
   final NegocioProducto negocio;
+
+  /// Vista del empleado: solo ajusta existencias; no edita ni elimina.
+  final bool soloLectura;
   final Producto producto;
   final GestionProductosUseCase gestion;
 
@@ -71,7 +75,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       _cargando = false;
     }
     _cargarDetalle();
-    if (!_modoSucursal) _cargarSucursales();
+    if (!_modoSucursal && !widget.soloLectura) _cargarSucursales();
   }
 
   Future<void> _cargarSucursales() async {
@@ -417,20 +421,22 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          ProductoBoton(
-            key: const ValueKey('producto-editar'),
-            texto: 'Editar producto',
-            onPressed: _busy || _cargando ? null : _editar,
-          ),
-          // Eliminar da de baja el producto en todo el negocio: solo desde el modo negocio.
-          if (!_modoSucursal) ...[
-            const SizedBox(height: 12),
-            ProductoBotonPeligro(
-              key: const ValueKey('producto-eliminar'),
-              texto: 'Eliminar producto',
-              onPressed: _busy || _cargando ? null : _eliminar,
+          if (!widget.soloLectura) ...[
+            const SizedBox(height: 24),
+            ProductoBoton(
+              key: const ValueKey('producto-editar'),
+              texto: 'Editar producto',
+              onPressed: _busy || _cargando ? null : _editar,
             ),
+            // Eliminar da de baja el producto en todo el negocio: solo desde el modo negocio.
+            if (!_modoSucursal) ...[
+              const SizedBox(height: 12),
+              ProductoBotonPeligro(
+                key: const ValueKey('producto-eliminar'),
+                texto: 'Eliminar producto',
+                onPressed: _busy || _cargando ? null : _eliminar,
+              ),
+            ],
           ],
         ],
       ),

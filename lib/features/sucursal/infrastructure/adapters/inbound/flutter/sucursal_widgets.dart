@@ -173,7 +173,11 @@ class SucursalNavegacion extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Con solo tres botones (empleado) se reparten con espacios
+              // iguales, como space-evenly, para que no queden tan separados.
+              mainAxisAlignment: esEmpleado
+                  ? MainAxisAlignment.spaceEvenly
+                  : MainAxisAlignment.spaceBetween,
               children: [
                 for (final item
                     in esEmpleado

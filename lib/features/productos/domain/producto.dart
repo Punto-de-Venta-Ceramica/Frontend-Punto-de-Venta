@@ -124,11 +124,17 @@ class FiltroProductos {
     this.categoriaId,
     this.buscar = '',
     this.sucursalId,
+    this.precioMinimo,
+    this.precioMaximo,
   });
   final int? areaId;
   final int? categoriaId;
   final String buscar;
   final int? sucursalId;
+
+  /// Rango de precio inclusivo; cualquiera de los extremos es opcional.
+  final double? precioMinimo;
+  final double? precioMaximo;
 
   FiltroProductos copiarCon({
     int? areaId,
@@ -141,6 +147,8 @@ class FiltroProductos {
     categoriaId: limpiarCategoria ? null : (categoriaId ?? this.categoriaId),
     buscar: buscar ?? this.buscar,
     sucursalId: sucursalId,
+    precioMinimo: precioMinimo,
+    precioMaximo: precioMaximo,
   );
 }
 

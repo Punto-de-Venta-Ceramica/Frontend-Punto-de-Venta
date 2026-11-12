@@ -45,8 +45,6 @@ import 'features/corte_caja/infrastructure/adapters/inbound/flutter/corte_caja_p
 
 import 'features/empleados/domain/sucursal_asignada.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleado_inicio_page.dart';
-import 'features/inventario/infrastructure/adapters/inbound/flutter/inventario_empleado_page.dart';
-import 'features/inventario/infrastructure/adapters/outbound/http/http_inventario_gateway.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -76,6 +74,23 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final ImagenesProducto _imagenesProducto;
   late final ContadorNotificaciones _contador;
   late final CacheProductos _productos;
+
+  /// Caché del empleado por sucursal (mismas vigencias que la del propietario:
+  /// listado 5 min, áreas/categorías 30 min). Usa gateways con alcance de
+  /// sucursal, por eso no comparte la del propietario.
+  final _productosEmpleado = <int, CacheProductos>{};
+
+  CacheProductos _cacheEmpleado(SucursalAsignada s) =>
+      _productosEmpleado.putIfAbsent(
+        s.sucursalId,
+        () => CacheProductos(
+          HttpProductoGateway(_api, sucursalEmpleado: s.sucursalId),
+          HttpExistenciasGateway(
+            _api,
+            alcanceEmpleado: (s.negocioId, s.sucursalId),
+          ),
+        ),
+      );
   String _rol = '';
   final ValueNotifier<int> _sesionExpirada = ValueNotifier(0);
   AuthSession? _sesionActual;
@@ -120,6 +135,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _sesionActual = null;
     _contador.cerrarSesion();
     _productos.descartar();
+    _productosEmpleado.clear();
     _rol = '';
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
@@ -213,18 +229,10 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         esPropietario: true,
         onSesionExpirada: () => _cerrarSesion(context),
         onInicio: () => Navigator.of(cajaContext).popUntil((r) => r.isFirst),
-        onPedidos: () => _abrirPedidos(
-          cajaContext,
-          negocio,
-          sucursal,
-          reemplazar: true,
-        ),
-        onInventario: () => _abrirProductos(
-          cajaContext,
-          negocio,
-          sucursal,
-          reemplazar: true,
-        ),
+        onPedidos: () =>
+            _abrirPedidos(cajaContext, negocio, sucursal, reemplazar: true),
+        onInventario: () =>
+            _abrirProductos(cajaContext, negocio, sucursal, reemplazar: true),
       ),
     );
     final navigator = Navigator.of(context);
@@ -393,11 +401,20 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       esPropietario: false,
       onSesionExpirada: () => _cerrarSesion(context),
     ),
-    construirInventario: (s) => InventarioEmpleadoPage(
-      gateway: HttpInventarioGateway(_api),
-      negocio: NegocioProducto(id: s.negocioId, nombre: s.negocio),
-      sucursalId: s.sucursalId,
-      sucursalNombre: s.sucursal,
+    // Mismo listado y detalle que el propietario, en solo lectura: el
+    // empleado únicamente ajusta existencias de su sucursal.
+    construirInventario: (s) => ProductosPage(
+      gestion: () {
+        final cache = _cacheEmpleado(s);
+        return GestionProductos(
+          cache.productos,
+          cache.existencias,
+          cache: cache,
+        );
+      }(),
+      negocioInicial: NegocioProducto(id: s.negocioId, nombre: s.negocio),
+      sucursal: SucursalProducto(id: s.sucursalId, nombre: s.sucursal),
+      soloLectura: true,
       onSesionExpirada: () => _cerrarSesion(context),
     ),
     onCerrarSesion: () => _cerrarSesion(context),
@@ -451,6 +468,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             _sesionActual = null;
             _contador.cerrarSesion();
             _productos.descartar();
+            _productosEmpleado.clear();
           },
           conteoNotificaciones: _contador,
           openNotifications: () => Navigator.of(context).push(

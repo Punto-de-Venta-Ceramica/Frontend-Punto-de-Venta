@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
@@ -22,9 +23,14 @@ class ProductosPage extends StatefulWidget {
     this.onCaja,
     this.descuentos,
     this.imagenes,
+    this.soloLectura = false,
     super.key,
   });
   final GestionProductosUseCase gestion;
+
+  /// Vista del empleado: mismo listado y detalle, sin registrar, editar ni
+  /// eliminar productos; solo ajusta existencias de su sucursal.
+  final bool soloLectura;
 
   /// Para registrar y editar los descuentos (varios, opcionales) de cada producto.
   final GestionDescuentosUseCase? descuentos;
@@ -49,9 +55,16 @@ class _ProductosPageState extends State<ProductosPage> {
   List<AreaProducto> _areas = [];
   List<CategoriaProducto> _categorias = [];
   final _busqueda = TextEditingController();
+  final _precioMin = TextEditingController();
+  final _precioMax = TextEditingController();
+  String? _errorPrecio;
   Timer? _espera;
   int? _areaId;
   int? _categoriaId;
+
+  /// Solo en modo negocio: sucursales para filtrar el catálogo por sucursal.
+  List<SucursalProducto> _sucursales = [];
+  int? _sucursalFiltroId;
   int _pagina = 0;
   int _total = 0;
   bool _ultima = true;
@@ -74,6 +87,8 @@ class _ProductosPageState extends State<ProductosPage> {
   void dispose() {
     _espera?.cancel();
     _busqueda.dispose();
+    _precioMin.dispose();
+    _precioMax.dispose();
     super.dispose();
   }
 
@@ -138,6 +153,9 @@ class _ProductosPageState extends State<ProductosPage> {
         ),
         opcional(widget.gestion.areas(negocio.id)),
         opcional(widget.gestion.categorias(negocio.id)),
+        // Con sucursal fija (administrar sucursal o empleado) no hay selector.
+        if (widget.sucursal == null)
+          opcional(widget.gestion.sucursales(negocio.id)),
       ]);
       if (!mounted || carga != _carga) return;
       final pagina = resultados[0] as PaginaProductos;
@@ -149,8 +167,15 @@ class _ProductosPageState extends State<ProductosPage> {
         _areas = resultados[1] as List<AreaProducto>;
         _categorias = resultados[2] as List<CategoriaProducto>;
         _areaId = null;
+        _sucursales = widget.sucursal == null
+            ? resultados[3] as List<SucursalProducto>
+            : const [];
+        _sucursalFiltroId = null;
         _categoriaId = null;
         _busqueda.clear();
+        _precioMin.clear();
+        _precioMax.clear();
+        _errorPrecio = null;
         _busy = false;
       });
     } on ProductoFailure catch (e) {
@@ -162,8 +187,41 @@ class _ProductosPageState extends State<ProductosPage> {
     areaId: _areaId,
     categoriaId: _categoriaId,
     buscar: _busqueda.text,
-    sucursalId: widget.sucursal?.id,
+    sucursalId: widget.sucursal?.id ?? _sucursalFiltroId,
+    precioMinimo: _precio(_precioMin),
+    precioMaximo: _precio(_precioMax),
   );
+
+  static double? _precio(TextEditingController c) =>
+      double.tryParse(c.text.trim().replaceAll(',', '.'));
+
+  /// Espera a que termine de escribir; un rango invertido no se consulta.
+  void _alCambiarPrecio(String _) {
+    _espera?.cancel();
+    final min = _precio(_precioMin);
+    final max = _precio(_precioMax);
+    final error = min != null && max != null && min > max
+        ? 'El precio mínimo no puede ser mayor que el máximo.'
+        : null;
+    setState(() => _errorPrecio = error);
+    if (error == null) {
+      _espera = Timer(const Duration(milliseconds: 500), _aplicarFiltros);
+    }
+  }
+
+  Widget _campoPrecio(String hint, TextEditingController c, String clave) =>
+      TextField(
+        key: ValueKey(clave),
+        controller: c,
+        enabled: !_busy,
+        style: BarroTheme.type(14, 21),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'^\d{0,9}([.,]\d{0,2})?')),
+        ],
+        decoration: productoDecoracion(hint: hint).copyWith(prefixText: '\$ '),
+        onChanged: _alCambiarPrecio,
+      );
 
   /// Los filtros se aplican en el servidor y reinician la paginación.
   Future<void> _aplicarFiltros() async {
@@ -228,7 +286,9 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   Future<void> _registrar() async {
-    if (_busy || _negocio == null || _error != null) return;
+    if (widget.soloLectura || _busy || _negocio == null || _error != null) {
+      return;
+    }
     var registrados = 0;
     final guardado = await Navigator.of(context).push<Producto>(
       MaterialPageRoute(
@@ -270,6 +330,7 @@ class _ProductosPageState extends State<ProductosPage> {
           imagenes: widget.imagenes,
           onSesionExpirada: widget.onSesionExpirada,
           mensajeInicial: mensaje,
+          soloLectura: widget.soloLectura,
         ),
       ),
     );
@@ -398,23 +459,27 @@ class _ProductosPageState extends State<ProductosPage> {
       ),
       const SizedBox(height: 24),
       Text(
-        'Agrega tu primer producto',
+        widget.soloLectura
+            ? 'Esta sucursal aún no tiene productos'
+            : 'Agrega tu primer producto',
         textAlign: TextAlign.center,
         style: BarroTheme.type(20, 28, weight: FontWeight.w700),
       ),
       const SizedBox(height: 12),
-      Text(
-        widget.sucursal != null
-            ? 'Registra su precio, clasificación y existencia en esta sucursal para empezar a vender.'
-            : 'Registra su precio, clasificación y la existencia en cada sucursal para empezar a vender.',
-        textAlign: TextAlign.center,
-        style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
-      ),
-      const SizedBox(height: 32),
-      ProductoBoton(
-        texto: 'Registrar mi primer producto',
-        onPressed: _registrar,
-      ),
+      if (!widget.soloLectura) ...[
+        Text(
+          widget.sucursal != null
+              ? 'Registra su precio, clasificación y existencia en esta sucursal para empezar a vender.'
+              : 'Registra su precio, clasificación y la existencia en cada sucursal para empezar a vender.',
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
+        ),
+        const SizedBox(height: 32),
+        ProductoBoton(
+          texto: 'Registrar mi primer producto',
+          onPressed: _registrar,
+        ),
+      ],
     ],
   );
 
@@ -427,7 +492,7 @@ class _ProductosPageState extends State<ProductosPage> {
         .toList();
     return ProductoScaffold(
       // El menú solo aparece al administrar una sucursal, no en el catálogo del negocio.
-      barraInferior: widget.sucursal == null
+      barraInferior: widget.sucursal == null || widget.soloLectura
           ? null
           : SucursalNavegacion(
               seleccionada: 'Inventario',
@@ -499,6 +564,18 @@ class _ProductosPageState extends State<ProductosPage> {
             onChanged: _alBuscar,
           ),
           const SizedBox(height: 12),
+          if (widget.sucursal == null && _sucursales.isNotEmpty) ...[
+            _filtro(
+              'Todas las sucursales',
+              _sucursalFiltroId,
+              [for (final s in _sucursales) (s.id, s.nombre)],
+              (id) {
+                setState(() => _sucursalFiltroId = id);
+                _aplicarFiltros();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               Expanded(
@@ -529,9 +606,31 @@ class _ProductosPageState extends State<ProductosPage> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _campoPrecio('Precio mín.', _precioMin, 'precio-min'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _campoPrecio('Precio máx.', _precioMax, 'precio-max'),
+              ),
+            ],
+          ),
+          if (_errorPrecio != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _errorPrecio!,
+              style: BarroTheme.type(12, 18, color: BarroTheme.error),
+            ),
+          ],
           const SizedBox(height: 16),
-          ProductoBoton(texto: '+ Registrar producto', onPressed: _registrar),
-          const SizedBox(height: 20),
+          if (!widget.soloLectura) ...[
+            ProductoBoton(texto: '+ Registrar producto', onPressed: _registrar),
+            const SizedBox(height: 20),
+          ] else
+            const SizedBox(height: 4),
           Text(
             '$_total ${_total == 1 ? 'producto registrado' : 'productos registrados'}',
             style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
@@ -559,13 +658,16 @@ class _ProductosPageState extends State<ProductosPage> {
               ),
           ],
         ],
-        const SizedBox(height: 12),
-        Center(
-          child: TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Volver'),
+        // El empleado llega por la barra inferior: no hay pantalla a la que volver.
+        if (!widget.soloLectura) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Volver'),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
