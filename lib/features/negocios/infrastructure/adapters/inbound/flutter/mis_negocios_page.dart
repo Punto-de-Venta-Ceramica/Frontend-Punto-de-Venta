@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'widgets/negocio_card.dart';
@@ -15,7 +16,9 @@ class MisNegociosPage extends StatelessWidget {
     this.onAdministrar,
     this.onEditar,
     this.onReintentar,
-    this.onVolver,
+    this.onCerrarSesion,
+    this.onNotificaciones,
+    this.conteoNotificaciones,
     super.key,
   });
 
@@ -27,17 +30,20 @@ class MisNegociosPage extends StatelessWidget {
   final ValueChanged<Negocio>? onAdministrar;
   final ValueChanged<Negocio>? onEditar;
   final VoidCallback? onReintentar;
-  final VoidCallback? onVolver;
+  final VoidCallback? onCerrarSesion;
+  final VoidCallback? onNotificaciones;
+  final ValueListenable<int?>? conteoNotificaciones;
 
   @override
   Widget build(BuildContext context) => NegociosScaffold(
-    footer: onVolver == null
+    onNotificaciones: onNotificaciones,
+    conteoNotificaciones: conteoNotificaciones,
+    footer: onCerrarSesion == null
         ? null
-        : Center(
-            child: NegociosTextButton(
-              label: 'Volver a mi sesión',
-              onPressed: onVolver,
-            ),
+        : OutlinedButton.icon(
+            onPressed: onCerrarSesion,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Cerrar sesión'),
           ),
     children: [
       if (mensajeExito != null) ...[

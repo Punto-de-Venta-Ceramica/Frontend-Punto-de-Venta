@@ -26,9 +26,15 @@ class GestionEmpleados implements GestionEmpleadosUseCase {
   Future<List<Empleado>> listar(
     int negocioId, {
     bool incluirAsignacion = true,
+    int? sucursalId,
   }) {
     _validarId(negocioId, 'negocio');
-    return _gateway.listar(negocioId, incluirAsignacion: incluirAsignacion);
+    if (sucursalId != null) _validarId(sucursalId, 'sucursal');
+    return _gateway.listar(
+      negocioId,
+      incluirAsignacion: incluirAsignacion,
+      sucursalId: sucursalId,
+    );
   }
 
   @override
@@ -45,20 +51,20 @@ class GestionEmpleados implements GestionEmpleadosUseCase {
   }
 
   @override
-  Future<Empleado> asignarSucursal({
+  Future<Empleado> asignarSucursales({
     required int negocioId,
     required int empleadoId,
-    required int? sucursalId,
+    required List<int> sucursalIds,
   }) {
     _validarId(negocioId, 'negocio');
     _validarId(empleadoId, 'empleado');
-    if (sucursalId != null && sucursalId <= 0) {
+    if (sucursalIds.any((id) => id <= 0)) {
       throw const EmpleadoFailure('La sucursal seleccionada no es válida.');
     }
-    return _gateway.asignarSucursal(
+    return _gateway.asignarSucursales(
       negocioId: negocioId,
       empleadoId: empleadoId,
-      sucursalId: sucursalId,
+      sucursalIds: sucursalIds.toSet().toList(),
     );
   }
 

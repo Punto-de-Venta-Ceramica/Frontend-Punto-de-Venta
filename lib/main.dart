@@ -40,6 +40,12 @@ import 'features/empleados/domain/empleado.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleados_page.dart';
 import 'features/empleados/infrastructure/adapters/outbound/http/http_empleado_gateway.dart';
 
+import 'features/empleados/domain/sucursal_asignada.dart';
+import 'features/empleados/infrastructure/adapters/inbound/flutter/empleado_inicio_page.dart';
+import 'features/caja/infrastructure/adapters/inbound/flutter/caja_page.dart';
+import 'features/inventario/infrastructure/adapters/inbound/flutter/inventario_empleado_page.dart';
+import 'features/inventario/infrastructure/adapters/outbound/http/http_inventario_gateway.dart';
+
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
 import 'core/infrastructure/theme/barro_theme.dart';
@@ -131,6 +137,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onAreasCategorias: (negocio) => _abrirCatalogo(context, negocio),
         onProductos: (negocio) => _abrirProductosNegocio(context, negocio),
         onDescuentos: (negocio) => _abrirDescuentosNegocio(context, negocio),
+        onEmpleados: (negocio) => _abrirEmpleadosNegocio(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
       ),
@@ -172,6 +179,20 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     ),
   );
 
+  /// Empleados de todo el negocio: asignación a varias sucursales y baja.
+  Future<void> _abrirEmpleadosNegocio(
+    BuildContext context,
+    NegocioSucursal negocio,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (empleadosContext) => EmpleadosPage(
+        gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
+        negocioInicial: NegocioEmpleado(id: negocio.id, nombre: negocio.nombre),
+        onSesionExpirada: () => _cerrarSesion(empleadosContext),
+      ),
+    ),
+  );
+
   Future<void> _abrirEmpleados(
     BuildContext context,
     NegocioSucursal negocio,
@@ -194,43 +215,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
         negocioInicial: NegocioEmpleado(id: negocio.id, nombre: negocio.nombre),
         sucursalNombre: sucursal.nombre,
+        sucursalId: sucursal.id,
         onSesionExpirada: () => _cerrarSesion(empleadosContext),
       ),
     ),
   );
-
-  Future<void> _abrirEmpleadosDesdeSesion(BuildContext context) async {
-    try {
-      final negociosJson = await _api.requestJson('GET', 'api/negocios');
-      if (negociosJson is List && negociosJson.isNotEmpty) {
-        final primer = negociosJson.first as Map<String, dynamic>;
-        final negocio = NegocioEmpleado(
-          id: primer['id'] as int,
-          nombre: primer['nombre'] as String,
-        );
-        if (!context.mounted) return;
-        Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => EmpleadosPage(
-              gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
-              negocioInicial: negocio,
-              onSesionExpirada: () => _cerrarSesion(context),
-            ),
-          ),
-        );
-      } else {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Primero registra un negocio.')),
-        );
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudieron obtener los negocios.')),
-      );
-    }
-  }
 
   /// Descuentos del negocio (no dependen de una sucursal).
   Future<void> _abrirDescuentosNegocio(
@@ -318,40 +307,49 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
   }
 
-  Future<void> _abrirPedidosEmpleado(BuildContext context) async {
-    try {
-      final asignacion = await _api.getJson(
-        'api/pedidos/opciones/sucursal-asignada',
+  /// Inicio del empleado: Pedidos, Caja (por defecto) e Inventario de su sucursal.
+  Widget _inicioEmpleado(BuildContext context) => EmpleadoInicioPage(
+    cargarSucursales: () async {
+      final respuesta = await _api.requestJson(
+        'GET',
+        'api/pedidos/opciones/sucursales-asignadas',
       );
-      if (!context.mounted) return;
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => PedidosPage(
-            gestion: GestionPedidos(HttpPedidosGateway(_api)),
-            sucursalId: asignacion['sucursalId'] as int,
-            sucursalNombre: asignacion['sucursal'] as String?,
-            negocio: NegocioProducto(
-              id: asignacion['negocioId'] as int,
-              nombre: asignacion['negocio'] as String,
-            ),
-            esPropietario: false,
-            contador: _contador,
-          ),
+      if (respuesta is! List) throw const FormatException();
+      return [
+        for (final item in respuesta.whereType<Map<String, dynamic>>())
+          SucursalAsignada.fromJson(item),
+      ];
+    },
+    construirPedidos: (s) => PedidosPage(
+      gestion: GestionPedidos(HttpPedidosGateway(_api)),
+      sucursalId: s.sucursalId,
+      sucursalNombre: s.sucursal,
+      negocio: NegocioProducto(id: s.negocioId, nombre: s.negocio),
+      esPropietario: false,
+      contador: _contador,
+    ),
+    construirCaja: (s) => CajaPage(
+      negocio: NegocioProducto(id: s.negocioId, nombre: s.negocio),
+      sucursalNombre: s.sucursal,
+    ),
+    construirInventario: (s) => InventarioEmpleadoPage(
+      gateway: HttpInventarioGateway(_api),
+      negocio: NegocioProducto(id: s.negocioId, nombre: s.negocio),
+      sucursalId: s.sucursalId,
+      sucursalNombre: s.sucursal,
+      onSesionExpirada: () => _cerrarSesion(context),
+    ),
+    onCerrarSesion: () => _cerrarSesion(context),
+    conteoNotificaciones: _contador,
+    onNotificaciones: () => Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NotificacionesPage(
+          gestion: GestionPedidos(HttpPedidosGateway(_api)),
+          contador: _contador,
         ),
-      );
-    } on ApiException catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.statusCode == 404
-                ? 'No tienes una sucursal asignada. Contacta al propietario.'
-                : e.message,
-          ),
-        ),
-      );
-    }
-  }
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -402,20 +400,29 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
               ),
             ),
           ),
-          openOrders: () => _abrirPedidosEmpleado(context),
-          openEmployees: () => _abrirEmpleadosDesdeSesion(context),
-          openBusinesses: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => NegociosPage(
-                gestion: GestionNegocios(HttpNegocioGateway(_api)),
-                selectorLogo: const FileSelectorLogo(),
-                onSesionExpirada: () => _cerrarSesion(context),
-                onAdministrar: (negocio) => _abrirSucursales(context, negocio),
-                onNegocioCreado: (negocio) =>
-                    _abrirSucursales(context, negocio, registrar: true),
-              ),
-            ),
-          ),
+          home: session.role == 'PROPIETARIO'
+              ? NegociosPage(
+                  gestion: GestionNegocios(HttpNegocioGateway(_api)),
+                  selectorLogo: const FileSelectorLogo(),
+                  onSesionExpirada: () => _cerrarSesion(context),
+                  onAdministrar: (negocio) =>
+                      _abrirSucursales(context, negocio),
+                  onNegocioCreado: (negocio) =>
+                      _abrirSucursales(context, negocio, registrar: true),
+                  onCerrarSesion: () => _cerrarSesion(context),
+                  conteoNotificaciones: _contador,
+                  onNotificaciones: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => NotificacionesPage(
+                        gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                        contador: _contador,
+                      ),
+                    ),
+                  ),
+                )
+              : session.role == 'EMPLEADO'
+              ? _inicioEmpleado(context)
+              : null,
         );
       },
       '/connection': (_) => const _ConnectionHome(),

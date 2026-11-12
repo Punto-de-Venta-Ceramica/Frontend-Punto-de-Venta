@@ -184,7 +184,10 @@ class _DescuentosPageState extends State<DescuentosPage> {
       const SizedBox(height: 20),
       ProductoNegocioPanel(negocio: widget.negocio),
       const SizedBox(height: 20),
-      Text('Descuentos', style: BarroTheme.type(34, 43, weight: FontWeight.w700)),
+      Text(
+        'Descuentos',
+        style: BarroTheme.type(34, 43, weight: FontWeight.w700),
+      ),
       const SizedBox(height: 4),
       Text(
         'Descuentos por cantidad de tu negocio.',

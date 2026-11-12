@@ -322,9 +322,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       onTap: _productos.isEmpty ? null : _seleccionarProducto,
       borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
-        decoration: productoDecoracion(
-          error: _errores['productos'],
-        ).copyWith(
+        decoration: productoDecoracion(error: _errores['productos']).copyWith(
           suffixIcon: seleccionado == null
               ? const Icon(Icons.search)
               : IconButton(
@@ -517,10 +515,12 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
 
   @override
   Widget build(BuildContext context) => ProductoScaffold(
-    barraInferior: SucursalNavegacion(
-      seleccionada: 'Pedidos',
-      onPedidos: () => Navigator.of(context).maybePop(),
-    ),
+    barraInferior: widget.esPropietario
+        ? SucursalNavegacion(
+            seleccionada: 'Pedidos',
+            onPedidos: () => Navigator.of(context).maybePop(),
+          )
+        : null,
     rol: widget.esPropietario ? 'Propietario' : 'Empleado',
     children: [
       TextButton.icon(

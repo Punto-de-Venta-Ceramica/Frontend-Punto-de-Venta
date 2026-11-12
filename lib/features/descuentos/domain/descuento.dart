@@ -158,13 +158,16 @@ class DatosDescuento {
       if (maximo == null || maximo < 1) {
         errores['cantidadMaxima'] = 'Indica al menos 1 pieza o déjalo vacío.';
       } else if (minimo != null && minimo >= 1 && maximo < minimo) {
-        errores['cantidadMaxima'] = 'No puede ser menor que la cantidad mínima.';
+        errores['cantidadMaxima'] =
+            'No puede ser menor que la cantidad mínima.';
       }
     }
     final p = porcentajeNumero;
     if (p == null || p <= 0 || p > 100) {
       errores['porcentaje'] = 'Usa un valor mayor que 0 y hasta 100.';
-    } else if (!RegExp(r'^\d{1,3}([.,]\d{1,2})?$').hasMatch(porcentaje.trim())) {
+    } else if (!RegExp(
+      r'^\d{1,3}([.,]\d{1,2})?$',
+    ).hasMatch(porcentaje.trim())) {
       errores['porcentaje'] = 'Máximo 2 decimales.';
     }
     return errores;

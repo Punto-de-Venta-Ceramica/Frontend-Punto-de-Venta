@@ -40,6 +40,9 @@ void main() {
                   200,
                 );
               }
+              if (r.url.path == '/api/auth/refresh') {
+                return http.Response('{}', 401);
+              }
               expect(r.headers['Authorization'], 'Bearer jwt-prueba');
               if (r.url.path == '/api/negocios') {
                 return http.Response(
@@ -68,9 +71,9 @@ void main() {
         );
         await tester.tap(find.byKey(const ValueKey('login-submit')));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Administrar sucursales'));
+        await tester.tap(find.text('Administrar'));
         await tester.pumpAndSettle();
-        expect(requests, hasLength(3));
+        expect(requests, hasLength(rechazar ? 5 : 4));
         expect(
           find.text(rechazar ? 'Bienvenido de nuevo' : 'Sucursales'),
           findsOneWidget,

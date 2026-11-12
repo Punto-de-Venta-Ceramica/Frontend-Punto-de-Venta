@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import 'clasificacion_widgets.dart';
 
 class ClasificacionScaffold extends StatelessWidget {
@@ -44,7 +44,7 @@ class ClasificacionScaffold extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const _CabeceraCatalogo(),
+                          const BarroHeader(),
                           const SizedBox(height: 16),
                           if (volver != null) ...[
                             Align(
@@ -108,40 +108,6 @@ class ClasificacionScaffold extends StatelessWidget {
         ),
       ),
     ),
-  );
-}
-
-class _CabeceraCatalogo extends StatelessWidget {
-  const _CabeceraCatalogo();
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SvgPicture.asset(
-        'assets/icons/brand.svg',
-        width: 32,
-        height: 32,
-        semanticsLabel: 'Logo de BarroControl',
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          'BarroControl',
-          style: BarroTheme.type(17, 24, weight: FontWeight.w700),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: clasificacionSuave,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          'Propietario',
-          style: BarroTheme.type(11, 16, color: BarroTheme.primary),
-        ),
-      ),
-    ],
   );
 }
 

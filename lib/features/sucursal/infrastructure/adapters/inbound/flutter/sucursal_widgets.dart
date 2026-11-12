@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import '../../../../domain/sucursal.dart';
 
 const sucursalSuave = Color(0xFFF7E7DF);
@@ -8,34 +8,7 @@ const sucursalSuave = Color(0xFFF7E7DF);
 class SucursalCabecera extends StatelessWidget {
   const SucursalCabecera({super.key});
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SvgPicture.asset(
-        'assets/icons/brand.svg',
-        width: 36,
-        height: 36,
-        semanticsLabel: 'Logo de BarroControl',
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          'BarroControl',
-          style: BarroTheme.type(21, 28, weight: FontWeight.w700),
-        ),
-      ),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: sucursalSuave,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          'Propietario',
-          style: BarroTheme.type(12, 17, color: BarroTheme.primary),
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) => const BarroHeader();
 }
 
 class NegocioSucursalPanel extends StatelessWidget {
@@ -175,12 +148,18 @@ class SucursalNavegacion extends StatelessWidget {
     this.onInventario,
     this.onPedidos,
     this.onInicio,
+    this.onCaja,
+    this.esEmpleado = false,
     this.seleccionada = 'Inicio',
     super.key,
   });
   final VoidCallback? onInventario;
   final VoidCallback? onPedidos;
   final VoidCallback? onInicio;
+  final VoidCallback? onCaja;
+
+  /// El empleado solo ve Pedidos, Caja e Inventario.
+  final bool esEmpleado;
   final String seleccionada;
   @override
   Widget build(BuildContext context) => Container(
@@ -196,13 +175,20 @@ class SucursalNavegacion extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                for (final item in const [
-                  (Icons.home_outlined, 'Inicio'),
-                  (Icons.receipt_long_outlined, 'Pedidos'),
-                  (Icons.point_of_sale_outlined, 'Caja'),
-                  (Icons.inventory_2_outlined, 'Inventario'),
-                  (Icons.apps_rounded, 'Más'),
-                ])
+                for (final item
+                    in esEmpleado
+                        ? const [
+                            (Icons.receipt_long_outlined, 'Pedidos'),
+                            (Icons.point_of_sale_outlined, 'Caja'),
+                            (Icons.inventory_2_outlined, 'Inventario'),
+                          ]
+                        : const [
+                            (Icons.home_outlined, 'Inicio'),
+                            (Icons.receipt_long_outlined, 'Pedidos'),
+                            (Icons.point_of_sale_outlined, 'Caja'),
+                            (Icons.inventory_2_outlined, 'Inventario'),
+                            (Icons.apps_rounded, 'Más'),
+                          ])
                   IconButton(
                     tooltip: item.$2,
                     isSelected: item.$2 == seleccionada,
@@ -216,6 +202,17 @@ class SucursalNavegacion extends StatelessWidget {
                       minimumSize: const Size(46, 46),
                     ),
                     onPressed: () {
+                      if (esEmpleado) {
+                        switch (item.$2) {
+                          case 'Pedidos':
+                            onPedidos?.call();
+                          case 'Caja':
+                            onCaja?.call();
+                          case 'Inventario':
+                            onInventario?.call();
+                        }
+                        return;
+                      }
                       if (item.$2 == 'Inicio' && onInicio != null) {
                         onInicio!();
                         return;

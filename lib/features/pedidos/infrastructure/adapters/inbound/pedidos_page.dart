@@ -284,12 +284,15 @@ class _PedidosPageState extends State<PedidosPage> {
         )
         .toList();
     return ProductoScaffold(
-      barraInferior: SucursalNavegacion(
-        seleccionada: 'Pedidos',
-        onInicio: () => Navigator.of(context).maybePop(),
-        onPedidos: () {},
-        onInventario: widget.onInventario,
-      ),
+      // El empleado navega con la barra de su pantalla de inicio.
+      barraInferior: widget.esPropietario
+          ? SucursalNavegacion(
+              seleccionada: 'Pedidos',
+              onInicio: () => Navigator.of(context).maybePop(),
+              onPedidos: () {},
+              onInventario: widget.onInventario,
+            )
+          : null,
       rol: widget.esPropietario ? 'Propietario' : 'Empleado',
       onRefresh: _cargar,
       children: [

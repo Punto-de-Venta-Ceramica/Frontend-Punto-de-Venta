@@ -18,11 +18,16 @@ class EmpleadosPage extends StatefulWidget {
     this.onPedidos,
     this.onInventario,
     this.sucursalNombre,
+    this.sucursalId,
     super.key,
   });
 
   /// Con valor, el encabezado muestra la sucursal en lugar del negocio.
   final String? sucursalNombre;
+
+  /// Con valor, solo se listan los empleados de esa sucursal (vista de
+  /// sucursal). Sin valor, se administran todos los empleados del negocio.
+  final int? sucursalId;
 
   final GestionEmpleadosUseCase gestion;
   final NegocioEmpleado negocioInicial;
@@ -43,6 +48,8 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
   bool _ocupado = true;
   String? _error;
   String? _mensajeExito;
+
+  bool get _porSucursal => widget.sucursalId != null;
 
   @override
   void initState() {
@@ -91,6 +98,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
       final lista = await widget.gestion.listar(
         _negocio.id,
         incluirAsignacion: true,
+        sucursalId: widget.sucursalId,
       );
       if (!mounted) return;
       setState(() {
@@ -117,6 +125,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
           gestion: widget.gestion,
           negocio: _negocio,
           sucursalNombre: widget.sucursalNombre,
+          sucursalId: widget.sucursalId,
           onSesionExpirada: widget.onSesionExpirada,
         ),
       ),
@@ -250,7 +259,11 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                   const SizedBox(height: 4),
                   Text(
                     _empleados.isEmpty
-                        ? 'No hay empleados registrados en tu negocio'
+                        ? (_porSucursal
+                              ? 'No hay empleados en esta sucursal'
+                              : 'No hay empleados registrados en tu negocio')
+                        : _porSucursal
+                        ? '${_empleados.length} ${_empleados.length == 1 ? 'empleado en esta sucursal' : 'empleados en esta sucursal'}'
                         : '${_empleados.length} ${_empleados.length == 1 ? 'empleado en tu negocio' : 'empleados en tu negocio'}',
                     style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
                   ),
@@ -277,33 +290,35 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: BarroTheme.primary),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                  if (!_porSucursal) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: BarroTheme.primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          foregroundColor: BarroTheme.primary,
                         ),
-                        foregroundColor: BarroTheme.primary,
-                      ),
-                      icon: const Icon(Icons.storefront_outlined, size: 20),
-                      label: Text(
-                        'Cambiar asignación de sucursales',
-                        style: BarroTheme.type(
-                          14,
-                          20,
-                          weight: FontWeight.w600,
-                          color: BarroTheme.primary,
+                        icon: const Icon(Icons.storefront_outlined, size: 20),
+                        label: Text(
+                          'Asignar sucursales',
+                          style: BarroTheme.type(
+                            14,
+                            20,
+                            weight: FontWeight.w600,
+                            color: BarroTheme.primary,
+                          ),
                         ),
+                        onPressed: _empleados.isEmpty
+                            ? null
+                            : () => _abrirAsignacion(),
                       ),
-                      onPressed: _empleados.isEmpty
-                          ? null
-                          : () => _abrirAsignacion(),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 24),
                   if (_mensajeExito != null) ...[
                     SucursalAviso(_mensajeExito!),
@@ -383,7 +398,9 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                       (emp) => EmpleadoCard(
                         empleado: emp,
                         onEliminar: () => _confirmarEliminar(emp),
-                        onCambiarSucursal: () => _abrirAsignacion(emp.id),
+                        onCambiarSucursal: _porSucursal
+                            ? null
+                            : () => _abrirAsignacion(emp.id),
                       ),
                     ),
                 ],

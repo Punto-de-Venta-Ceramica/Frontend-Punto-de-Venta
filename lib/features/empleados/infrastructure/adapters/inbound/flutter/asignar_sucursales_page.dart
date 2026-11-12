@@ -34,6 +34,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
   String? _error;
   String? _mensajeExito;
   final Set<int> _guardandoEmpleados = {};
+  bool _huboCambios = false;
 
   @override
   void initState() {
@@ -82,11 +83,17 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
     }
   }
 
-  Future<void> _cambiarAsignacion(
+  Future<void> _alternarSucursal(
     Empleado empleado,
-    int? nuevaSucursalId,
+    SucursalEmpleado sucursal,
   ) async {
-    if (empleado.sucursalId == nuevaSucursalId) return;
+    final ids = empleado.sucursales.map((s) => s.id).toList();
+    final quitar = ids.contains(sucursal.id);
+    if (quitar) {
+      ids.remove(sucursal.id);
+    } else {
+      ids.add(sucursal.id);
+    }
 
     setState(() {
       _guardandoEmpleados.add(empleado.id);
@@ -94,10 +101,10 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
     });
 
     try {
-      final actualizado = await widget.gestion.asignarSucursal(
+      final actualizado = await widget.gestion.asignarSucursales(
         negocioId: widget.negocio.id,
         empleadoId: empleado.id,
-        sucursalId: nuevaSucursalId,
+        sucursalIds: ids,
       );
 
       if (!mounted) return;
@@ -108,23 +115,11 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
         if (index != -1) {
           _empleados[index] = actualizado;
         }
-        final destino = nuevaSucursalId == null
-            ? 'desasignado de sucursal'
-            : 'asignado a ${actualizado.sucursalNombre ?? 'la sucursal'}';
-        _mensajeExito = '${empleado.nombreCompleto} ha sido $destino.';
+        _mensajeExito = quitar
+            ? '${empleado.nombreCompleto} ya no trabaja en ${sucursal.nombre}.'
+            : '${empleado.nombreCompleto} ahora trabaja en ${sucursal.nombre}.';
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            nuevaSucursalId == null
-                ? '${empleado.nombreCompleto} quedó sin sucursal asignada.'
-                : 'Sucursal actualizada para ${empleado.nombreCompleto}.',
-          ),
-          backgroundColor: BarroTheme.success,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      _huboCambios = true;
     } on EmpleadoFailure catch (e) {
       if (!mounted) return;
       setState(() => _guardandoEmpleados.remove(empleado.id));
@@ -149,10 +144,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
 
   Widget _buildItemEmpleado(Empleado emp) {
     final guardando = _guardandoEmpleados.contains(emp.id);
-    final tieneSucursal =
-        emp.asignado &&
-        emp.sucursalNombre != null &&
-        emp.sucursalNombre!.isNotEmpty;
+    final tieneSucursal = emp.asignado;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -243,7 +235,9 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    tieneSucursal ? 'Asignado' : 'Sin asignar',
+                    tieneSucursal
+                        ? '${emp.sucursales.length} ${emp.sucursales.length == 1 ? 'sucursal' : 'sucursales'}'
+                        : 'Sin asignar',
                     style: BarroTheme.type(
                       11,
                       15,
@@ -260,87 +254,35 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
             padding: EdgeInsets.symmetric(vertical: 12),
             child: Divider(height: 1, color: BarroTheme.border),
           ),
-          Row(
-            children: [
-              Text(
-                'Sucursal asignada:',
-                style: BarroTheme.type(13, 18, weight: FontWeight.w600),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFAF6F3),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: BarroTheme.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int?>(
-                      value: emp.sucursalId,
-                      isExpanded: true,
-                      icon: const Icon(
-                        Icons.arrow_drop_down,
-                        color: BarroTheme.primary,
-                      ),
-                      hint: Text(
-                        'Sin sucursal asignada',
-                        style: BarroTheme.type(
-                          13,
-                          18,
-                          color: BarroTheme.placeholder,
-                        ),
-                      ),
-                      items: [
-                        DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text(
-                            '⚪ Sin sucursal asignada',
-                            style: BarroTheme.type(
-                              13,
-                              18,
-                              color: BarroTheme.placeholder,
-                            ),
-                          ),
-                        ),
-                        ..._sucursales.map(
-                          (suc) => DropdownMenuItem<int?>(
-                            value: suc.id,
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.store_outlined,
-                                  size: 16,
-                                  color: BarroTheme.primary,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    suc.nombre,
-                                    style: BarroTheme.type(
-                                      13,
-                                      18,
-                                      weight: FontWeight.w600,
-                                      color: BarroTheme.text,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                      onChanged: guardando
-                          ? null
-                          : (nuevoId) => _cambiarAsignacion(emp, nuevoId),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            'Sucursales donde trabaja:',
+            style: BarroTheme.type(13, 18, weight: FontWeight.w600),
           ),
+          const SizedBox(height: 8),
+          if (_sucursales.isEmpty)
+            Text(
+              'Este negocio aún no tiene sucursales.',
+              style: BarroTheme.type(13, 18, color: BarroTheme.placeholder),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final suc in _sucursales)
+                  FilterChip(
+                    avatar: const Icon(Icons.store_outlined, size: 16),
+                    label: Text(suc.nombre),
+                    selected: emp.trabajaEn(suc.id),
+                    showCheckmark: true,
+                    selectedColor: const Color(0xFFF9EDE8),
+                    checkmarkColor: BarroTheme.primary,
+                    onSelected: guardando
+                        ? null
+                        : (_) => _alternarSucursal(emp, suc),
+                  ),
+              ],
+            ),
         ],
       ),
     );
@@ -370,13 +312,13 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                           Icons.arrow_back,
                           color: BarroTheme.text,
                         ),
-                        onPressed: () => Navigator.pop(context, true),
+                        onPressed: () => Navigator.pop(context, _huboCambios),
                         tooltip: 'Volver',
                       ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          'Cambiar asignación',
+                          'Asignar sucursales',
                           style: BarroTheme.type(
                             26,
                             32,
@@ -389,7 +331,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                   Padding(
                     padding: const EdgeInsets.only(left: 48, bottom: 16),
                     child: Text(
-                      'Asigna o cambia la sucursal de tus empleados',
+                      'Un empleado puede trabajar en varias sucursales',
                       style: BarroTheme.type(
                         14,
                         20,
@@ -423,7 +365,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Selecciona la sucursal de cada empleado. El cambio se aplica en tiempo real para sus accesos.',
+                            'Marca o desmarca las sucursales de cada empleado. El cambio se aplica al instante.',
                             style: BarroTheme.type(
                               12,
                               18,

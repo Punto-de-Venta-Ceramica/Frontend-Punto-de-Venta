@@ -12,10 +12,14 @@ class NuevoEmpleadoPage extends StatefulWidget {
     required this.negocio,
     required this.onSesionExpirada,
     this.sucursalNombre,
+    this.sucursalId,
     super.key,
   });
 
   final String? sucursalNombre;
+
+  /// Sucursal en la que se registra al empleado desde la vista de sucursal.
+  final int? sucursalId;
 
   final GestionEmpleadosUseCase gestion;
   final NegocioEmpleado negocio;
@@ -41,6 +45,7 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
   @override
   void initState() {
     super.initState();
+    _sucursalSeleccionadaId = widget.sucursalId;
     _cargarSucursales();
   }
 

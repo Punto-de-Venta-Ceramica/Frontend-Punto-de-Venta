@@ -6,7 +6,11 @@ abstract interface class DescuentoGateway {
   Future<Descuento> crear(int negocioId, DatosDescuento datos);
   Future<Descuento> editar(int negocioId, int id, DatosDescuento datos);
   Future<void> eliminar(int negocioId, int id);
-  Future<Descuento> cambiarEstado(int negocioId, int id, {required bool activo});
+  Future<Descuento> cambiarEstado(
+    int negocioId,
+    int id, {
+    required bool activo,
+  });
 
   /// Productos, categorías y áreas del negocio que pueden recibir un descuento.
   Future<CatalogoDescuento> catalogo(int negocioId);

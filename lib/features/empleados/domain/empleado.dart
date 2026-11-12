@@ -18,9 +18,7 @@ class Empleado {
     this.apellidoP,
     this.apellidoM,
     required this.correoElectronico,
-    this.sucursalId,
-    this.sucursalNombre,
-    this.asignado = false,
+    this.sucursales = const [],
   });
 
   final int id;
@@ -29,9 +27,16 @@ class Empleado {
   final String? apellidoP;
   final String? apellidoM;
   final String correoElectronico;
-  final int? sucursalId;
-  final String? sucursalNombre;
-  final bool asignado;
+
+  /// Sucursales en las que trabaja (puede ser más de una).
+  final List<SucursalEmpleado> sucursales;
+
+  bool get asignado => sucursales.isNotEmpty;
+
+  /// Nombres de sus sucursales separados por coma (vacío si no tiene ninguna).
+  String get sucursalNombre => sucursales.map((s) => s.nombre).join(', ');
+
+  bool trabajaEn(int sucursalId) => sucursales.any((s) => s.id == sucursalId);
 
   String get nombreCompleto {
     final partes = [
@@ -47,29 +52,14 @@ class Empleado {
     return n.isEmpty ? 'E' : n[0].toUpperCase();
   }
 
-  Empleado copyWith({
-    int? id,
-    int? negocioId,
-    String? nombre,
-    String? apellidoP,
-    String? apellidoM,
-    String? correoElectronico,
-    int? sucursalId,
-    String? sucursalNombre,
-    bool? asignado,
-    bool limpiarSucursal = false,
-  }) => Empleado(
-    id: id ?? this.id,
-    negocioId: negocioId ?? this.negocioId,
-    nombre: nombre ?? this.nombre,
-    apellidoP: apellidoP ?? this.apellidoP,
-    apellidoM: apellidoM ?? this.apellidoM,
-    correoElectronico: correoElectronico ?? this.correoElectronico,
-    sucursalId: limpiarSucursal ? null : (sucursalId ?? this.sucursalId),
-    sucursalNombre: limpiarSucursal
-        ? null
-        : (sucursalNombre ?? this.sucursalNombre),
-    asignado: limpiarSucursal ? false : (asignado ?? this.asignado),
+  Empleado copyWith({List<SucursalEmpleado>? sucursales}) => Empleado(
+    id: id,
+    negocioId: negocioId,
+    nombre: nombre,
+    apellidoP: apellidoP,
+    apellidoM: apellidoM,
+    correoElectronico: correoElectronico,
+    sucursales: sucursales ?? this.sucursales,
   );
 }
 
