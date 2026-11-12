@@ -21,7 +21,11 @@ class PedidosPage extends StatefulWidget {
     required this.esPropietario,
     required this.contador,
     this.onInventario,
+<<<<<<< Updated upstream
     this.sucursalNombre,
+=======
+    this.onCaja,
+>>>>>>> Stashed changes
     super.key,
   });
   final GestionPedidos gestion;
@@ -31,6 +35,7 @@ class PedidosPage extends StatefulWidget {
   final bool esPropietario;
   final ContadorNotificaciones contador;
   final VoidCallback? onInventario;
+  final VoidCallback? onCaja;
   @override
   State<PedidosPage> createState() => _PedidosPageState();
 }
@@ -289,6 +294,7 @@ class _PedidosPageState extends State<PedidosPage> {
         onInicio: () => Navigator.of(context).maybePop(),
         onPedidos: () {},
         onInventario: widget.onInventario,
+        onCaja: widget.onCaja,
       ),
       rol: widget.esPropietario ? 'Propietario' : 'Empleado',
       onRefresh: _cargar,

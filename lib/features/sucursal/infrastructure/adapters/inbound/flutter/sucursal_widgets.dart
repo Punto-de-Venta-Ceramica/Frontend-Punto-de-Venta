@@ -175,12 +175,14 @@ class SucursalNavegacion extends StatelessWidget {
     this.onInventario,
     this.onPedidos,
     this.onInicio,
+    this.onCaja,
     this.seleccionada = 'Inicio',
     super.key,
   });
   final VoidCallback? onInventario;
   final VoidCallback? onPedidos;
   final VoidCallback? onInicio;
+  final VoidCallback? onCaja;
   final String seleccionada;
   @override
   Widget build(BuildContext context) => Container(
@@ -225,6 +227,10 @@ class SucursalNavegacion extends StatelessWidget {
                       }
                       if (item.$2 == 'Pedidos' && onPedidos != null) {
                         onPedidos!();
+                        return;
+                      }
+                      if (item.$2 == 'Caja' && onCaja != null) {
+                        onCaja!();
                         return;
                       }
                       if (item.$2 == 'Inventario' && onInventario != null) {

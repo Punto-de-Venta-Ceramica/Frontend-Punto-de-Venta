@@ -39,6 +39,9 @@ import 'features/empleados/application/services/gestion_empleados.dart';
 import 'features/empleados/domain/empleado.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleados_page.dart';
 import 'features/empleados/infrastructure/adapters/outbound/http/http_empleado_gateway.dart';
+import 'features/corte_caja/application/services/gestion_corte_caja.dart';
+import 'features/corte_caja/infrastructure/adapters/outbound/http/http_corte_caja_gateway.dart';
+import 'features/corte_caja/infrastructure/adapters/inbound/flutter/corte_caja_page.dart';
 
 import 'core/infrastructure/config/api_config.dart';
 import 'core/infrastructure/network/api_client.dart';
@@ -168,9 +171,45 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onPedidos: () => _abrirPedidos(administrarContext, negocio, sucursal),
         onEmpleados: () =>
             _abrirEmpleados(administrarContext, negocio, sucursal),
+        onCorteCaja: () =>
+            _abrirCorteCaja(administrarContext, negocio, sucursal),
       ),
     ),
   );
+
+  Future<void> _abrirCorteCaja(
+    BuildContext context,
+    NegocioSucursal negocio,
+    Sucursal sucursal, {
+    bool reemplazar = false,
+  }) {
+    final ruta = MaterialPageRoute<void>(
+      builder: (cajaContext) => CorteCajaPage(
+        gestion: GestionCorteCaja(HttpCorteCajaGateway(_api)),
+        sucursalId: sucursal.id,
+        sucursalNombre: sucursal.nombre,
+        negocioNombre: negocio.nombre,
+        usuarioNombre: _sesionActual?.role ?? 'Propietario',
+        esPropietario: true,
+        onSesionExpirada: () => _cerrarSesion(context),
+        onInicio: () => Navigator.of(cajaContext).popUntil((r) => r.isFirst),
+        onPedidos: () => _abrirPedidos(
+          cajaContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+        onInventario: () => _abrirProductos(
+          cajaContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+      ),
+    );
+    final navigator = Navigator.of(context);
+    return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
+  }
 
   Future<void> _abrirEmpleados(
     BuildContext context,
@@ -186,6 +225,12 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           reemplazar: true,
         ),
         onInventario: () => _abrirProductos(
+          empleadosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
+        onCaja: () => _abrirCorteCaja(
           empleadosContext,
           negocio,
           sucursal,
@@ -286,6 +331,12 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           sucursal,
           reemplazar: true,
         ),
+        onCaja: () => _abrirCorteCaja(
+          productosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
       ),
     );
     final navigator = Navigator.of(context);
@@ -312,6 +363,12 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           sucursal,
           reemplazar: true,
         ),
+        onCaja: () => _abrirCorteCaja(
+          pedidosContext,
+          negocio,
+          sucursal,
+          reemplazar: true,
+        ),
       ),
     );
     final navigator = Navigator.of(context);
@@ -326,7 +383,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       if (!context.mounted) return;
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
-          builder: (_) => PedidosPage(
+          builder: (pedidosContext) => PedidosPage(
             gestion: GestionPedidos(HttpPedidosGateway(_api)),
             sucursalId: asignacion['sucursalId'] as int,
             sucursalNombre: asignacion['sucursal'] as String?,
@@ -336,6 +393,59 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             ),
             esPropietario: false,
             contador: _contador,
+            onCaja: () => _abrirCorteCajaEmpleado(pedidosContext),
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.statusCode == 404
+                ? 'No tienes una sucursal asignada. Contacta al propietario.'
+                : e.message,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _abrirCorteCajaEmpleado(BuildContext context) async {
+    try {
+      final asignacion = await _api.getJson(
+        'api/pedidos/opciones/sucursal-asignada',
+      );
+      if (!context.mounted) return;
+      final sucursalId = asignacion['sucursalId'] as int;
+      final sucursalNombre = asignacion['sucursal'] as String? ?? 'Asignada';
+      final negocioNombre = asignacion['negocio'] as String? ?? '';
+      final negocioId = asignacion['negocioId'] as int;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (cajaContext) => CorteCajaPage(
+            gestion: GestionCorteCaja(HttpCorteCajaGateway(_api)),
+            sucursalId: sucursalId,
+            sucursalNombre: sucursalNombre,
+            negocioNombre: negocioNombre,
+            usuarioNombre: _sesionActual?.role ?? 'Empleado',
+            esPropietario: false,
+            onSesionExpirada: () => _cerrarSesion(context),
+            onPedidos: () => Navigator.of(cajaContext).pushReplacement(
+              MaterialPageRoute<void>(
+                builder: (pedidosContext) => PedidosPage(
+                  gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                  sucursalId: sucursalId,
+                  negocio: NegocioProducto(
+                    id: negocioId,
+                    nombre: negocioNombre,
+                  ),
+                  esPropietario: false,
+                  contador: _contador,
+                  onCaja: () => _abrirCorteCajaEmpleado(pedidosContext),
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -403,6 +513,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             ),
           ),
           openOrders: () => _abrirPedidosEmpleado(context),
+          openCorteCaja: () => _abrirCorteCajaEmpleado(context),
           openEmployees: () => _abrirEmpleadosDesdeSesion(context),
           openBusinesses: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
