@@ -32,19 +32,24 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
   String? _error;
   String? _mensaje;
 
+  /// El error vino de cargar el catálogo (no de asignar o quitar): solo
+  /// entonces tiene sentido ofrecer "Reintentar".
+  bool _errorDeCarga = false;
+
   @override
   void initState() {
     super.initState();
     _cargarCatalogo();
   }
 
-  void _fallo(DescuentoFailure e) {
+  void _fallo(DescuentoFailure e, {bool deCarga = false}) {
     if (e.sesionExpirada) {
       widget.onSesionExpirada();
       return;
     }
     setState(() {
       _error = e.message;
+      _errorDeCarga = deCarga;
       _cargando = false;
       _busy = false;
     });
@@ -63,7 +68,7 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
         _cargando = false;
       });
     } on DescuentoFailure catch (e) {
-      if (mounted) _fallo(e);
+      if (mounted) _fallo(e, deCarga: true);
     }
   }
 
@@ -229,7 +234,7 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
         DescuentoResumen(descuento: _descuento),
         const SizedBox(height: 12),
         Text(
-          'Un producto usa el descuento asignado a él; si no tiene, el de su categoría y, después, el de su área.',
+          'Un producto usa sus propios descuentos; si no tiene, los de su categoría y, después, los de su área. Los rangos de un mismo elemento no pueden cruzarse.',
           style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
         ),
         if (_mensaje != null) ...[
@@ -239,12 +244,13 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
         if (_error != null) ...[
           const SizedBox(height: 16),
           ProductoAviso(_error!, error: true),
-          Center(
-            child: TextButton(
-              onPressed: _cargarCatalogo,
-              child: const Text('Reintentar'),
+          if (_errorDeCarga)
+            Center(
+              child: TextButton(
+                onPressed: _cargarCatalogo,
+                child: const Text('Reintentar'),
+              ),
             ),
-          ),
         ],
         if (_cargando)
           const Padding(

@@ -77,7 +77,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   /// Descuentos existentes que el usuario quitó; se eliminan al guardar.
   final _eliminados = <int>{};
   final _erroresFilas = <int, Map<String, String>>{};
-  int _compartidos = 0;
+
+  /// Descuentos compartidos (de Descuentos) que también recibe el producto.
+  /// Sus rangos no pueden cruzarse con los de las líneas activas.
+  List<Descuento> _compartidos = const [];
 
   /// El producto ya se creó pero algo posterior falló: reintentar lo edita.
   Producto? _productoGuardado;
@@ -225,7 +228,9 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     for (final f in _filas) {
       f.sincronizar();
     }
-    final errores = validarLineasDescuento([for (final f in _filas) f.linea]);
+    final errores = validarLineasDescuento([
+      for (final f in _filas) f.linea,
+    ], compartidos: _compartidos);
     setState(() {
       _erroresFilas
         ..clear()
@@ -441,6 +446,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             guardado.nombre,
             [for (final f in _filas) f.linea],
             _eliminados,
+            compartidos: _compartidos,
           );
           // El producto devuelto antes de guardar los descuentos ya no es vigente.
           guardado = await widget.gestion.consultar(
@@ -456,7 +462,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           setState(() {
             _busy = false;
             _error =
-                'El producto se guardó, pero no se pudieron guardar los descuentos. ${e.message} Vuelve a intentarlo.';
+                'El producto se guardó, pero los descuentos no. ${e.message}';
           });
           return;
         }
@@ -740,17 +746,23 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
                   ? 'cantidadMinima'
                   : 'porcentaje'],
         ),
-        onChanged: (_) {
-          if (_erroresFilas.containsKey(indice) || _error != null) {
-            setState(() => _erroresFilas.remove(indice));
-          }
-        },
+        // Siempre redibuja: el rango de cada descuento depende de los mínimos.
+        onChanged: (_) => setState(() => _erroresFilas.remove(indice)),
       ),
     ],
   );
 
-  Widget _filaDescuento(int indice) {
+  Widget _filaDescuento(int indice, Map<LineaDescuento, int?> maximos) {
     final fila = _filas[indice];
+    final minimo = fila.linea.cantidadMinimaNumero;
+    final rango = minimo != null && minimo > 0
+        ? textoRango(minimo, maximos[fila.linea])
+        : null;
+    final cruce = compartidoQueSeCruza(
+      fila.linea,
+      maximos[fila.linea],
+      _compartidos,
+    );
     return Padding(
       key: ObjectKey(fila),
       padding: EdgeInsets.only(bottom: indice == _filas.length - 1 ? 0 : 16),
@@ -800,6 +812,24 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
               ),
             ],
           ),
+          if (cruce != null && !_erroresFilas.containsKey(indice))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${mensajeCruce(cruce)} Cambia el mínimo o desactívalo.',
+                key: ValueKey('producto-descuento-cruce-$indice'),
+                style: BarroTheme.type(12, 18, color: BarroTheme.error),
+              ),
+            )
+          else if (rango != null && !_erroresFilas.containsKey(indice))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Aplica: $rango',
+                key: ValueKey('producto-descuento-rango-$indice'),
+                style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+              ),
+            ),
           if (_edicion)
             Row(
               children: [
@@ -857,60 +887,82 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     ),
   );
 
+  /// Ej.: «Mayoreo» (de 10 a 20 piezas), «Club» (desde 50 piezas, inactivo).
+  String _listaCompartidos() => [
+    for (final d in _compartidos)
+      '«${d.nombre}» (${d.rango.toLowerCase()}${d.activo ? '' : ', inactivo'})',
+  ].join(', ');
+
+  /// Rango que tendrá cada línea al guardarse, según lo escrito ahora.
+  Map<LineaDescuento, int?> _maximosVigentes() {
+    for (final f in _filas) {
+      f.sincronizar();
+    }
+    return maximosDeLineas([
+      for (final f in _filas) f.linea,
+    ], compartidos: _compartidos);
+  }
+
   /// Descuentos por cantidad del producto: opcionales y pueden ser varios.
-  List<Widget> _seccionDescuentos() => [
-    const SizedBox(height: 24),
-    Text(
-      'Descuento por cantidad',
-      style: BarroTheme.type(18, 26, weight: FontWeight.w700),
-    ),
-    const SizedBox(height: 4),
-    Text(
-      _edicion
-          ? 'Puedes agregar uno o más descuentos opcionales.'
-          : 'Agrega uno o más descuentos opcionales.',
-      style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
-    ),
-    const SizedBox(height: 12),
-    if (_filas.isNotEmpty) ...[
-      Container(
-        key: const ValueKey('producto-descuentos'),
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: BarroTheme.border),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [for (var i = 0; i < _filas.length; i++) _filaDescuento(i)],
-        ),
+  List<Widget> _seccionDescuentos() {
+    final maximos = _maximosVigentes();
+    return [
+      const SizedBox(height: 24),
+      Text(
+        'Descuento por cantidad',
+        style: BarroTheme.type(18, 26, weight: FontWeight.w700),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        _edicion
+            ? 'Puedes agregar uno o más descuentos opcionales.'
+            : 'Agrega uno o más descuentos opcionales.',
+        style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
       ),
       const SizedBox(height: 12),
-    ],
-    DescuentoBotonContorno(
-      key: const ValueKey('producto-descuento-agregar'),
-      texto: '+ Agregar descuento',
-      onPressed: _busy ? null : _agregarDescuento,
-    ),
-    _nota(
-      _filas.isEmpty
-          ? 'Es opcional: puedes omitirlo y asignarlo después desde Descuentos.'
-          : _edicion
-          ? 'Un descuento desactivado se conserva, pero no se aplica.'
-          : 'Puedes agregar más descuentos si lo deseas.',
-    ),
-    if (_eliminados.isNotEmpty)
-      _nota(
-        'Los descuentos que quitaste se eliminarán al guardar los cambios.',
+      if (_filas.isNotEmpty) ...[
+        Container(
+          key: const ValueKey('producto-descuentos'),
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: BarroTheme.border),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < _filas.length; i++)
+                _filaDescuento(i, maximos),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+      DescuentoBotonContorno(
+        key: const ValueKey('producto-descuento-agregar'),
+        texto: '+ Agregar descuento',
+        onPressed: _busy ? null : _agregarDescuento,
       ),
-    if (_compartidos > 0)
       _nota(
-        _compartidos == 1
-            ? 'Este producto también recibe 1 descuento compartido. Se administra en Descuentos.'
-            : 'Este producto también recibe $_compartidos descuentos compartidos. Se administran en Descuentos.',
+        _filas.isEmpty
+            ? 'Es opcional: puedes omitirlo y asignarlo después desde Descuentos.'
+            : _edicion
+            ? 'Cada descuento llega hasta donde empieza el siguiente. Uno desactivado se conserva, pero no se aplica.'
+            : 'Cada descuento llega hasta donde empieza el siguiente.',
       ),
-  ];
+      if (_eliminados.isNotEmpty)
+        _nota(
+          'Los descuentos que quitaste se eliminarán al guardar los cambios.',
+        ),
+      if (_compartidos.isNotEmpty)
+        _nota(
+          _compartidos.length == 1
+              ? 'Este producto también recibe 1 descuento compartido: ${_listaCompartidos()}. Se administra en Descuentos.'
+              : 'Este producto también recibe ${_compartidos.length} descuentos compartidos: ${_listaCompartidos()}. Se administran en Descuentos.',
+        ),
+    ];
+  }
 
   Widget _campoExistencia(SucursalProducto s, {required bool activa}) {
     final error = _errores['existencia-${s.id}'];

@@ -11,15 +11,30 @@ class HttpDescuentoGateway implements DescuentoGateway {
       return await operacion();
     } on ApiException catch (e) {
       throw DescuentoFailure(
-        e.message,
+        _mensaje(e),
         fieldErrors: e.fieldErrors,
         sesionExpirada: e.statusCode == 401,
+        traslape: e.code == 'DESCUENTO_TRASLAPADO',
       );
     } on FormatException {
       throw const DescuentoFailure(
         'El servidor devolvió datos de descuento no válidos.',
       );
     }
+  }
+
+  /// El backend explica en `detail` por qué rechazó un descuento (rango cruzado,
+  /// destino dado de baja, etc.); se muestra tal cual. Con errores por campo o
+  /// sin detalle se conserva el mensaje genérico.
+  String _mensaje(ApiException e) {
+    final detalle = e.detail;
+    if (detalle == null) return e.message;
+    return switch (e.statusCode) {
+      409 => detalle,
+      400 when e.fieldErrors.isEmpty => detalle,
+      404 => detalle,
+      _ => e.message,
+    };
   }
 
   Map<String, dynamic> _map(Object? data) {

@@ -78,34 +78,38 @@ class HttpCorteCajaGateway implements CorteCajaGateway {
           (value['cancelacionesEfectivo'] as num?)?.toDouble() ?? 0.0,
       cancelacionesTarjeta:
           (value['cancelacionesTarjeta'] as num?)?.toDouble() ?? 0.0,
-      detalles: detallesRaw.map((d) {
-        final map = d as Map<String, dynamic>;
-        return CancelacionPedido(
-          pedidoId: (map['pedidoId'] as num).toInt(),
-          folio: map['folio'] as String? ?? '',
-          monto: (map['monto'] as num).toDouble(),
-          metodoPago: map['metodoPago'] as String? ?? 'EFECTIVO',
-          tipoPago: map['tipoPago'] as String? ?? 'ANTICIPO',
-          fechaHora: map['fechaHora'] != null
-              ? DateTime.parse(map['fechaHora'] as String)
-              : DateTime.now(),
-        );
-      }).toList(growable: false),
+      detalles: detallesRaw
+          .map((d) {
+            final map = d as Map<String, dynamic>;
+            return CancelacionPedido(
+              pedidoId: (map['pedidoId'] as num).toInt(),
+              folio: map['folio'] as String? ?? '',
+              monto: (map['monto'] as num).toDouble(),
+              metodoPago: map['metodoPago'] as String? ?? 'EFECTIVO',
+              tipoPago: map['tipoPago'] as String? ?? 'ANTICIPO',
+              fechaHora: map['fechaHora'] != null
+                  ? DateTime.parse(map['fechaHora'] as String)
+                  : DateTime.now(),
+            );
+          })
+          .toList(growable: false),
     );
   }
 
   List<ProductoVendido> _productos(Object? value) {
     if (value is! List) return const [];
-    return value.map((p) {
-      final map = p as Map<String, dynamic>;
-      return ProductoVendido(
-        idProducto: (map['idProducto'] as num).toInt(),
-        nombre: map['nombre'] as String? ?? '',
-        cantidad: (map['cantidad'] as num).toInt(),
-        precioUnitario: (map['precioUnitario'] as num).toDouble(),
-        subtotal: (map['subtotal'] as num).toDouble(),
-      );
-    }).toList(growable: false);
+    return value
+        .map((p) {
+          final map = p as Map<String, dynamic>;
+          return ProductoVendido(
+            idProducto: (map['idProducto'] as num).toInt(),
+            nombre: map['nombre'] as String? ?? '',
+            cantidad: (map['cantidad'] as num).toInt(),
+            precioUnitario: (map['precioUnitario'] as num).toDouble(),
+            subtotal: (map['subtotal'] as num).toDouble(),
+          );
+        })
+        .toList(growable: false);
   }
 
   CorteCaja _corte(Object? data) {
@@ -230,19 +234,17 @@ class HttpCorteCajaGateway implements CorteCajaGateway {
     int sucursalId, {
     int page = 0,
     int size = 20,
-  }) =>
-      _seguro(() async {
-        final response = await _api.requestJson(
-          'GET',
-          'api/cortes-caja?sucursalId=$sucursalId&page=$page&size=$size',
-        );
-        final dynamic rawList =
-            response is Map<String, dynamic> && response['content'] is List
-                ? response['content']
-                : response;
-        return _lista(rawList)
-            .map((item) => _resumen(_map(item)))
-            .toList(growable: false);
-      });
+  }) => _seguro(() async {
+    final response = await _api.requestJson(
+      'GET',
+      'api/cortes-caja?sucursalId=$sucursalId&page=$page&size=$size',
+    );
+    final dynamic rawList =
+        response is Map<String, dynamic> && response['content'] is List
+        ? response['content']
+        : response;
+    return _lista(
+      rawList,
+    ).map((item) => _resumen(_map(item))).toList(growable: false);
+  });
 }
-

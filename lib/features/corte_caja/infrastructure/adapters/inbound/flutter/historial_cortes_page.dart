@@ -101,9 +101,9 @@ class _HistorialCortesPageState extends State<HistorialCortesPage> {
         widget.onSesionExpirada?.call();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -156,7 +156,10 @@ class _HistorialCortesPageState extends State<HistorialCortesPage> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.refresh, color: BarroTheme.primary),
+                      icon: const Icon(
+                        Icons.refresh,
+                        color: BarroTheme.primary,
+                      ),
                       onPressed: _cargar,
                       tooltip: 'Actualizar',
                     ),
@@ -215,7 +218,8 @@ class _HistorialCortesPageState extends State<HistorialCortesPage> {
                               final item = _cortes[index];
                               final folio =
                                   'C-${item.id.toString().padLeft(6, '0')}';
-                              final fecha = item.fechaHoraCierre ??
+                              final fecha =
+                                  item.fechaHoraCierre ??
                                   item.fechaHoraApertura;
 
                               return Material(

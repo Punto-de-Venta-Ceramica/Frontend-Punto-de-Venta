@@ -74,6 +74,21 @@ class _Descuentos implements DescuentoGateway {
   void _reemplazar(Descuento d) =>
       filas = [for (final x in filas) x.id == d.id ? d : x];
 
+  static bool _cruzan(Descuento a, Descuento b) =>
+      (a.cantidadMaxima == null || b.cantidadMinima <= a.cantidadMaxima!) &&
+      (b.cantidadMaxima == null || a.cantidadMinima <= b.cantidadMaxima!);
+
+  /// Igual que el servidor: un descuento activo no puede cruzar su rango con
+  /// otro activo del mismo producto.
+  void _validarTraslape(Descuento d, Iterable<int> productos) {
+    for (final otro in filas) {
+      if (otro.id == d.id || !otro.activo) continue;
+      if (otro.productoIds.any(productos.contains) && _cruzan(d, otro)) {
+        throw const DescuentoFailure('Se cruza.', traslape: true);
+      }
+    }
+  }
+
   @override
   Future<List<Descuento>> listar(int negocioId) async => filas;
 
@@ -86,6 +101,7 @@ class _Descuentos implements DescuentoGateway {
       id: _siguiente++,
       nombre: datos.nombre,
       cantidadMinima: datos.cantidadMinimaNumero!,
+      cantidadMaxima: datos.cantidadMaximaNumero,
       porcentaje: datos.porcentajeNumero!,
       activo: true,
     );
@@ -97,6 +113,19 @@ class _Descuentos implements DescuentoGateway {
   Future<Descuento> editar(int negocioId, int id, DatosDescuento datos) async {
     llamadas.add('editar $id ${datos.cantidadMinima} ${datos.porcentaje}');
     final actual = filas.firstWhere((d) => d.id == id);
+    if (actual.activo) {
+      _validarTraslape(
+        Descuento(
+          id: id,
+          nombre: '',
+          cantidadMinima: datos.cantidadMinimaNumero!,
+          cantidadMaxima: datos.cantidadMaximaNumero,
+          porcentaje: 1,
+          activo: true,
+        ),
+        actual.productoIds,
+      );
+    }
     final d = Descuento(
       id: id,
       nombre: actual.nombre,
@@ -127,6 +156,7 @@ class _Descuentos implements DescuentoGateway {
   }) async {
     llamadas.add(activo ? 'activar $id' : 'desactivar $id');
     final a = filas.firstWhere((d) => d.id == id);
+    if (activo) _validarTraslape(a, a.productoIds);
     final d = Descuento(
       id: id,
       nombre: a.nombre,
@@ -153,6 +183,7 @@ class _Descuentos implements DescuentoGateway {
       throw const DescuentoFailure('Sin conexión.');
     }
     final a = filas.firstWhere((d) => d.id == id);
+    if (a.activo) _validarTraslape(a, [destinoId]);
     final d = Descuento(
       id: id,
       nombre: a.nombre,
@@ -286,7 +317,7 @@ void main() {
         await _tocar(tester, 'producto-descuento-agregar');
       }
       expect(
-        find.text('Puedes agregar más descuentos si lo deseas.'),
+        find.text('Cada descuento llega hasta donde empieza el siguiente.'),
         findsOneWidget,
       );
       expect(find.text('A partir de (piezas)'), findsNWidgets(3));
@@ -380,6 +411,49 @@ void main() {
       );
     });
 
+    testWidgets('marca en vivo el cruce con un compartido y no guarda', (
+      tester,
+    ) async {
+      final productos = _Productos();
+      // Propio "desde 2" y compartido "Mayoreo" desde 10.
+      final descuentos = _Descuentos([_propioA, _compartido]);
+      await _abrir(
+        tester,
+        productos: productos,
+        descuentos: descuentos,
+        editar: _producto,
+      );
+
+      // El propio termina solo donde empieza el compartido.
+      expect(find.text('Aplica: De 2 a 9 piezas'), findsOneWidget);
+      expect(find.textContaining('«Mayoreo» (desde 10 piezas)'), findsWidgets);
+
+      // Un mínimo dentro del compartido se marca en rojo al escribirlo.
+      await _escribir(tester, 'producto-descuento-minimo-0', '12');
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('producto-descuento-cruce-0')),
+        findsOneWidget,
+      );
+      await _tocar(tester, 'producto-guardar');
+      expect(productos.editados, 0);
+      expect(descuentos.llamadas, isEmpty);
+
+      await _escribir(tester, 'producto-descuento-minimo-0', '5');
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('producto-descuento-cruce-0')),
+        findsNothing,
+      );
+      await _tocar(tester, 'producto-guardar');
+      expect(productos.editados, 1);
+      expect(descuentos.llamadas, [
+        'desactivar 1',
+        'editar 1 5 10',
+        'activar 1',
+      ]);
+    });
+
     testWidgets('desactiva, modifica y elimina al guardar', (tester) async {
       final productos = _Productos();
       final descuentos = _Descuentos([_propioA, _propioB, _compartido]);
@@ -411,8 +485,9 @@ void main() {
       expect(productos.editados, 1);
       expect(descuentos.llamadas, [
         'eliminar 2',
-        'editar 1 2 12',
+        // Se desactiva antes de editar para no chocar con el compartido (10+).
         'desactivar 1',
+        'editar 1 2 12',
       ]);
       // El descuento compartido no se toca.
       expect(descuentos.filas.any((d) => d.id == 3), isTrue);
@@ -467,6 +542,64 @@ void main() {
       },
     );
 
+    test('cada línea llega hasta donde empieza la siguiente', () async {
+      final gateway = _Descuentos();
+      final lineas = [
+        LineaDescuento(cantidadMinima: '11', porcentaje: '10'),
+        LineaDescuento(cantidadMinima: '5', porcentaje: '5'),
+        LineaDescuento(cantidadMinima: '21', porcentaje: '15'),
+      ];
+
+      await GestionDescuentos(
+        gateway,
+      ).guardarDeProducto(7, 5, 'Olla', lineas, <int>{});
+
+      final rangos = {
+        for (final d in gateway.filas) d.cantidadMinima: d.cantidadMaxima,
+      };
+      expect(rangos, {5: 10, 11: 20, 21: null});
+      expect(gateway.filas.every((d) => d.activo), isTrue);
+    });
+
+    test('reacomoda descuentos sin tope que se cruzaban', () async {
+      // Datos previos: "desde 2" y "desde 5", ambos sin tope y activos.
+      final gateway = _Descuentos([_propioA, _propioB]);
+      final lineas = [
+        LineaDescuento.desde(_propioA),
+        LineaDescuento.desde(_propioB),
+        LineaDescuento(cantidadMinima: '3', porcentaje: '12'),
+      ];
+
+      await GestionDescuentos(
+        gateway,
+      ).guardarDeProducto(7, 5, 'Olla', lineas, <int>{});
+
+      final rangos = {
+        for (final d in gateway.filas) d.cantidadMinima: d.cantidadMaxima,
+      };
+      expect(rangos, {2: 2, 3: 4, 5: null});
+      expect(gateway.filas.every((d) => d.activo), isTrue);
+    });
+
+    test('una línea desactivada no corta el rango de las demás', () async {
+      final gateway = _Descuentos();
+      final lineas = [
+        LineaDescuento(cantidadMinima: '5', porcentaje: '5'),
+        LineaDescuento(cantidadMinima: '11', porcentaje: '10', activo: false),
+      ];
+
+      await GestionDescuentos(
+        gateway,
+      ).guardarDeProducto(7, 5, 'Olla', lineas, <int>{});
+
+      final cinco = gateway.filas.firstWhere((d) => d.cantidadMinima == 5);
+      final once = gateway.filas.firstWhere((d) => d.cantidadMinima == 11);
+      expect(cinco.cantidadMaxima, isNull);
+      expect(cinco.activo, isTrue);
+      expect(once.activo, isFalse);
+      expect(once.productoIds, [5]);
+    });
+
     test('rechaza líneas inválidas sin llamar al servidor', () async {
       final gateway = _Descuentos();
       final gestion = GestionDescuentos(gateway);
@@ -480,13 +613,39 @@ void main() {
       expect(gateway.llamadas, isEmpty);
     });
 
+    test('validar señala solo las líneas activas que chocan', () {
+      const mayoreo = Descuento(
+        id: 9,
+        nombre: 'Mayoreo',
+        cantidadMinima: 10,
+        cantidadMaxima: 20,
+        porcentaje: 5,
+        activo: true,
+      );
+      final lineas = [
+        LineaDescuento(cantidadMinima: '2', porcentaje: '5'), // 2–9: no choca
+        LineaDescuento(cantidadMinima: '15', porcentaje: '8'), // dentro: choca
+        LineaDescuento(cantidadMinima: '12', porcentaje: '9', activo: false),
+      ];
+
+      final errores = validarLineasDescuento(lineas, compartidos: [mayoreo]);
+
+      expect(errores.keys, [1]);
+      expect(
+        errores[1]!['cantidadMinima'],
+        'Se cruza con «Mayoreo» (de 10 a 20 piezas).',
+      );
+      final maximos = maximosDeLineas(lineas, compartidos: [mayoreo]);
+      expect(maximos[lineas[0]], 9);
+    });
+
     test('delProducto separa propios de compartidos', () async {
       final gestion = GestionDescuentos(_Descuentos([_propioA, _compartido]));
 
       final r = await gestion.delProducto(7, 5);
 
       expect(r.propios.single.id, 1);
-      expect(r.compartidos, 1);
+      expect(r.compartidos.single.id, 3);
     });
   });
 }

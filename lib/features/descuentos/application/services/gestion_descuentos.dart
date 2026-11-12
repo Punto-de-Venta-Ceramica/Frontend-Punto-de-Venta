@@ -76,14 +76,14 @@ class GestionDescuentos implements GestionDescuentosUseCase {
   ) async {
     _validarIds(negocioId, productoId);
     final propios = <Descuento>[];
-    var compartidos = 0;
+    final compartidos = <Descuento>[];
     for (final d in await _gateway.listar(negocioId)) {
       if (!d.productoIds.contains(productoId)) continue;
       final soloEsteProducto =
           d.productoIds.length == 1 &&
           d.categoriaIds.isEmpty &&
           d.areaIds.isEmpty;
-      soloEsteProducto ? propios.add(d) : compartidos++;
+      (soloEsteProducto ? propios : compartidos).add(d);
     }
     return DescuentosDeProducto(propios: propios, compartidos: compartidos);
   }
@@ -94,10 +94,13 @@ class GestionDescuentos implements GestionDescuentosUseCase {
     int productoId,
     String nombreProducto,
     List<LineaDescuento> lineas,
-    Set<int> eliminar,
-  ) async {
+    Set<int> eliminar, {
+    List<Descuento> compartidos = const [],
+  }) async {
     _validarIds(negocioId, productoId);
-    final errores = validarLineasDescuento(lineas);
+    // [compartidos] los aporta quien ya los cargó (el formulario), para no
+    // volver a pedir la lista de descuentos al guardar.
+    final errores = validarLineasDescuento(lineas, compartidos: compartidos);
     if (errores.isNotEmpty) {
       throw const DescuentoFailure('Revisa los descuentos señalados.');
     }
@@ -105,9 +108,25 @@ class GestionDescuentos implements GestionDescuentosUseCase {
       await _gateway.eliminar(negocioId, id);
       eliminar.remove(id);
     }
+    final maximos = maximosDeLineas(lineas, compartidos: compartidos);
+    // El servidor no admite dos descuentos activos del producto con rangos
+    // cruzados, ni siquiera de forma momentánea. Los que cambian de rango se
+    // desactivan primero; al final cada uno vuelve al estado elegido, ya con
+    // rangos que no se cruzan.
     for (final linea in lineas) {
-      final original = linea.original;
-      if (original == null) {
+      final actual = linea.original;
+      if (actual != null &&
+          actual.activo &&
+          _cambiaRango(actual, linea, maximos[linea])) {
+        linea.original = await _gateway.cambiarEstado(
+          negocioId,
+          actual.id,
+          activo: false,
+        );
+      }
+    }
+    for (final linea in lineas) {
+      if (linea.original == null) {
         final creado = await _gateway.crear(
           negocioId,
           DatosDescuento(
@@ -116,24 +135,39 @@ class GestionDescuentos implements GestionDescuentosUseCase {
               linea.cantidadMinimaNumero!,
             ),
             cantidadMinima: linea.cantidadMinima,
+            cantidadMaxima: maximos[linea]?.toString() ?? '',
             porcentaje: linea.porcentaje,
           ),
         );
         linea.original = creado;
       }
-      await _sincronizar(negocioId, productoId, linea);
+      await _sincronizar(negocioId, productoId, linea, maximos[linea]);
     }
   }
+
+  bool _cambiaRango(Descuento actual, LineaDescuento linea, int? maximo) =>
+      actual.cantidadMinima != linea.cantidadMinimaNumero ||
+      actual.cantidadMaxima != maximo;
 
   /// Lleva al servidor lo que difiera entre la línea y su última versión conocida.
   Future<void> _sincronizar(
     int negocioId,
     int productoId,
     LineaDescuento linea,
+    int? maximo,
   ) async {
     var actual = linea.original!;
+    // Si quedará inactivo se desactiva antes que nada: así ni la edición ni la
+    // asignación chocan con los demás descuentos activos del producto.
+    if (!linea.activo && actual.activo) {
+      actual = linea.original = await _gateway.cambiarEstado(
+        negocioId,
+        actual.id,
+        activo: false,
+      );
+    }
     final cambioDatos =
-        actual.cantidadMinima != linea.cantidadMinimaNumero ||
+        _cambiaRango(actual, linea, maximo) ||
         actual.porcentaje != linea.porcentajeNumero;
     if (cambioDatos) {
       actual = linea.original = await _gateway.editar(
@@ -142,7 +176,7 @@ class GestionDescuentos implements GestionDescuentosUseCase {
         DatosDescuento(
           nombre: actual.nombre,
           cantidadMinima: linea.cantidadMinima,
-          cantidadMaxima: actual.cantidadMaxima?.toString() ?? '',
+          cantidadMaxima: maximo?.toString() ?? '',
           porcentaje: linea.porcentaje,
         ),
       );
@@ -155,11 +189,11 @@ class GestionDescuentos implements GestionDescuentosUseCase {
         productoId,
       );
     }
-    if (actual.activo != linea.activo) {
+    if (linea.activo && !actual.activo) {
       linea.original = await _gateway.cambiarEstado(
         negocioId,
         actual.id,
-        activo: linea.activo,
+        activo: true,
       );
     }
   }

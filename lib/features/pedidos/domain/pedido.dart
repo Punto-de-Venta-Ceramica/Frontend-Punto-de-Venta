@@ -1,31 +1,54 @@
+/// Descuento por volumen: aplica de [cantidadMinima] a [cantidadMaxima] piezas (null = sin tope).
+class EscalonDescuento {
+  const EscalonDescuento({
+    required this.cantidadMinima,
+    this.cantidadMaxima,
+    required this.porcentaje,
+  });
+  final int cantidadMinima;
+  final int? cantidadMaxima;
+  final double porcentaje;
+
+  bool aplicaA(int cantidad) =>
+      cantidad >= cantidadMinima &&
+      (cantidadMaxima == null || cantidad <= cantidadMaxima!);
+}
+
 class ProductoPedido {
   const ProductoPedido({
     required this.id,
     required this.nombre,
     required this.precio,
-    this.cantidadMinima,
-    this.cantidadMaxima,
-    this.porcentajeDescuento,
+    this.descuentos = const [],
   });
   final int id;
   final String nombre;
   final double precio;
-  final int? cantidadMinima, cantidadMaxima;
-  final double? porcentajeDescuento;
 
-  bool aplicaDescuento(int cantidad) =>
-      cantidadMinima != null &&
-      porcentajeDescuento != null &&
-      porcentajeDescuento! > 0 &&
-      cantidad >= cantidadMinima! &&
-      (cantidadMaxima == null || cantidad <= cantidadMaxima!);
+  /// Escalones por cantidad (p. ej. 5–10, 11–20, 21+); solo aplica aquel en que cae la cantidad.
+  final List<EscalonDescuento> descuentos;
+
+  /// Porcentaje del escalón en que cae la cantidad, o null si no cae en ninguno.
+  /// Igual que el backend: si hubiera varios, gana el de mayor cantidad mínima.
+  double? porcentajePara(int cantidad) {
+    EscalonDescuento? elegido;
+    for (final escalon in descuentos) {
+      if (escalon.aplicaA(cantidad) &&
+          (elegido == null ||
+              escalon.cantidadMinima > elegido.cantidadMinima)) {
+        elegido = escalon;
+      }
+    }
+    final porcentaje = elegido?.porcentaje;
+    return porcentaje != null && porcentaje > 0 ? porcentaje : null;
+  }
+
+  bool aplicaDescuento(int cantidad) => porcentajePara(cantidad) != null;
 
   /// Estima el subtotal en centavos, con el redondeo por línea del backend.
   BigInt subtotalEstimadoCentavos(int cantidad) {
     final precioCentavos = BigInt.from((precio * 100).round());
-    final descuento = aplicaDescuento(cantidad)
-        ? (porcentajeDescuento! * 100).round()
-        : 0;
+    final descuento = ((porcentajePara(cantidad) ?? 0) * 100).round();
     final importe =
         precioCentavos * BigInt.from(cantidad) * BigInt.from(10000 - descuento);
     return (importe + BigInt.from(5000)) ~/ BigInt.from(10000);

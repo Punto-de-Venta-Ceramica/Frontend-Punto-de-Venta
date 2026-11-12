@@ -332,26 +332,35 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                     ),
                   ],
                 ),
-                if (p.descuento != null) ...[
+                if (p.descuentos.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: productoSuave,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${p.descuento!.porcentajeTexto} % a partir de ${p.descuento!.cantidadMinima} piezas',
-                      style: BarroTheme.type(
-                        11,
-                        16,
-                        weight: FontWeight.w700,
-                        color: BarroTheme.primary,
-                      ),
-                    ),
+                  // Un chip por escalón: solo aplica aquel en que cae la cantidad.
+                  Wrap(
+                    key: const ValueKey('producto-detalle-descuentos'),
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final d in p.descuentos)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: productoSuave,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            d.resumen,
+                            style: BarroTheme.type(
+                              11,
+                              16,
+                              weight: FontWeight.w700,
+                              color: BarroTheme.primary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ],

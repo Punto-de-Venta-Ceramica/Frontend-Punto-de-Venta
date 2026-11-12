@@ -12,6 +12,7 @@ import 'features/sucursal/domain/sucursal.dart';
 import 'features/descuentos/application/services/gestion_descuentos.dart';
 import 'features/descuentos/infrastructure/adapters/inbound/flutter/descuentos_page.dart';
 import 'features/descuentos/infrastructure/adapters/outbound/http/http_descuento_gateway.dart';
+import 'features/descuentos/infrastructure/adapters/outbound/cache/cached_descuento_gateway.dart';
 import 'features/productos/application/services/gestion_productos.dart';
 import 'features/productos/application/services/imagenes_producto.dart';
 import 'features/productos/domain/producto.dart';
@@ -75,6 +76,9 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final ContadorNotificaciones _contador;
   late final CacheProductos _productos;
 
+  /// Descuentos del propietario: lista 5 min, catálogo para asignar 10 min.
+  late final CachedDescuentoGateway _descuentos;
+
   /// Caché del empleado por sucursal (mismas vigencias que la del propietario:
   /// listado 5 min, áreas/categorías 30 min). Usa gateways con alcance de
   /// sucursal, por eso no comparte la del propietario.
@@ -106,6 +110,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       HttpProductoGateway(_api),
       HttpExistenciasGateway(_api),
     );
+    _descuentos = CachedDescuentoGateway(HttpDescuentoGateway(_api));
   }
 
   GestionProductos get _gestionProductos => GestionProductos(
@@ -135,6 +140,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _sesionActual = null;
     _contador.cerrarSesion();
     _productos.descartar();
+    _descuentos.descartar();
     _productosEmpleado.clear();
     _rol = '';
     if (!context.mounted) return;
@@ -277,17 +283,22 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   Future<void> _abrirDescuentosNegocio(
     BuildContext context,
     NegocioSucursal negocio,
-  ) => Navigator.of(context)
-      .push<void>(
-        MaterialPageRoute(
-          builder: (descuentosContext) => DescuentosPage(
-            gestion: GestionDescuentos(HttpDescuentoGateway(_api)),
-            negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
-            onSesionExpirada: () => _cerrarSesion(descuentosContext),
+  ) {
+    // Productos, áreas o categorías pueden haber cambiado en otros módulos:
+    // al entrar se pide fresco y dentro del módulo se reutiliza.
+    _descuentos.descartarCatalogo();
+    return Navigator.of(context)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (descuentosContext) => DescuentosPage(
+              gestion: GestionDescuentos(_descuentos),
+              negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
+              onSesionExpirada: () => _cerrarSesion(descuentosContext),
+            ),
           ),
-        ),
-      )
-      .whenComplete(_productos.descartar);
+        )
+        .whenComplete(_productos.descartar);
+  }
 
   /// Catálogo de productos del negocio completo: todas las sucursales.
   Future<void> _abrirProductosNegocio(
@@ -297,7 +308,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     MaterialPageRoute(
       builder: (productosContext) => ProductosPage(
         gestion: _gestionProductos,
-        descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
+        descuentos: GestionDescuentos(_descuentos),
         imagenes: _imagenesProducto,
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(productosContext),
@@ -316,7 +327,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     final ruta = MaterialPageRoute<void>(
       builder: (productosContext) => ProductosPage(
         gestion: _gestionProductos,
-        descuentos: GestionDescuentos(HttpDescuentoGateway(_api)),
+        descuentos: GestionDescuentos(_descuentos),
         imagenes: _imagenesProducto,
         negocioInicial: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(productosContext),

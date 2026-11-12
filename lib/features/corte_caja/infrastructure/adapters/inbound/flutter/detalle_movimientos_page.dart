@@ -413,4 +413,3 @@ class DetalleMovimientosPage extends StatelessWidget {
     ],
   );
 }
-
