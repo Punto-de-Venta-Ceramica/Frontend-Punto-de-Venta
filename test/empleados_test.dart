@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/features/empleados/application/ports/inbound/gestion_empleados_use_case.dart';
 import 'package:punto_de_venta/features/empleados/domain/empleado.dart';
+import 'package:punto_de_venta/features/empleados/infrastructure/adapters/inbound/flutter/asignar_sucursales_page.dart';
 import 'package:punto_de_venta/features/empleados/infrastructure/adapters/inbound/flutter/empleados_page.dart';
 import 'package:punto_de_venta/features/empleados/infrastructure/adapters/inbound/flutter/nuevo_empleado_page.dart';
 import 'package:punto_de_venta/features/empleados/infrastructure/adapters/inbound/flutter/widgets/credenciales_empleado_dialog.dart';
@@ -15,9 +16,7 @@ class GestionEmpleadosFake implements GestionEmpleadosUseCase {
       nombre: 'María',
       apellidoP: 'López',
       correoElectronico: 'maria.lopez@correo.com',
-      sucursalId: 100,
-      sucursalNombre: 'Sucursal Centro',
-      asignado: true,
+      sucursales: [SucursalEmpleado(id: 100, nombre: 'Sucursal Centro')],
     ),
     const Empleado(
       id: 2,
@@ -25,7 +24,6 @@ class GestionEmpleadosFake implements GestionEmpleadosUseCase {
       nombre: 'Jorge',
       apellidoP: 'Ramírez',
       correoElectronico: 'jorge.ramirez@correo.com',
-      asignado: false,
     ),
   ];
 
@@ -52,7 +50,10 @@ class GestionEmpleadosFake implements GestionEmpleadosUseCase {
   Future<List<Empleado>> listar(
     int negocioId, {
     bool incluirAsignacion = true,
-  }) async => empleados;
+    int? sucursalId,
+  }) async => sucursalId == null
+      ? empleados
+      : empleados.where((e) => e.trabajaEn(sucursalId)).toList();
 
   @override
   Future<EmpleadoCreado> registrar(NuevoEmpleado datos) async {
@@ -73,29 +74,27 @@ class GestionEmpleadosFake implements GestionEmpleadosUseCase {
         apellidoP: datos.apellidoP,
         apellidoM: datos.apellidoM,
         correoElectronico: datos.correoElectronico,
-        sucursalId: datos.sucursalId,
-        sucursalNombre: creado.sucursalNombre,
-        asignado: datos.sucursalId != null,
+        sucursales: [
+          if (datos.sucursalId != null)
+            listaSucursales.firstWhere((s) => s.id == datos.sucursalId),
+        ],
       ),
     );
     return creado;
   }
 
   @override
-  Future<Empleado> asignarSucursal({
+  Future<Empleado> asignarSucursales({
     required int negocioId,
     required int empleadoId,
-    required int? sucursalId,
+    required List<int> sucursalIds,
   }) async {
-    final sucursal = sucursalId == null
-        ? null
-        : listaSucursales.firstWhere((s) => s.id == sucursalId);
     final index = empleados.indexWhere((e) => e.id == empleadoId);
     final actualizado = empleados[index].copyWith(
-      sucursalId: sucursalId,
-      sucursalNombre: sucursal?.nombre,
-      asignado: sucursalId != null,
-      limpiarSucursal: sucursalId == null,
+      sucursales: [
+        for (final id in sucursalIds)
+          listaSucursales.firstWhere((s) => s.id == id),
+      ],
     );
     empleados[index] = actualizado;
     return actualizado;
@@ -169,6 +168,94 @@ void main() {
       expect(find.text('Sucursal Centro'), findsOneWidget);
       expect(find.text('Jorge Ramírez'), findsOneWidget);
       expect(find.text('Sin sucursal asignada'), findsOneWidget);
+    });
+
+    testWidgets('empleado en varias sucursales las muestra todas', (
+      tester,
+    ) async {
+      final fake = GestionEmpleadosFake()
+        ..empleados = [
+          const Empleado(
+            id: 1,
+            negocioId: 10,
+            nombre: 'María',
+            correoElectronico: 'maria@correo.com',
+            sucursales: [
+              SucursalEmpleado(id: 100, nombre: 'Sucursal Centro'),
+              SucursalEmpleado(id: 101, nombre: 'Sucursal Norte'),
+            ],
+          ),
+        ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EmpleadosPage(
+            gestion: fake,
+            negocioInicial: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
+            onSesionExpirada: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sucursal Centro'), findsOneWidget);
+      expect(find.text('Sucursal Norte'), findsOneWidget);
+    });
+
+    testWidgets('asigna y desasigna sucursales de un empleado', (tester) async {
+      final fake = GestionEmpleadosFake();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AsignarSucursalesPage(
+            gestion: fake,
+            negocio: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
+            onSesionExpirada: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Jorge (id 2) no tiene sucursales: se le asignan las dos.
+      final norte = find.widgetWithText(FilterChip, 'Sucursal Norte');
+      await tester.ensureVisible(norte.last);
+      await tester.tap(norte.last);
+      await tester.pumpAndSettle();
+      final centro = find.widgetWithText(FilterChip, 'Sucursal Centro');
+      await tester.tap(centro.last);
+      await tester.pumpAndSettle();
+      expect(fake.empleados[1].sucursales.map((s) => s.id), [101, 100]);
+
+      // María (id 1) sigue en Centro y se le suma Norte; luego se le quita Centro.
+      await tester.tap(find.widgetWithText(FilterChip, 'Sucursal Norte').first);
+      await tester.pumpAndSettle();
+      expect(fake.empleados[0].sucursales.map((s) => s.id), [100, 101]);
+      await tester.tap(
+        find.widgetWithText(FilterChip, 'Sucursal Centro').first,
+      );
+      await tester.pumpAndSettle();
+      expect(fake.empleados[0].sucursales.map((s) => s.id), [101]);
+    });
+
+    testWidgets('vista de sucursal solo muestra a sus empleados', (
+      tester,
+    ) async {
+      final fake = GestionEmpleadosFake();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EmpleadosPage(
+            gestion: fake,
+            sucursalId: 100,
+            sucursalNombre: 'Sucursal Centro',
+            negocioInicial: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
+            onSesionExpirada: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('María López'), findsOneWidget);
+      expect(find.text('Jorge Ramírez'), findsNothing);
+      expect(find.text('1 empleado en esta sucursal'), findsOneWidget);
+      expect(find.text('Asignar sucursales'), findsNothing);
     });
 
     testWidgets('diálogo de confirmación de eliminación ejecuta delete', (

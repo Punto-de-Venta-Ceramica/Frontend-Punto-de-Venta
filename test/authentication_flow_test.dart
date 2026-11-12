@@ -41,6 +41,10 @@ void main() {
             expect(request.headers['Authorization'], 'Bearer test-jwt');
             return http.Response('{"cantidad":0}', 200);
           }
+          if (request.url.path == '/api/negocios') {
+            expect(request.headers['Authorization'], 'Bearer test-jwt');
+            return http.Response('[]', 200);
+          }
           expect(request.headers['Authorization'], isNull);
           final data = jsonDecode(request.body) as Map<String, dynamic>;
           if (request.url.path == '/api/usuarios/registro') {
@@ -83,9 +87,10 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('login-submit')));
       await tester.pumpAndSettle();
-      expect(find.text('Sesión iniciada'), findsOneWidget);
+      expect(find.text('Mis negocios'), findsOneWidget);
+      expect(find.text('Sesión iniciada'), findsNothing);
       expect(find.text('test-jwt'), findsNothing);
-      expect(requests, hasLength(3));
+      expect(requests, hasLength(4));
       await tester.tap(find.text('Cerrar sesión'));
       await tester.pumpAndSettle();
       expect(find.text('Bienvenido de nuevo'), findsOneWidget);
@@ -132,7 +137,7 @@ void main() {
         http.Response(sessionResponse(seconds: 900, refreshSeconds: 2), 200),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Sesión iniciada'), findsOneWidget);
+      expect(find.text('Mis negocios'), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
       expect(find.text('Bienvenido de nuevo'), findsOneWidget);

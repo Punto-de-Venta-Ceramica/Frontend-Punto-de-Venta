@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../application/ports/inbound/gestion_negocios_use_case.dart';
 import '../../../../application/ports/outbound/selector_logo.dart';
@@ -12,8 +13,14 @@ class NegociosPage extends StatefulWidget {
     required this.onSesionExpirada,
     required this.onAdministrar,
     required this.onNegocioCreado,
+    this.onCerrarSesion,
+    this.onNotificaciones,
+    this.conteoNotificaciones,
     super.key,
   });
+  final VoidCallback? onCerrarSesion;
+  final VoidCallback? onNotificaciones;
+  final ValueListenable<int?>? conteoNotificaciones;
   final GestionNegociosUseCase gestion;
   final SelectorLogo selectorLogo;
   final VoidCallback onSesionExpirada;
@@ -130,6 +137,8 @@ class _NegociosPageState extends State<NegociosPage> {
     onEditar: _ocupado ? null : _formulario,
     onAdministrar: _ocupado ? null : _administrar,
     onReintentar: _ocupado ? null : _cargar,
-    onVolver: () => Navigator.pop(context),
+    onCerrarSesion: widget.onCerrarSesion,
+    onNotificaciones: widget.onNotificaciones,
+    conteoNotificaciones: widget.conteoNotificaciones,
   );
 }

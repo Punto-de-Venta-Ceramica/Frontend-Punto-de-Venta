@@ -108,17 +108,16 @@ class EmpleadoCard extends StatelessWidget {
   );
 
   Widget _buildSucursalBadge() {
-    final tieneSucursal =
-        empleado.asignado &&
-        empleado.sucursalNombre != null &&
-        empleado.sucursalNombre!.isNotEmpty;
+    final tieneSucursal = empleado.asignado;
+    final color = tieneSucursal ? BarroTheme.success : BarroTheme.secondary;
+    final fondo = tieneSucursal
+        ? const Color(0xFFECF7F0)
+        : const Color(0xFFF4EDE9);
 
-    final badge = Container(
+    Widget etiqueta(String texto, {bool editable = false}) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: tieneSucursal
-            ? const Color(0xFFECF7F0)
-            : const Color(0xFFF4EDE9),
+        color: fondo,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -127,45 +126,53 @@ class EmpleadoCard extends StatelessWidget {
           Icon(
             tieneSucursal ? Icons.store_outlined : Icons.storefront_outlined,
             size: 13,
-            color: tieneSucursal ? BarroTheme.success : BarroTheme.secondary,
+            color: color,
           ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
-              tieneSucursal
-                  ? empleado.sucursalNombre!
-                  : 'Sin sucursal asignada',
+              texto,
               style: BarroTheme.type(
                 11,
                 15,
                 weight: FontWeight.w600,
-                color: tieneSucursal
-                    ? BarroTheme.success
-                    : BarroTheme.secondary,
+                color: color,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (onCambiarSucursal != null) ...[
+          if (editable) ...[
             const SizedBox(width: 4),
-            Icon(
-              Icons.edit_outlined,
-              size: 11,
-              color: tieneSucursal ? BarroTheme.success : BarroTheme.secondary,
-            ),
+            Icon(Icons.edit_outlined, size: 11, color: color),
           ],
         ],
       ),
     );
 
-    if (onCambiarSucursal != null) {
-      return InkWell(
-        onTap: onCambiarSucursal,
-        borderRadius: BorderRadius.circular(8),
-        child: badge,
-      );
-    }
-    return badge;
+    final etiquetas = tieneSucursal
+        ? [
+            for (var i = 0; i < empleado.sucursales.length; i++)
+              etiqueta(
+                empleado.sucursales[i].nombre,
+                editable:
+                    onCambiarSucursal != null &&
+                    i == empleado.sucursales.length - 1,
+              ),
+          ]
+        : [
+            etiqueta(
+              'Sin sucursal asignada',
+              editable: onCambiarSucursal != null,
+            ),
+          ];
+
+    final wrap = Wrap(spacing: 6, runSpacing: 6, children: etiquetas);
+    if (onCambiarSucursal == null) return wrap;
+    return InkWell(
+      onTap: onCambiarSucursal,
+      borderRadius: BorderRadius.circular(8),
+      child: wrap,
+    );
   }
 }

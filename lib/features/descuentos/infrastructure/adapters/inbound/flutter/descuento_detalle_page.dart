@@ -100,7 +100,8 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
-      builder: (_) => _SelectorElemento(destino: destino, opciones: disponibles),
+      builder: (_) =>
+          _SelectorElemento(destino: destino, opciones: disponibles),
     );
     if (elegido == null || !mounted) return;
     await _cambiar(
@@ -127,8 +128,7 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
 
   Widget _fila(DestinoDescuento destino, int id) {
     final elemento = _catalogo.de(destino).where((e) => e.id == id).firstOrNull;
-    final nombre =
-        elemento?.nombre ?? '${_mayuscula(destino.singular)} #$id';
+    final nombre = elemento?.nombre ?? '${_mayuscula(destino.singular)} #$id';
     return Container(
       key: ValueKey('descuento-${destino.name}-$id'),
       margin: const EdgeInsets.only(bottom: 8),
@@ -359,7 +359,9 @@ class _SelectorElementoState extends State<_SelectorElemento> {
                               weight: FontWeight.w700,
                             ),
                           ),
-                          subtitle: o.contexto.isEmpty ? null : Text(o.contexto),
+                          subtitle: o.contexto.isEmpty
+                              ? null
+                              : Text(o.contexto),
                           trailing: const Icon(
                             Icons.add_circle_outline,
                             color: BarroTheme.primary,

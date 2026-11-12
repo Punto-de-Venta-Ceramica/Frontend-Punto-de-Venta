@@ -1,14 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 
 const negociosSuave = Color(0xFFF8E7DF);
 
 class NegociosScaffold extends StatelessWidget {
-  const NegociosScaffold({required this.children, this.footer, super.key});
+  const NegociosScaffold({
+    required this.children,
+    this.footer,
+    this.onNotificaciones,
+    this.conteoNotificaciones,
+    super.key,
+  });
 
   final List<Widget> children;
   final Widget? footer;
+  final VoidCallback? onNotificaciones;
+  final ValueListenable<int?>? conteoNotificaciones;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -27,7 +36,10 @@ class NegociosScaffold extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const _NegociosHeader(),
+                        BarroHeader(
+                          onNotificaciones: onNotificaciones,
+                          conteoNotificaciones: conteoNotificaciones,
+                        ),
                         const SizedBox(height: 28),
                         ...children,
                         if (footer != null) ...[
@@ -45,41 +57,6 @@ class NegociosScaffold extends StatelessWidget {
         ),
       ),
     ),
-  );
-}
-
-class _NegociosHeader extends StatelessWidget {
-  const _NegociosHeader();
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SvgPicture.asset(
-        'assets/icons/brand.svg',
-        width: 32,
-        height: 32,
-        semanticsLabel: 'Logo de BarroControl',
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          'BarroControl',
-          style: BarroTheme.type(18, 26, weight: FontWeight.w600),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: negociosSuave,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          'Propietario',
-          style: BarroTheme.type(11, 16, color: BarroTheme.primary),
-        ),
-      ),
-    ],
   );
 }
 

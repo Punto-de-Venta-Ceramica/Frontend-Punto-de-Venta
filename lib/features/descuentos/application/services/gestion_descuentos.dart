@@ -8,7 +8,9 @@ class GestionDescuentos implements GestionDescuentosUseCase {
 
   void _validarIds(int negocioId, [int? id, int? destinoId]) {
     if (negocioId <= 0 || (id != null && id <= 0)) {
-      throw const DescuentoFailure('Selecciona un negocio y descuento válidos.');
+      throw const DescuentoFailure(
+        'Selecciona un negocio y descuento válidos.',
+      );
     }
     if (destinoId != null && destinoId <= 0) {
       throw const DescuentoFailure('Selecciona un elemento válido.');
@@ -18,7 +20,10 @@ class GestionDescuentos implements GestionDescuentosUseCase {
   void _validar(DatosDescuento datos) {
     final errores = datos.validar();
     if (errores.isNotEmpty) {
-      throw DescuentoFailure('Revisa los campos señalados.', fieldErrors: errores);
+      throw DescuentoFailure(
+        'Revisa los campos señalados.',
+        fieldErrors: errores,
+      );
     }
   }
 

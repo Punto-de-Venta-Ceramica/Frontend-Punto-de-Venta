@@ -114,10 +114,7 @@ class HttpPedidosGateway implements PedidosGateway {
         ],
         'tipoEntrega': d.tipoEntrega,
         'descripcionEnvio': d.descripcionEnvio.trim(),
-        'pagoInicial': {
-          'monto': d.monto,
-          'metodoPago': d.metodo,
-        },
+        'pagoInicial': {'monto': d.monto, 'metodoPago': d.metodo},
       },
     );
   }

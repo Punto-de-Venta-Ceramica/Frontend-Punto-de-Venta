@@ -3,12 +3,18 @@ import '../../../domain/empleado.dart';
 abstract interface class GestionEmpleadosUseCase {
   Future<List<NegocioEmpleado>> negocios();
   Future<List<SucursalEmpleado>> sucursales(int negocioId);
-  Future<List<Empleado>> listar(int negocioId, {bool incluirAsignacion = true});
+  Future<List<Empleado>> listar(
+    int negocioId, {
+    bool incluirAsignacion = true,
+    int? sucursalId,
+  });
   Future<EmpleadoCreado> registrar(NuevoEmpleado datos);
-  Future<Empleado> asignarSucursal({
+
+  /// Reemplaza el conjunto de sucursales del empleado (asignar y desasignar).
+  Future<Empleado> asignarSucursales({
     required int negocioId,
     required int empleadoId,
-    required int? sucursalId,
+    required List<int> sucursalIds,
   });
   Future<void> eliminar(int negocioId, int empleadoId);
 }

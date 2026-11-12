@@ -160,7 +160,10 @@ class HttpDescuentoGateway implements DescuentoGateway {
   @override
   Future<CatalogoDescuento> catalogo(int negocioId) => _seguro(() async {
     final productosJson = _lista(
-      await _api.requestJson('GET', 'api/productos/catalogo?negocioId=$negocioId'),
+      await _api.requestJson(
+        'GET',
+        'api/productos/catalogo?negocioId=$negocioId',
+      ),
     );
     final areasJson = _lista(
       await _api.requestJson('GET', 'api/negocios/$negocioId/areas'),

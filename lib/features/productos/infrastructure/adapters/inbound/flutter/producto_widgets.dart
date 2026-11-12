@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import '../../../../domain/producto.dart';
 import '../../outbound/imagenes/cloudinary_url.dart';
 
@@ -94,34 +94,7 @@ class ProductoCabecera extends StatelessWidget {
   const ProductoCabecera({this.rol = 'Propietario', super.key});
   final String rol;
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SvgPicture.asset(
-        'assets/icons/brand.svg',
-        width: 36,
-        height: 36,
-        semanticsLabel: 'Logo de BarroControl',
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          'BarroControl',
-          style: BarroTheme.type(21, 28, weight: FontWeight.w700),
-        ),
-      ),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: productoSuave,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          rol,
-          style: BarroTheme.type(12, 17, color: BarroTheme.primary),
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) => const BarroHeader();
 }
 
 class ProductoNegocioPanel extends StatelessWidget {

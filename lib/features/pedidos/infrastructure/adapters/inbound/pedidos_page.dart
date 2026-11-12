@@ -21,11 +21,8 @@ class PedidosPage extends StatefulWidget {
     required this.esPropietario,
     required this.contador,
     this.onInventario,
-<<<<<<< Updated upstream
     this.sucursalNombre,
-=======
     this.onCaja,
->>>>>>> Stashed changes
     super.key,
   });
   final GestionPedidos gestion;
@@ -289,13 +286,16 @@ class _PedidosPageState extends State<PedidosPage> {
         )
         .toList();
     return ProductoScaffold(
-      barraInferior: SucursalNavegacion(
-        seleccionada: 'Pedidos',
-        onInicio: () => Navigator.of(context).maybePop(),
-        onPedidos: () {},
-        onInventario: widget.onInventario,
-        onCaja: widget.onCaja,
-      ),
+      // El empleado navega con la barra de su pantalla de inicio.
+      barraInferior: widget.esPropietario
+          ? SucursalNavegacion(
+              seleccionada: 'Pedidos',
+              onInicio: () => Navigator.of(context).maybePop(),
+              onPedidos: () {},
+              onInventario: widget.onInventario,
+              onCaja: widget.onCaja,
+            )
+          : null,
       rol: widget.esPropietario ? 'Propietario' : 'Empleado',
       onRefresh: _cargar,
       children: [

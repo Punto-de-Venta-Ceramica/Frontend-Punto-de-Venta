@@ -322,9 +322,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       onTap: _productos.isEmpty ? null : _seleccionarProducto,
       borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
-        decoration: productoDecoracion(
-          error: _errores['productos'],
-        ).copyWith(
+        decoration: productoDecoracion(error: _errores['productos']).copyWith(
           suffixIcon: seleccionado == null
               ? const Icon(Icons.search)
               : IconButton(
@@ -517,10 +515,12 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
 
   @override
   Widget build(BuildContext context) => ProductoScaffold(
-    barraInferior: SucursalNavegacion(
-      seleccionada: 'Pedidos',
-      onPedidos: () => Navigator.of(context).maybePop(),
-    ),
+    barraInferior: widget.esPropietario
+        ? SucursalNavegacion(
+            seleccionada: 'Pedidos',
+            onPedidos: () => Navigator.of(context).maybePop(),
+          )
+        : null,
     rol: widget.esPropietario ? 'Propietario' : 'Empleado',
     children: [
       TextButton.icon(
@@ -746,22 +746,6 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   campo: 'pagoInicial.monto',
                   formatos: PedidoInputFormatters.dinero,
                   validar: PedidoInputFormatters.validarDinero,
-                ),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _monto,
-                  builder: (context, valor, _) {
-                    final anticipo = _leerCentavos(valor.text);
-                    if (anticipo == null || anticipo <= BigInt.zero) {
-                      return const SizedBox.shrink();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Por el momento, los anticipos requieren un corte de caja abierto. La función de corte de caja aún está en desarrollo; puedes registrar el pedido con anticipo 0.',
-                        style: BarroTheme.type(13, 20, color: BarroTheme.error),
-                      ),
-                    );
-                  },
                 ),
                 const SizedBox(height: 12),
                 const Text(

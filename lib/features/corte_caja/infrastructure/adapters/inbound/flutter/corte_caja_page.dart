@@ -285,13 +285,17 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: BarroTheme.background,
-    bottomNavigationBar: SucursalNavegacion(
-      seleccionada: 'Caja',
-      onInicio: widget.onInicio ?? () => Navigator.of(context).maybePop(),
-      onPedidos: widget.onPedidos,
-      onInventario: widget.onInventario,
-      onCaja: () {},
-    ),
+    // El empleado navega con la barra de su pantalla de inicio.
+    bottomNavigationBar: widget.esPropietario
+        ? SucursalNavegacion(
+            seleccionada: 'Caja',
+            onInicio:
+                widget.onInicio ?? () => Navigator.of(context).maybePop(),
+            onPedidos: widget.onPedidos,
+            onInventario: widget.onInventario,
+            onCaja: () {},
+          )
+        : null,
     body: SafeArea(
       child: Align(
         alignment: Alignment.topCenter,

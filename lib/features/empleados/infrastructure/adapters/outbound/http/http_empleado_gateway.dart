@@ -51,9 +51,13 @@ class HttpEmpleadoGateway implements EmpleadoGateway {
       apellidoP: json['apellidoP'] as String?,
       apellidoM: json['apellidoM'] as String?,
       correoElectronico: _texto(json['correoElectronico']),
-      sucursalId: json['sucursalId'] as int?,
-      sucursalNombre: json['sucursalNombre'] as String?,
-      asignado: json['asignado'] == true,
+      sucursales: [
+        for (final item in (json['sucursales'] as List<dynamic>? ?? const []))
+          SucursalEmpleado(
+            id: _id((item as Map<String, dynamic>)['id']),
+            nombre: _texto(item['nombre'], opcional: true),
+          ),
+      ],
     );
   }
 
@@ -90,11 +94,13 @@ class HttpEmpleadoGateway implements EmpleadoGateway {
   Future<List<Empleado>> listar(
     int negocioId, {
     bool incluirAsignacion = true,
+    int? sucursalId,
   }) => _seguro(
     () async => _lista(
       await _api.requestJson(
         'GET',
-        'api/empleados?negocioId=$negocioId&incluirAsignacion=$incluirAsignacion',
+        'api/empleados?negocioId=$negocioId&incluirAsignacion=$incluirAsignacion'
+            '${sucursalId == null ? '' : '&sucursalId=$sucursalId'}',
       ),
       _empleado,
     ),
@@ -132,53 +138,23 @@ class HttpEmpleadoGateway implements EmpleadoGateway {
   });
 
   @override
-  Future<Empleado> asignarSucursal({
+  Future<Empleado> asignarSucursales({
     required int negocioId,
     required int empleadoId,
-    required int? sucursalId,
-  }) => _seguro(() async {
-    try {
-      final json = _map(
-        await _api.requestJson(
-          'PATCH',
-          'api/empleados/asignar-sucursal',
-          body: {
-            'negocioId': negocioId,
-            'empleadoId': empleadoId,
-            'sucursalId': sucursalId,
-          },
-        ),
-      );
-      return _empleado(json);
-    } on ApiException catch (e) {
-      // Si el empleado ya tenía otra sucursal, el backend responde 409
-      // indicando que primero se debe desasignar. Lo desasignamos (null) y reintentamos.
-      if (sucursalId != null && e.statusCode == 409) {
-        await _api.requestJson(
-          'PATCH',
-          'api/empleados/asignar-sucursal',
-          body: {
-            'negocioId': negocioId,
-            'empleadoId': empleadoId,
-            'sucursalId': null,
-          },
-        );
-        final retryJson = _map(
-          await _api.requestJson(
-            'PATCH',
-            'api/empleados/asignar-sucursal',
-            body: {
-              'negocioId': negocioId,
-              'empleadoId': empleadoId,
-              'sucursalId': sucursalId,
-            },
-          ),
-        );
-        return _empleado(retryJson);
-      }
-      rethrow;
-    }
-  });
+    required List<int> sucursalIds,
+  }) => _seguro(
+    () async => _empleado(
+      await _api.requestJson(
+        'PUT',
+        'api/empleados/sucursales',
+        body: {
+          'negocioId': negocioId,
+          'empleadoId': empleadoId,
+          'sucursalIds': sucursalIds,
+        },
+      ),
+    ),
+  );
 
   @override
   Future<void> eliminar(int negocioId, int empleadoId) => _seguro(
