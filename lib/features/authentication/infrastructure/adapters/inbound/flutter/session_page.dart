@@ -13,6 +13,7 @@ class SessionPage extends StatefulWidget {
     this.openBusinesses,
     this.openEmployees,
     this.openOrders,
+    this.openCorteCaja,
     this.conteoNotificaciones,
     this.openNotifications,
     this.sessionExpired,
@@ -23,6 +24,7 @@ class SessionPage extends StatefulWidget {
   final VoidCallback? openBusinesses;
   final VoidCallback? openEmployees;
   final VoidCallback? openOrders;
+  final VoidCallback? openCorteCaja;
   final ValueListenable<int?>? conteoNotificaciones;
   final VoidCallback? openNotifications;
 
@@ -179,14 +181,22 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(height: 28),
-              if (widget.session.role == 'EMPLEADO' &&
-                  widget.openOrders != null)
-                _accion(
-                  icono: Icons.receipt_long_outlined,
-                  titulo: 'Pedidos',
-                  descripcion: 'Registra y consulta los pedidos',
-                  onTap: widget.openOrders,
-                ),
+              if (widget.session.role == 'EMPLEADO') ...[
+                if (widget.openOrders != null)
+                  _accion(
+                    icono: Icons.receipt_long_outlined,
+                    titulo: 'Pedidos',
+                    descripcion: 'Registra y consulta los pedidos',
+                    onTap: widget.openOrders,
+                  ),
+                if (widget.openCorteCaja != null)
+                  _accion(
+                    icono: Icons.point_of_sale_outlined,
+                    titulo: 'Corte de caja',
+                    descripcion: 'Abrir turno o realizar corte de caja',
+                    onTap: widget.openCorteCaja,
+                  ),
+              ],
               if (widget.session.role == 'PROPIETARIO') ...[
                 if (widget.openBusinesses != null)
                   _accion(
