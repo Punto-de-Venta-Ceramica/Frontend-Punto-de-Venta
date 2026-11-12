@@ -214,12 +214,25 @@ class CachedExistenciasGateway implements ExistenciasGateway {
   Future<ExistenciaSucursal> asignar(
     int productoId,
     SucursalProducto sucursal,
-    int existencia,
+    int? existencia,
   ) async {
     final asignada = await _origen.asignar(productoId, sucursal, existencia);
     final filas = _porProducto[productoId];
     if (filas != null) _porProducto[productoId] = [...filas, asignada];
     _alAsignar?.call();
     return asignada;
+  }
+
+  /// Quitar también cambia qué productos lista cada sucursal.
+  @override
+  Future<void> quitar(int inventarioId) async {
+    await _origen.quitar(inventarioId);
+    _porProducto.updateAll(
+      (_, filas) => [
+        for (final e in filas)
+          if (e.inventarioId != inventarioId) e,
+      ],
+    );
+    _alAsignar?.call();
   }
 }

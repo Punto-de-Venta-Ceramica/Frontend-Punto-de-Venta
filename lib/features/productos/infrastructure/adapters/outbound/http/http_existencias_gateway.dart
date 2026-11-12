@@ -87,7 +87,7 @@ class HttpExistenciasGateway implements ExistenciasGateway {
   Future<ExistenciaSucursal> asignar(
     int productoId,
     SucursalProducto sucursal,
-    int existencia,
+    int? existencia,
   ) => _seguro(() async {
     final json = _map(
       await _api.requestJson(
@@ -96,7 +96,7 @@ class HttpExistenciasGateway implements ExistenciasGateway {
         body: {
           'productoId': productoId,
           'sucursalId': sucursal.id,
-          'existencia': existencia,
+          'existencia': ?existencia,
         },
       ),
     );
@@ -106,5 +106,10 @@ class HttpExistenciasGateway implements ExistenciasGateway {
       sucursalNombre: sucursal.nombre,
       existencia: _existencia(json['existencia']),
     );
+  });
+
+  @override
+  Future<void> quitar(int inventarioId) => _seguro(() async {
+    await _api.requestJson('DELETE', 'api/inventario/$inventarioId');
   });
 }

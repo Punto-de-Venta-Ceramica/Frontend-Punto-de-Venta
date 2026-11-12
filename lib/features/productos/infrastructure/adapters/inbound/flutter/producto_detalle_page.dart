@@ -89,11 +89,11 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
 
   Future<void> _asignar(SucursalProducto sucursal) async {
     if (_busy || _ajustandoId != null) return;
-    final cantidad = await showDialog<int>(
+    final eleccion = await showDialog<({int? cantidad})>(
       context: context,
       builder: (_) => _AsignarDialog(sucursal: sucursal),
     );
-    if (cantidad == null || !mounted) return;
+    if (eleccion == null || !mounted) return;
     setState(() {
       _ajustandoId = -sucursal.id;
       _error = null;
@@ -103,7 +103,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       final nueva = await widget.gestion.asignarASucursal(
         _producto.id,
         sucursal,
-        cantidad,
+        eleccion.cantidad,
       );
       if (!mounted) return;
       setState(() {
@@ -113,7 +113,60 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
         );
         _ajustandoId = null;
         _mensaje =
-            'Producto asignado a ${sucursal.nombre} con ${formatoPiezas(cantidad)}.';
+            'Producto asignado a ${sucursal.nombre} con ${formatoPiezas(nueva.existencia)}.';
+      });
+    } on ProductoFailure catch (f) {
+      if (!mounted) return;
+      setState(() => _ajustandoId = null);
+      _fallo(f);
+    }
+  }
+
+  /// Quita el producto de una sucursal; el backend conserva su existencia
+  /// por si se vuelve a asignar, y exige que quede en al menos otra.
+  Future<void> _quitar(ExistenciaSucursal e) async {
+    if (_busy || _ajustandoId != null) return;
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('¿Quitar de ${e.sucursalNombre}?'),
+        content: Text(
+          e.existencia > 0
+              ? 'El producto dejará de aparecer en esta sucursal. Tiene '
+                    '${formatoPiezas(e.existencia)} registradas; se conservarán '
+                    'si vuelves a asignarlo.'
+              : 'El producto dejará de aparecer en esta sucursal. Puedes '
+                    'volver a asignarlo cuando quieras.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirmar-quitar-sucursal'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Quitar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true || !mounted) return;
+    setState(() {
+      _ajustandoId = e.inventarioId;
+      _error = null;
+      _mensaje = null;
+    });
+    try {
+      await widget.gestion.quitarDeSucursal(e.inventarioId);
+      if (!mounted) return;
+      setState(() {
+        _producto = _producto.conExistencias([
+          for (final x in _producto.existencias)
+            if (x.inventarioId != e.inventarioId) x,
+        ]);
+        _ajustandoId = null;
+        _mensaje = 'Producto quitado de ${e.sucursalNombre}.';
       });
     } on ProductoFailure catch (f) {
       if (!mounted) return;
@@ -403,6 +456,14 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                           cargando: _ajustandoId == e.inventarioId,
                           onAjustar: (c) => _ajustar(e, c),
                           onCantidad: () => _ajustarCantidad(e),
+                          // Solo el propietario, desde el negocio, y si queda
+                          // al menos otra sucursal con el producto.
+                          onQuitar:
+                              _modoSucursal ||
+                                  widget.soloLectura ||
+                                  p.existencias.length < 2
+                              ? null
+                              : () => _quitar(e),
                         ),
                       for (final s in _sinAsignar)
                         _FilaSinAsignar(
@@ -486,12 +547,16 @@ class _FilaExistencia extends StatelessWidget {
     required this.cargando,
     required this.onAjustar,
     required this.onCantidad,
+    this.onQuitar,
   });
   final ExistenciaSucursal existencia;
   final bool ocupado;
   final bool cargando;
   final ValueChanged<int> onAjustar;
   final VoidCallback onCantidad;
+
+  /// Null cuando no se puede quitar (modo sucursal, empleado o última sucursal).
+  final VoidCallback? onQuitar;
 
   @override
   Widget build(BuildContext context) {
@@ -511,6 +576,20 @@ class _FilaExistencia extends StatelessWidget {
                 formatoPiezas(e.existencia),
                 style: BarroTheme.type(14, 21, weight: FontWeight.w700),
               ),
+              if (onQuitar != null)
+                PopupMenuButton<void>(
+                  key: ValueKey('existencia-opciones-${e.inventarioId}'),
+                  tooltip: 'Más opciones',
+                  enabled: !ocupado,
+                  icon: const Icon(Icons.more_vert),
+                  itemBuilder: (_) => [
+                    PopupMenuItem<void>(
+                      key: ValueKey('existencia-quitar-${e.inventarioId}'),
+                      onTap: onQuitar,
+                      child: const Text('Quitar de esta sucursal'),
+                    ),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -687,7 +766,9 @@ class _FilaSinAsignar extends StatelessWidget {
   );
 }
 
-/// Pide la existencia inicial al asignar el producto a una sucursal.
+/// Pide la existencia inicial al asignar el producto a una sucursal. Se cierra
+/// con `(cantidad: null)` si se deja vacío: 0 piezas en una asignación nueva, o
+/// la existencia que tenía si el producto ya estuvo en esa sucursal.
 class _AsignarDialog extends StatefulWidget {
   const _AsignarDialog({required this.sucursal});
   final SucursalProducto sucursal;
@@ -696,7 +777,7 @@ class _AsignarDialog extends StatefulWidget {
 }
 
 class _AsignarDialogState extends State<_AsignarDialog> {
-  final _controller = TextEditingController(text: '0');
+  final _controller = TextEditingController();
   String? _error;
 
   @override
@@ -706,12 +787,17 @@ class _AsignarDialogState extends State<_AsignarDialog> {
   }
 
   void _confirmar() {
-    final n = int.tryParse(_controller.text.trim());
+    final texto = _controller.text.trim();
+    if (texto.isEmpty) {
+      Navigator.pop(context, (cantidad: null));
+      return;
+    }
+    final n = int.tryParse(texto);
     if (n == null || n < 0 || n > 1000000) {
       setState(() => _error = 'Escribe un entero de 0 a 1,000,000.');
       return;
     }
-    Navigator.pop(context, n);
+    Navigator.pop(context, (cantidad: n));
   }
 
   @override
@@ -725,6 +811,9 @@ class _AsignarDialogState extends State<_AsignarDialog> {
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       decoration: InputDecoration(
         labelText: 'Existencia inicial (piezas)',
+        helperText:
+            'Vacío: 0 piezas, o las que tenía si ya estuvo en esta sucursal.',
+        helperMaxLines: 2,
         errorText: _error,
       ),
       onSubmitted: (_) => _confirmar(),
