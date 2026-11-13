@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/main.dart';
 import 'package:punto_de_venta/features/login/application/services/validate_login.dart';
 import 'package:punto_de_venta/features/login/domain/login_input.dart';
+import 'memory_session_store.dart';
 
 Future<void> openLogin(
   WidgetTester tester, {
@@ -29,6 +30,7 @@ Future<void> openLogin(
     RepaintBoundary(
       key: ValueKey('login-capture'),
       child: PuntoDeVentaApp(
+        sessionStore: MemorySessionStore(),
         httpClient: client ?? MockClient((_) async => http.Response('{}', 401)),
       ),
     ),

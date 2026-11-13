@@ -15,6 +15,7 @@ class SessionPage extends StatefulWidget {
     this.conteoNotificaciones,
     this.openNotifications,
     this.sessionExpired,
+    this.refreshExpiresAt,
     super.key,
   });
   final AuthSession session;
@@ -29,6 +30,10 @@ class SessionPage extends StatefulWidget {
 
   /// Avisa que la sesión terminó (el token de renovación ya no sirve).
   final Listenable? sessionExpired;
+
+  /// Vencimiento vigente del token de renovación; cambia con cada renovación
+  /// (deslizante). Si no se da, se usa el de [session].
+  final DateTime Function()? refreshExpiresAt;
   @override
   State<SessionPage> createState() => _SessionPageState();
 }
@@ -46,27 +51,36 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
 
   void _onSessionExpired() => _logout(expired: true);
 
+  DateTime get _vence =>
+      widget.refreshExpiresAt?.call() ?? widget.session.refreshExpiresAt;
+
   /// Cierra sesión solo cuando vence el token de renovación (no el de acceso, que
   /// se renueva solo). Se re-programa por tramos para no depender de temporizadores
   /// larguísimos.
   void _scheduleExpiry() {
     _expiryTimer?.cancel();
-    final remaining = widget.session.refreshExpiresAt.difference(
-      DateTime.now(),
-    );
+    final programado = _vence;
+    final remaining = programado.difference(DateTime.now());
     const maxStep = Duration(hours: 6);
     if (remaining <= Duration.zero) {
       _expiryTimer = Timer(Duration.zero, () => _logout(expired: true));
     } else if (remaining > maxStep) {
       _expiryTimer = Timer(maxStep, _scheduleExpiry);
     } else {
-      _expiryTimer = Timer(remaining, () => _logout(expired: true));
+      // Al vencer se vuelve a revisar: una renovación pudo extender la sesión.
+      _expiryTimer = Timer(remaining, () {
+        if (_vence != programado) {
+          _scheduleExpiry();
+        } else {
+          _logout(expired: true);
+        }
+      });
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && widget.session.isExpired) {
+    if (state == AppLifecycleState.resumed && !_vence.isAfter(DateTime.now())) {
       _logout(expired: true);
     }
   }

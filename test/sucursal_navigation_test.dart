@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:punto_de_venta/main.dart';
+import 'memory_session_store.dart';
 
 void main() {
   for (final rechazar in [false, true]) {
@@ -17,6 +18,7 @@ void main() {
         final requests = <http.Request>[];
         await tester.pumpWidget(
           PuntoDeVentaApp(
+            sessionStore: MemorySessionStore(),
             httpClient: MockClient((r) async {
               requests.add(r);
               if (r.url.path == '/api/auth/login') {
