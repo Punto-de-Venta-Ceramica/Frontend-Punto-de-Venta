@@ -54,6 +54,18 @@ class ApiClient {
   /// Se llama una sola vez cuando la sesión terminó y hay que volver al login.
   void Function()? onSessionExpired;
 
+  /// Se llama tras cada renovación exitosa con los tokens vigentes (para persistirlos).
+  void Function({
+    required String token,
+    required DateTime expiresAt,
+    required String refreshToken,
+    required DateTime refreshExpiresAt,
+  })?
+  onSessionRenewed;
+
+  /// Vencimiento actual del token de renovación (cambia con cada renovación).
+  DateTime? get refreshExpiresAt => _refreshExpiresAt;
+
   void iniciarSesion({
     required String token,
     required DateTime expiresAt,
@@ -136,6 +148,23 @@ class ApiClient {
       }
       bearerToken = data['token'] as String;
       _accessExpiresAt = expiry;
+      // Renovación deslizante: el servidor puede entregar un nuevo token de renovación.
+      final nuevoRefresh = data['refreshToken'];
+      final nuevoVence = data['refreshExpiraEn'] is String
+          ? DateTime.tryParse(data['refreshExpiraEn'] as String)
+          : null;
+      if (nuevoRefresh is String &&
+          nuevoRefresh.isNotEmpty &&
+          nuevoVence != null) {
+        _refreshToken = nuevoRefresh;
+        _refreshExpiresAt = nuevoVence;
+      }
+      onSessionRenewed?.call(
+        token: bearerToken!,
+        expiresAt: expiry,
+        refreshToken: _refreshToken!,
+        refreshExpiresAt: _refreshExpiresAt ?? expiry,
+      );
       return true;
     } on TimeoutException {
       throw const ApiException('El servidor tardó demasiado en responder.');

@@ -4,6 +4,8 @@ import 'features/authentication/application/services/authentication_services.dar
 import 'features/authentication/domain/auth_session.dart';
 import 'features/authentication/infrastructure/adapters/outbound/http/http_authentication_gateway.dart';
 import 'features/authentication/infrastructure/adapters/inbound/flutter/session_page.dart';
+import 'features/authentication/application/ports/outbound/session_store.dart';
+import 'features/authentication/infrastructure/adapters/outbound/storage/secure_session_store.dart';
 import 'features/sucursal/application/services/gestion_sucursales.dart';
 import 'features/sucursal/infrastructure/adapters/outbound/http/http_sucursal_gateway.dart';
 import 'features/sucursal/infrastructure/adapters/inbound/flutter/administrar_sucursal_page.dart';
@@ -61,9 +63,17 @@ import 'features/connection/infrastructure/adapters/inbound/flutter/connection_p
 void main() => runApp(const PuntoDeVentaApp());
 
 class PuntoDeVentaApp extends StatefulWidget {
-  const PuntoDeVentaApp({this.initialRoute = '/', this.httpClient, super.key});
+  const PuntoDeVentaApp({
+    this.initialRoute = '/',
+    this.httpClient,
+    this.sessionStore = const SecureSessionStore(),
+    super.key,
+  });
   final String initialRoute;
   final http.Client? httpClient;
+
+  /// Dónde se guarda la sesión para que sobreviva al cierre de la app.
+  final SessionStore sessionStore;
 
   @override
   State<PuntoDeVentaApp> createState() => _PuntoDeVentaAppState();
@@ -102,7 +112,31 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   void initState() {
     super.initState();
     _api = ApiClient(baseUrl: ApiConfig.baseUrl, client: widget.httpClient)
-      ..onSessionExpired = () => _sesionExpirada.value++;
+      ..onSessionExpired = () {
+        _sesionExpirada.value++;
+      }
+      ..onSessionRenewed =
+          ({
+            required token,
+            required expiresAt,
+            required refreshToken,
+            required refreshExpiresAt,
+          }) {
+            final actual = _sesionActual;
+            if (actual == null) return;
+            // Solo se persiste: _sesionActual se conserva para que la ruta no
+            // reinstale los tokens del inicio de sesión.
+            widget.sessionStore.guardar(
+              AuthSession(
+                token: token,
+                expiresAt: expiresAt,
+                refreshToken: refreshToken,
+                refreshExpiresAt: refreshExpiresAt,
+                userId: actual.userId,
+                role: actual.role,
+              ),
+            );
+          };
     _authentication = HttpAuthenticationGateway(_api);
     _imagenesProducto = crearImagenesProducto();
     _contador = ContadorNotificaciones(_api, IndicadorIconoMovil());
@@ -136,6 +170,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   );
 
   void _cerrarSesion(BuildContext context) {
+    widget.sessionStore.borrar();
     _api.cerrarSesion();
     _sesionActual = null;
     _contador.cerrarSesion();
@@ -446,7 +481,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     debugShowCheckedModeBanner: false,
     theme: BarroTheme.data,
     initialRoute: widget.initialRoute,
-    home: Builder(builder: _login),
+    home: _RestaurarSesion(store: widget.sessionStore, login: _login),
     routes: {
       '/login': _login,
       '/register': (_) => OwnerRegistrationPage(
@@ -462,6 +497,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         // vez para no pisar los tokens ya renovados con los del inicio de sesión.
         if (!identical(_sesionActual, session)) {
           _sesionActual = session;
+          widget.sessionStore.guardar(session);
           _api.iniciarSesion(
             token: session.token,
             expiresAt: session.expiresAt,
@@ -474,7 +510,10 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         return SessionPage(
           session: session,
           sessionExpired: _sesionExpirada,
+          refreshExpiresAt: () =>
+              _api.refreshExpiresAt ?? session.refreshExpiresAt,
           clearSession: () {
+            widget.sessionStore.borrar();
             _api.cerrarSesion();
             _sesionActual = null;
             _contador.cerrarSesion();
@@ -518,6 +557,41 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       '/connection': (_) => const _ConnectionHome(),
     },
   );
+}
+
+/// Pantalla de arranque: si hay una sesión guardada y vigente entra directo a
+/// ella (el token de acceso vencido se renueva solo con el de renovación);
+/// si no, muestra el login.
+class _RestaurarSesion extends StatefulWidget {
+  const _RestaurarSesion({required this.store, required this.login});
+  final SessionStore store;
+  final WidgetBuilder login;
+  @override
+  State<_RestaurarSesion> createState() => _RestaurarSesionState();
+}
+
+class _RestaurarSesionState extends State<_RestaurarSesion> {
+  bool _sinSesion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.leer().then((session) {
+      if (!mounted) return;
+      if (session == null) {
+        setState(() => _sinSesion = true);
+      } else {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/session', (_) => false, arguments: session);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _sinSesion
+      ? widget.login(context)
+      : const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 class _ConnectionHome extends StatefulWidget {
