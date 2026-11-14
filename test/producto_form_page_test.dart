@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
@@ -51,6 +54,7 @@ Future<_Gateway> _abrir(
   final gateway = _Gateway();
   await tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
       home: ProductoFormPage(
         negocio: const NegocioProducto(id: 1, nombre: 'Barro Centro'),
         gestion: GestionProductos(gateway, const _SinExistencias()),

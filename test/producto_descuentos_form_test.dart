@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/outbound/descuento_gateway.dart';
 import 'package:punto_de_venta/features/descuentos/application/services/gestion_descuentos.dart';
@@ -304,6 +307,7 @@ Future<void> _abrir(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
       home: ProductoFormPage(
         negocio: _negocio,
         gestion: GestionProductos(productos, const _SinExistencias()),

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
@@ -58,6 +61,7 @@ Future<(_Productos, _Anfitrion)> _abrir(WidgetTester tester) async {
   final anfitrion = _Anfitrion();
   await tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
       home: Builder(
         builder: (context) => Scaffold(
           body: Center(
