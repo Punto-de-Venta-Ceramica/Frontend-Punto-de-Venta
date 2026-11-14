@@ -72,6 +72,37 @@ class CachedDescuentoGateway implements DescuentoGateway {
     () => _origen.listar(negocioId),
   );
 
+  /// Sale de la lista del negocio si está vigente; si no, se piden al servidor
+  /// solo los de ese producto.
+  @override
+  Future<List<Descuento>> deProducto(int negocioId, int productoId) async {
+    final entrada = _listados[negocioId];
+    if (entrada == null ||
+        _ahora().difference(entrada.guardado) >= vigenciaListado) {
+      return _origen.deProducto(negocioId, productoId);
+    }
+    return [
+      for (final d in await entrada.valor)
+        if (d.productoIds.contains(productoId)) d,
+    ];
+  }
+
+  @override
+  Future<List<Descuento>> guardarDeProducto(
+    int negocioId,
+    int productoId, {
+    required List<DescuentoAGuardar> lineas,
+    required Set<int> eliminar,
+  }) => _cambio(
+    negocioId,
+    () => _origen.guardarDeProducto(
+      negocioId,
+      productoId,
+      lineas: lineas,
+      eliminar: eliminar,
+    ),
+  );
+
   @override
   Future<CatalogoDescuento> catalogo(int negocioId) => _vigenteO(
     _catalogos,

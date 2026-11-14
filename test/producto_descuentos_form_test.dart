@@ -93,6 +93,72 @@ class _Descuentos implements DescuentoGateway {
   Future<List<Descuento>> listar(int negocioId) async => filas;
 
   @override
+  Future<List<Descuento>> deProducto(int negocioId, int productoId) async => [
+    for (final d in filas)
+      if (d.productoIds.contains(productoId)) d,
+  ];
+
+  /// Si es mayor que cero, falla el próximo guardado en lote (y decrementa).
+  int fallosDeGuardar = 0;
+
+  static String _numero(double n) =>
+      n == n.roundToDouble() ? '${n.toInt()}' : '$n';
+
+  /// Igual que el servidor: aplica todo o nada y valida los cruces al final.
+  @override
+  Future<List<Descuento>> guardarDeProducto(
+    int negocioId,
+    int productoId, {
+    required List<DescuentoAGuardar> lineas,
+    required Set<int> eliminar,
+  }) async {
+    if (fallosDeGuardar > 0) {
+      fallosDeGuardar--;
+      throw const DescuentoFailure('Sin conexión.');
+    }
+    final registro = [for (final id in eliminar) 'eliminar $id'];
+    var nuevas = [
+      for (final d in filas)
+        if (!eliminar.contains(d.id)) d,
+    ];
+    final guardados = <Descuento>[];
+    for (final l in lineas) {
+      final previo = nuevas.where((d) => d.id == l.id).firstOrNull;
+      final d = Descuento(
+        id: previo?.id ?? _siguiente++,
+        nombre: l.nombre,
+        cantidadMinima: l.cantidadMinima,
+        cantidadMaxima: l.cantidadMaxima,
+        porcentaje: l.porcentaje,
+        activo: l.activo,
+        productoIds: {...?previo?.productoIds, productoId}.toList(),
+      );
+      registro.add(
+        previo == null
+            ? 'crear ${l.nombre} ${l.cantidadMinima} ${_numero(l.porcentaje)}'
+            : 'guardar ${d.id} ${l.cantidadMinima} ${_numero(l.porcentaje)} '
+                  '${l.activo ? 'activo' : 'inactivo'}',
+      );
+      nuevas = previo == null
+          ? [...nuevas, d]
+          : [for (final x in nuevas) x.id == d.id ? d : x];
+      guardados.add(d);
+    }
+    final anteriores = filas;
+    filas = nuevas;
+    try {
+      for (final d in guardados) {
+        if (d.activo) _validarTraslape(d, [productoId]);
+      }
+    } catch (_) {
+      filas = anteriores;
+      rethrow;
+    }
+    llamadas.addAll(registro);
+    return guardados;
+  }
+
+  @override
   Future<Descuento> crear(int negocioId, DatosDescuento datos) async {
     llamadas.add(
       'crear ${datos.nombre} ${datos.cantidadMinima} ${datos.porcentaje}',
@@ -341,10 +407,9 @@ void main() {
 
       expect(descuentos.llamadas, [
         'crear Olla · desde 2 piezas 2 10',
-        'asignar 100 a producto 5',
         'crear Olla · desde 5 piezas 5 20',
-        'asignar 101 a producto 5',
       ]);
+      expect(descuentos.filas.every((d) => d.productoIds.contains(5)), isTrue);
     });
 
     testWidgets(
@@ -447,11 +512,7 @@ void main() {
       );
       await _tocar(tester, 'producto-guardar');
       expect(productos.editados, 1);
-      expect(descuentos.llamadas, [
-        'desactivar 1',
-        'editar 1 5 10',
-        'activar 1',
-      ]);
+      expect(descuentos.llamadas, ['guardar 1 5 10 activo']);
     });
 
     testWidgets('desactiva, modifica y elimina al guardar', (tester) async {
@@ -483,12 +544,8 @@ void main() {
       await _tocar(tester, 'producto-guardar');
 
       expect(productos.editados, 1);
-      expect(descuentos.llamadas, [
-        'eliminar 2',
-        // Se desactiva antes de editar para no chocar con el compartido (10+).
-        'desactivar 1',
-        'editar 1 2 12',
-      ]);
+      // Todo viaja en un solo guardado: la baja y el descuento ya desactivado.
+      expect(descuentos.llamadas, ['eliminar 2', 'guardar 1 2 12 inactivo']);
       // El descuento compartido no se toca.
       expect(descuentos.filas.any((d) => d.id == 3), isTrue);
     });
@@ -509,36 +566,39 @@ void main() {
       await _escribir(tester, 'producto-descuento-porcentaje-0', '8');
       await _tocar(tester, 'producto-guardar');
 
-      expect(descuentos.llamadas, [
-        'crear Olla · desde 6 piezas 6 8',
-        'asignar 100 a producto 5',
-      ]);
+      expect(descuentos.llamadas, ['crear Olla · desde 6 piezas 6 8']);
+      expect(descuentos.filas.single.productoIds, [5]);
     });
   });
 
   group('GestionDescuentos.guardarDeProducto', () {
     test(
-      'un reintento tras un fallo parcial no duplica lo ya creado',
+      'si el guardado falla no queda nada a medias y se puede reintentar',
       () async {
-        final gateway = _Descuentos()..fallosDeAsignar = 1;
+        final gateway = _Descuentos()..fallosDeGuardar = 1;
         final gestion = GestionDescuentos(gateway);
         final lineas = [
           LineaDescuento(cantidadMinima: '2', porcentaje: '10'),
           LineaDescuento(cantidadMinima: '5', porcentaje: '20'),
         ];
+        final eliminar = <int>{};
 
         await expectLater(
-          gestion.guardarDeProducto(7, 5, 'Olla', lineas, <int>{}),
+          gestion.guardarDeProducto(7, 5, 'Olla', lineas, eliminar),
           throwsA(isA<DescuentoFailure>()),
         );
-        // Se creó la primera pero no quedó asignada.
-        expect(gateway.filas, hasLength(1));
-        expect(lineas.first.id, 100);
+        expect(gateway.filas, isEmpty);
+        expect(lineas.first.id, isNull);
 
-        await gestion.guardarDeProducto(7, 5, 'Olla', lineas, <int>{});
-
+        await gestion.guardarDeProducto(7, 5, 'Olla', lineas, eliminar);
         expect(gateway.filas, hasLength(2));
         expect(gateway.filas.every((d) => d.productoIds.contains(5)), isTrue);
+        expect(lineas.map((l) => l.id), [100, 101]);
+
+        // Sin cambios pendientes no se vuelve a llamar al servidor.
+        gateway.llamadas.clear();
+        await gestion.guardarDeProducto(7, 5, 'Olla', lineas, eliminar);
+        expect(gateway.llamadas, isEmpty);
       },
     );
 

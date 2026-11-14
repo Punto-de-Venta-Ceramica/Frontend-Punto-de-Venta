@@ -104,6 +104,44 @@ class HttpDescuentoGateway implements DescuentoGateway {
   });
 
   @override
+  Future<List<Descuento>> deProducto(int negocioId, int productoId) =>
+      _seguro(() async {
+        final data = await _api.requestJson(
+          'GET',
+          '${_ruta(negocioId)}?productoId=$productoId',
+        );
+        return _lista(data).map(_descuento).toList(growable: false);
+      });
+
+  @override
+  Future<List<Descuento>> guardarDeProducto(
+    int negocioId,
+    int productoId, {
+    required List<DescuentoAGuardar> lineas,
+    required Set<int> eliminar,
+  }) => _seguro(() async {
+    final data = await _api.requestJson(
+      'PUT',
+      _ruta(negocioId, null, 'productos/$productoId'),
+      body: {
+        'eliminar': eliminar.toList(),
+        'lineas': [
+          for (final l in lineas)
+            {
+              'id': l.id,
+              'nombre': l.nombre,
+              'cantidadMinima': l.cantidadMinima,
+              'cantidadMaxima': l.cantidadMaxima,
+              'porcentaje': l.porcentaje,
+              'activo': l.activo,
+            },
+        ],
+      },
+    );
+    return _lista(data).map(_descuento).toList(growable: false);
+  });
+
+  @override
   Future<Descuento> crear(int negocioId, DatosDescuento datos) => _seguro(
     () async => _descuento(
       await _api.requestJson('POST', _ruta(negocioId), body: _cuerpo(datos)),
@@ -171,44 +209,31 @@ class HttpDescuentoGateway implements DescuentoGateway {
     ),
   );
 
-  /// El backend lista las categorías por área, así que se consolidan todas.
+  /// Productos, áreas y categorías son independientes: se piden a la vez.
   @override
   Future<CatalogoDescuento> catalogo(int negocioId) => _seguro(() async {
-    final productosJson = _lista(
-      await _api.requestJson(
-        'GET',
-        'api/productos/catalogo?negocioId=$negocioId',
-      ),
-    );
-    final areasJson = _lista(
-      await _api.requestJson('GET', 'api/negocios/$negocioId/areas'),
-    );
+    final respuestas = await Future.wait([
+      _api.requestJson('GET', 'api/productos/catalogo?negocioId=$negocioId'),
+      _api.requestJson('GET', 'api/negocios/$negocioId/areas'),
+      _api.requestJson('GET', 'api/negocios/$negocioId/categorias'),
+    ]);
+    final productosJson = _lista(respuestas[0]);
     final areas = [
-      for (final a in areasJson)
+      for (final a in _lista(respuestas[1]))
         ElementoCatalogo(
           id: _entero(_map(a)['id']),
           nombre: _texto(_map(a)['nombre']),
         ),
     ];
-    final categoriasPorArea = await Future.wait([
-      for (final area in areas)
-        _api
-            .requestJson(
-              'GET',
-              'api/negocios/$negocioId/areas/${area.id}/categorias',
-            )
-            .then(
-              (data) => [
-                for (final c in _lista(data))
-                  ElementoCatalogo(
-                    id: _entero(_map(c)['id']),
-                    nombre: _texto(_map(c)['nombre']),
-                    contexto: area.nombre,
-                  ),
-              ],
-            ),
-    ]);
-    final categorias = [for (final lista in categoriasPorArea) ...lista];
+    final nombreArea = {for (final a in areas) a.id: a.nombre};
+    final categorias = [
+      for (final c in _lista(respuestas[2]))
+        ElementoCatalogo(
+          id: _entero(_map(c)['id']),
+          nombre: _texto(_map(c)['nombre']),
+          contexto: nombreArea[_map(c)['areaId']] ?? '',
+        ),
+    ];
     final nombreCategoria = {for (final c in categorias) c.id: c.nombre};
     return CatalogoDescuento(
       productos: [

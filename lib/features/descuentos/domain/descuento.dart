@@ -189,8 +189,8 @@ class LineaDescuento {
     activo: d.activo,
   );
 
-  /// Última versión conocida en el servidor. El guardado la va actualizando, de
-  /// modo que reintentar tras un fallo parcial no duplica lo ya creado.
+  /// Última versión conocida en el servidor; el guardado la actualiza con lo
+  /// que el servidor devuelve.
   Descuento? original;
   String cantidadMinima;
   String porcentaje;
@@ -201,6 +201,17 @@ class LineaDescuento {
   double? get porcentajeNumero =>
       double.tryParse(porcentaje.trim().replaceAll(',', '.'));
 }
+
+/// Un descuento propio de un producto tal como debe quedar guardado. Sin `id`
+/// es un descuento nuevo.
+typedef DescuentoAGuardar = ({
+  int? id,
+  String nombre,
+  int cantidadMinima,
+  int? cantidadMaxima,
+  double porcentaje,
+  bool activo,
+});
 
 /// Descuentos que recibe un producto por asignación directa. Los [propios]
 /// existen solo para él y se editan desde su formulario; los [compartidos] se

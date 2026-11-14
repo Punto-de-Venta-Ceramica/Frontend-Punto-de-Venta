@@ -48,8 +48,21 @@ class CacheProductos implements ProductosEnCache {
 
 class _Entrada<T> {
   _Entrada(this.valor, this.guardado);
-  final T valor;
+  final Future<T> valor;
   final DateTime guardado;
+}
+
+/// Tope de entradas por mapa: cada búsqueda o producto abierto crea una y sin
+/// límite la memoria crecería durante toda la sesión.
+const _maximoEntradas = 200;
+
+/// Guarda [valor] como lo más reciente y, si se supera el tope, descarta lo
+/// más antiguo (los mapas conservan el orden de inserción).
+V _recordar<K, V>(Map<K, V> mapa, K clave, V valor) {
+  mapa.remove(clave);
+  mapa[clave] = valor;
+  if (mapa.length > _maximoEntradas) mapa.remove(mapa.keys.first);
+  return valor;
 }
 
 /// - Negocios, áreas, categorías y sucursales: casi no cambian ([vigenciaCatalogos]).
@@ -77,19 +90,26 @@ class CachedProductoGateway implements ProductoGateway {
   final _paginas = <String, _Entrada<PaginaProductos>>{};
   final _detalles = <int, Producto>{};
 
+  /// Las peticiones simultáneas a lo mismo comparten una sola llamada y los
+  /// errores no se guardan.
   Future<T> _vigenteO<K, T>(
     Map<K, _Entrada<T>> mapa,
     K clave,
     Duration vigencia,
     Future<T> Function() cargar,
-  ) async {
+  ) {
     final guardada = mapa[clave];
     if (guardada != null && _ahora().difference(guardada.guardado) < vigencia) {
       return guardada.valor;
     }
-    final valor = await cargar();
-    mapa[clave] = _Entrada(valor, _ahora());
-    return valor;
+    final nueva = _recordar(mapa, clave, _Entrada(cargar(), _ahora()));
+    nueva.valor.then<void>(
+      (_) {},
+      onError: (Object _) {
+        if (identical(mapa[clave], nueva)) mapa.remove(clave);
+      },
+    );
+    return nueva.valor;
   }
 
   static String _clavePagina(int negocioId, int pagina, FiltroProductos f) =>
@@ -97,7 +117,8 @@ class CachedProductoGateway implements ProductoGateway {
       '${f.precioMinimo}|${f.precioMaximo}|'
       '${f.buscar.trim().toLowerCase()}|$pagina';
 
-  Producto _guardar(Producto producto) => _detalles[producto.id] = producto;
+  Producto _guardar(Producto producto) =>
+      _recordar(_detalles, producto.id, producto);
 
   Producto? guardado(int id) => _detalles[id];
 
@@ -196,7 +217,11 @@ class CachedExistenciasGateway implements ExistenciasGateway {
 
   @override
   Future<List<ExistenciaSucursal>> porProducto(int productoId) async =>
-      _porProducto[productoId] = await _origen.porProducto(productoId);
+      _recordar(
+        _porProducto,
+        productoId,
+        await _origen.porProducto(productoId),
+      );
 
   @override
   Future<int> ajustar(int inventarioId, int cantidad) async {

@@ -58,6 +58,20 @@ class _Gateway implements DescuentoGateway {
   final llamadas = <String>[];
   DatosDescuento? ultimosDatos;
 
+  @override
+  Future<List<Descuento>> deProducto(int negocioId, int productoId) async => [
+    for (final d in filas)
+      if (d.productoIds.contains(productoId)) d,
+  ];
+
+  @override
+  Future<List<Descuento>> guardarDeProducto(
+    int negocioId,
+    int productoId, {
+    required List<DescuentoAGuardar> lineas,
+    required Set<int> eliminar,
+  }) => throw UnimplementedError();
+
   Descuento _con(
     Descuento d, {
     bool? activo,
@@ -440,6 +454,66 @@ void main() {
       },
     );
 
+    test('guarda los descuentos de un producto en una sola petición', () async {
+      final peticiones = <http.Request>[];
+      final api = ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient((r) async {
+          peticiones.add(r);
+          return _json(
+            r.method == 'GET'
+                ? '[]'
+                : '[{"id":4,"nombre":"Olla · desde 5 piezas","cantidadMinima":5,'
+                      '"cantidadMaxima":null,"porcentaje":8.5,"activo":true,'
+                      '"productoIds":[3],"categoriaIds":[],"areaIds":[]}]',
+          );
+        }),
+      );
+      addTearDown(api.close);
+      final gateway = HttpDescuentoGateway(api);
+
+      expect(await gateway.deProducto(7, 3), isEmpty);
+      expect(peticiones.last.method, 'GET');
+      expect(peticiones.last.url.path, '/api/negocios/7/descuentos');
+      expect(peticiones.last.url.query, 'productoId=3');
+
+      final guardados = await gateway.guardarDeProducto(
+        7,
+        3,
+        eliminar: {9},
+        lineas: [
+          (
+            id: null,
+            nombre: 'Olla · desde 5 piezas',
+            cantidadMinima: 5,
+            cantidadMaxima: null,
+            porcentaje: 8.5,
+            activo: true,
+          ),
+        ],
+      );
+
+      expect(guardados.single.id, 4);
+      expect(peticiones.last.method, 'PUT');
+      expect(
+        peticiones.last.url.path,
+        '/api/negocios/7/descuentos/productos/3',
+      );
+      expect(jsonDecode(peticiones.last.body), {
+        'eliminar': [9],
+        'lineas': [
+          {
+            'id': null,
+            'nombre': 'Olla · desde 5 piezas',
+            'cantidadMinima': 5,
+            'cantidadMaxima': null,
+            'porcentaje': 8.5,
+            'activo': true,
+          },
+        ],
+      });
+    });
+
     test(
       'el catálogo une productos, categorías y áreas con su contexto',
       () async {
@@ -453,7 +527,7 @@ void main() {
             if (ruta.endsWith('/areas')) {
               return _json('[{"id":20,"nombre":"Cocina"}]');
             }
-            if (ruta.endsWith('/areas/20/categorias')) {
+            if (ruta.endsWith('api/negocios/7/categorias')) {
               return _json('[{"id":10,"areaId":20,"nombre":"Ollas"}]');
             }
             return _json('[]', 404);

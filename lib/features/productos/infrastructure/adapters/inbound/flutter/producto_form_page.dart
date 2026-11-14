@@ -159,16 +159,26 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   Future<void> _cargar() async {
     try {
       final id = widget.negocio.id;
-      final areas = await widget.gestion.areas(id);
-      final categorias = await widget.gestion.categorias(id);
-      final sucursales = _edicion
-          ? <SucursalProducto>[]
+      // Son peticiones independientes: se lanzan a la vez.
+      final Future<List<SucursalProducto>> cargaSucursales = _edicion
+          ? Future.value(const [])
           : widget.sucursal != null
-          ? [widget.sucursal!]
-          : await widget.gestion.sucursales(id);
-      final descuentos = _edicion && widget.descuentos != null
-          ? await widget.descuentos!.delProducto(id, widget.producto!.id)
-          : const DescuentosDeProducto();
+          ? Future.value([widget.sucursal!])
+          : widget.gestion.sucursales(id);
+      final Future<DescuentosDeProducto> cargaDescuentos =
+          _edicion && widget.descuentos != null
+          ? widget.descuentos!.delProducto(id, widget.producto!.id)
+          : Future.value(const DescuentosDeProducto());
+      final cargas = await Future.wait<Object>([
+        widget.gestion.areas(id),
+        widget.gestion.categorias(id),
+        cargaSucursales,
+        cargaDescuentos,
+      ]);
+      final areas = cargas[0] as List<AreaProducto>;
+      final categorias = cargas[1] as List<CategoriaProducto>;
+      final sucursales = cargas[2] as List<SucursalProducto>;
+      final descuentos = cargas[3] as DescuentosDeProducto;
       if (!mounted) return;
       setState(() {
         for (final d in descuentos.propios) {
