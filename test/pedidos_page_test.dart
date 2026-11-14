@@ -10,8 +10,12 @@ import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 
 class _Gateway implements PedidosGateway {
+  _Gateway({this.caja = true});
+  final bool caja;
   DatosPedido? recibido;
   ApiException? errorAlRegistrar;
+  @override
+  Future<bool> cajaAbierta(int sucursalId) async => caja;
   @override
   Future<List<AvisoPedido>> notificaciones() async => [];
   @override
@@ -34,7 +38,14 @@ class _Gateway implements PedidosGateway {
   }
 
   @override
-  Future<List<Pedido>> listar(int id) async => [];
+  Future<PaginaPedidos> listar(
+    int id, {
+    String? estado,
+    int pagina = 0,
+  }) async =>
+      const PaginaPedidos(pedidos: [], pagina: 0, ultima: true, total: 0);
+  @override
+  Future<Pedido> obtener(int id) async => throw UnimplementedError();
   @override
   Future<void> pagar(int id, double monto, String metodo) async {}
   @override
@@ -110,20 +121,25 @@ void main() {
           .widget<TextFormField>(find.byType(TextFormField).at(1))
           .controller!
           .text,
-      '1',
+      isEmpty,
     );
     await tester.ensureVisible(find.text('Selecciona un producto'));
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Plato').last);
     await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     final campos = find.byType(TextFormField);
     await tester.enterText(campos.at(0), '  An4a   María  ');
     await tester.enterText(campos.at(1), '123');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     expect(
@@ -140,6 +156,8 @@ void main() {
     await tester.enterText(campos.at(3), '  5   de  Mayo  ');
     await tester.enterText(campos.at(4), '  Calle   12  #34  ');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     final total = find.byKey(const ValueKey('pedido-total-estimado'));
@@ -171,6 +189,8 @@ void main() {
     await tester.enterText(find.byType(TextFormField).first, '50');
     await tester.pump();
     await tester.ensureVisible(find.text('Registrar pedido').last);
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar pedido').last);
     await tester.pumpAndSettle();
     expect(gateway.recibido?.descripcion, 'Pedido de 5 piezas');
@@ -196,6 +216,9 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    // Con las leyendas el selector queda bajo la barra inferior en 800×600.
+    await tester.ensureVisible(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
@@ -229,6 +252,58 @@ void main() {
     expect(find.textContaining('Taza ·'), findsNothing);
   });
 
+  testWidgets('con la caja cerrada registra el pedido sin anticipo', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(416, 858);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final gateway = _Gateway(caja: false);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BarroTheme.data,
+        home: RegistrarPedidoPage(
+          gestion: GestionPedidos(gateway),
+          sucursalId: 1,
+          negocio: const NegocioProducto(id: 1, nombre: 'Cerámica'),
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Taza'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(1), '1');
+    await tester.ensureVisible(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    final campos = find.byType(TextFormField);
+    await tester.enterText(campos.at(0), 'Ana');
+    await tester.enterText(campos.at(1), '5512345678');
+    await tester.ensureVisible(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Caja cerrada'), findsOneWidget);
+    expect(find.text('Tipo de pago *'), findsNothing);
+    final anticipo = tester.widget<TextFormField>(
+      find.byType(TextFormField).last,
+    );
+    expect(anticipo.enabled, isFalse);
+    expect(anticipo.controller!.text, '0');
+
+    await tester.ensureVisible(find.text('Registrar pedido').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registrar pedido').last);
+    await tester.pumpAndSettle();
+    expect(gateway.recibido?.monto, 0);
+  });
+
   testWidgets('permite registrar sin dirección del cliente', (tester) async {
     tester.view.physicalSize = const Size(416, 858);
     tester.view.devicePixelRatio = 1;
@@ -251,16 +326,23 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     final campos = find.byType(TextFormField);
     await tester.enterText(campos.at(0), 'Ana');
     await tester.enterText(campos.at(1), '5512345678');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Registrar pedido').last);
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar pedido').last);
     await tester.pumpAndSettle();
     expect(gateway.recibido?.ciudad, isEmpty);
@@ -297,16 +379,23 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), 'Marco');
     await tester.enterText(find.byType(TextFormField).at(1), '5512345678');
     await tester.ensureVisible(find.text('Continuar'));
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, '30');
     await tester.ensureVisible(find.text('Registrar pedido').last);
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar pedido').last);
     await tester.pumpAndSettle();
     expect(
@@ -324,6 +413,8 @@ void main() {
       },
     );
     await tester.ensureVisible(find.text('Registrar pedido').last);
+    // Espera a que termine el desplazamiento por el foco del campo.
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar pedido').last);
     await tester.pumpAndSettle();
     expect(

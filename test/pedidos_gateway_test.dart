@@ -91,47 +91,121 @@ void main() {
     client.close();
   });
 
-  test('lee folio y saldos del backend', () async {
+  test('lista una página sin folio y envía estado y página', () async {
+    Uri? url;
     final client = ApiClient(
       baseUrl: 'http://localhost/',
-      client: MockClient(
-        (request) async => http.Response(
-          jsonEncode([
-            {
-              'id': 1,
-              'folio': 'PED-1',
-              'estado': 'ENCARGADO',
-              'tipoEntrega': 'LOCAL',
-              'descripcion': null,
-              'cliente': {
-                'nombre': 'Ana',
-                'telefono': '123',
-                'ciudad': 'Puebla',
-                'colonia': 'Centro',
-                'calle': 'Hidalgo 123',
+      client: MockClient((request) async {
+        url = request.url;
+        return http.Response(
+          jsonEncode({
+            'contenido': [
+              {
+                'id': 1,
+                'sucursalId': 1,
+                'tipoEntrega': 'LOCAL',
+                'estado': 'ENCARGADO',
+                'fechaCreacion': '2026-11-14T20:00:00Z',
+                'cliente': 'Ana',
+                'productos': [
+                  {'nombre': 'Taza', 'cantidad': 2},
+                ],
+                'total': 200,
+                'totalPagado': 50,
+                'saldoPendiente': 150,
+                'pagado': false,
               },
-              'productos': [
-                {
-                  'nombre': 'Taza',
-                  'cantidad': 2,
-                  'subtotal': 200,
-                  'porcentajeDescuento': 10,
-                },
-              ],
-              'total': 200,
-              'totalPagado': 50,
-              'saldoPendiente': 150,
-            },
-          ]),
+            ],
+            'pagina': 1,
+            'totalElementos': 21,
+            'ultima': true,
+          }),
           200,
-        ),
-      ),
+        );
+      }),
     );
-    final pedidos = await HttpPedidosGateway(client).listar(1);
-    expect(pedidos.single.folio, 'PED-1');
-    expect(pedidos.single.saldo, 150);
-    expect(pedidos.single.productos.single.cantidad, 2);
-    expect(pedidos.single.productos.single.porcentajeDescuento, 10);
+    final pagina = await HttpPedidosGateway(
+      client,
+    ).listar(1, estado: 'ENCARGADO', pagina: 1);
+    expect(url?.path, '/api/pedidos');
+    expect(url?.queryParameters, {
+      'sucursalId': '1',
+      'page': '1',
+      'estado': 'ENCARGADO',
+    });
+    expect(pagina.total, 21);
+    expect(pagina.pagina, 1);
+    expect(pagina.ultima, isTrue);
+    expect(pagina.pedidos.single.cliente, 'Ana');
+    expect(pagina.pedidos.single.saldo, 150);
+    expect(pagina.pedidos.single.productos.single.cantidad, 2);
+    client.close();
+  });
+
+  test('sin estado no envía el filtro', () async {
+    Uri? url;
+    final client = ApiClient(
+      baseUrl: 'http://localhost/',
+      client: MockClient((request) async {
+        url = request.url;
+        return http.Response(
+          jsonEncode({
+            'contenido': [],
+            'pagina': 0,
+            'totalElementos': 0,
+            'ultima': true,
+          }),
+          200,
+        );
+      }),
+    );
+    await HttpPedidosGateway(client).listar(3);
+    expect(url?.queryParameters, {'sucursalId': '3', 'page': '0'});
+    client.close();
+  });
+
+  test('lee el folio y los saldos del detalle', () async {
+    Uri? url;
+    final client = ApiClient(
+      baseUrl: 'http://localhost/',
+      client: MockClient((request) async {
+        url = request.url;
+        return http.Response(
+          jsonEncode({
+            'id': 1,
+            'folio': 'PED-1',
+            'estado': 'ENCARGADO',
+            'tipoEntrega': 'LOCAL',
+            'descripcion': null,
+            'cliente': {
+              'nombre': 'Ana',
+              'telefono': '123',
+              'ciudad': 'Puebla',
+              'colonia': 'Centro',
+              'calle': 'Hidalgo 123',
+            },
+            'productos': [
+              {
+                'nombre': 'Taza',
+                'cantidad': 2,
+                'subtotal': 200,
+                'porcentajeDescuento': 10,
+              },
+            ],
+            'total': 200,
+            'totalPagado': 50,
+            'saldoPendiente': 150,
+          }),
+          200,
+        );
+      }),
+    );
+    final pedido = await HttpPedidosGateway(client).obtener(1);
+    expect(url?.path, '/api/pedidos/1');
+    expect(pedido.folio, 'PED-1');
+    expect(pedido.saldo, 150);
+    expect(pedido.productos.single.cantidad, 2);
+    expect(pedido.productos.single.porcentajeDescuento, 10);
     client.close();
   });
 }

@@ -136,3 +136,84 @@ class DatosPedido {
       metodo;
   final double monto;
 }
+
+/// Estados del pedido para el filtro del listado.
+class EstadosPedido {
+  EstadosPedido._();
+
+  /// Filtro con el que abre el listado, para ambos roles: lo entregado,
+  /// que es lo que falta terminar.
+  static const porDefecto = 'ENTREGADO';
+
+  /// Estados del selector de la tarjeta, en orden.
+  static const progreso = ['ENCARGADO', 'PRODUCCION', 'ENTREGADO'];
+
+  /// Si [destino] puede elegirse desde [actual]. Mismas reglas que el backend:
+  /// solo el propietario pone en producción o marca como entregado, y no se
+  /// puede saltar de encargado a entregado. El empleado solo termina pedidos.
+  static bool puedeCambiar(
+    String actual,
+    String destino, {
+    required bool esPropietario,
+  }) => switch ((actual, destino)) {
+    ('ENCARGADO', 'PRODUCCION') => esPropietario,
+    ('PRODUCCION', 'ENTREGADO') => esPropietario,
+    _ => false,
+  };
+
+  static const todos = [
+    'ENCARGADO',
+    'PRODUCCION',
+    'ENTREGADO',
+    'TERMINADO',
+    'CANCELADO',
+  ];
+
+  static String etiqueta(String estado) => switch (estado) {
+    'ENCARGADO' => 'Encargado',
+    'PRODUCCION' => 'En producción',
+    'ENTREGADO' => 'Entregado',
+    'TERMINADO' => 'Terminado',
+    'CANCELADO' => 'Cancelado',
+    _ => estado,
+  };
+}
+
+/// Producto de una fila del listado: solo nombre y cantidad.
+class LineaResumen {
+  const LineaResumen({required this.nombre, required this.cantidad});
+  final String nombre;
+  final int cantidad;
+}
+
+/// Fila del listado paginado. No trae el folio: está en el detalle ([Pedido]).
+class ResumenPedido {
+  const ResumenPedido({
+    required this.id,
+    required this.estado,
+    required this.cliente,
+    required this.tipoEntrega,
+    required this.productos,
+    required this.total,
+    required this.pagado,
+    required this.saldo,
+  });
+  final int id;
+  final String estado, cliente, tipoEntrega;
+  final List<LineaResumen> productos;
+  final double total, pagado, saldo;
+}
+
+/// Una página del listado (pagina empieza en 0).
+class PaginaPedidos {
+  const PaginaPedidos({
+    required this.pedidos,
+    required this.pagina,
+    required this.ultima,
+    required this.total,
+  });
+  final List<ResumenPedido> pedidos;
+  final int pagina;
+  final bool ultima;
+  final int total;
+}
