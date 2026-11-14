@@ -8,7 +8,8 @@ class HttpExistenciasGateway implements ExistenciasGateway {
   final ApiClient _api;
 
   /// (negocioId, sucursalId) del empleado: consulta las existencias desde el
-  /// panel de su sucursal, pues el detalle por producto es del propietario.
+  /// panel de su sucursal, limitado al producto, pues el detalle por producto
+  /// en todas las sucursales es del propietario.
   final (int, int)? alcanceEmpleado;
 
   Future<T> _seguro<T>(Future<T> Function() operacion) async {
@@ -50,7 +51,8 @@ class HttpExistenciasGateway implements ExistenciasGateway {
         'GET',
         alcance == null
             ? 'api/inventario?productoId=$productoId'
-            : 'api/inventario?negocioId=${alcance.$1}&sucursalId=${alcance.$2}',
+            : 'api/inventario?negocioId=${alcance.$1}&sucursalId=${alcance.$2}'
+                  '&productoId=$productoId',
       );
       if (data is! List) throw const FormatException();
       return [

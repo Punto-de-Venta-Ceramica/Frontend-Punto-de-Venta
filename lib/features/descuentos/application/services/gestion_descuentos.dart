@@ -77,7 +77,7 @@ class GestionDescuentos implements GestionDescuentosUseCase {
     _validarIds(negocioId, productoId);
     final propios = <Descuento>[];
     final compartidos = <Descuento>[];
-    for (final d in await _gateway.listar(negocioId)) {
+    for (final d in await _gateway.deProducto(negocioId, productoId)) {
       if (!d.productoIds.contains(productoId)) continue;
       final soloEsteProducto =
           d.productoIds.length == 1 &&
@@ -104,98 +104,46 @@ class GestionDescuentos implements GestionDescuentosUseCase {
     if (errores.isNotEmpty) {
       throw const DescuentoFailure('Revisa los descuentos señalados.');
     }
-    for (final id in [...eliminar]) {
-      await _gateway.eliminar(negocioId, id);
-      eliminar.remove(id);
-    }
     final maximos = maximosDeLineas(lineas, compartidos: compartidos);
-    // El servidor no admite dos descuentos activos del producto con rangos
-    // cruzados, ni siquiera de forma momentánea. Los que cambian de rango se
-    // desactivan primero; al final cada uno vuelve al estado elegido, ya con
-    // rangos que no se cruzan.
-    for (final linea in lineas) {
-      final actual = linea.original;
-      if (actual != null &&
-          actual.activo &&
-          _cambiaRango(actual, linea, maximos[linea])) {
-        linea.original = await _gateway.cambiarEstado(
-          negocioId,
-          actual.id,
-          activo: false,
-        );
-      }
-    }
-    for (final linea in lineas) {
-      if (linea.original == null) {
-        final creado = await _gateway.crear(
-          negocioId,
-          DatosDescuento(
-            nombre: _nombreAutomatico(
-              nombreProducto,
-              linea.cantidadMinimaNumero!,
-            ),
-            cantidadMinima: linea.cantidadMinima,
-            cantidadMaxima: maximos[linea]?.toString() ?? '',
-            porcentaje: linea.porcentaje,
+    final hayCambios =
+        eliminar.isNotEmpty ||
+        lineas.any((l) => _cambia(l, maximos[l], productoId));
+    if (!hayCambios) return;
+    // El servidor valida los rangos con el resultado final, así que no hace
+    // falta desactivar ni reordenar nada antes.
+    final guardados = await _gateway.guardarDeProducto(
+      negocioId,
+      productoId,
+      eliminar: eliminar,
+      lineas: [
+        for (final linea in lineas)
+          (
+            id: linea.id,
+            nombre:
+                linea.original?.nombre ??
+                _nombreAutomatico(nombreProducto, linea.cantidadMinimaNumero!),
+            cantidadMinima: linea.cantidadMinimaNumero!,
+            cantidadMaxima: maximos[linea],
+            porcentaje: linea.porcentajeNumero!,
+            activo: linea.activo,
           ),
-        );
-        linea.original = creado;
-      }
-      await _sincronizar(negocioId, productoId, linea, maximos[linea]);
+      ],
+    );
+    for (var i = 0; i < lineas.length && i < guardados.length; i++) {
+      lineas[i].original = guardados[i];
     }
+    eliminar.clear();
   }
 
-  bool _cambiaRango(Descuento actual, LineaDescuento linea, int? maximo) =>
-      actual.cantidadMinima != linea.cantidadMinimaNumero ||
-      actual.cantidadMaxima != maximo;
-
-  /// Lleva al servidor lo que difiera entre la línea y su última versión conocida.
-  Future<void> _sincronizar(
-    int negocioId,
-    int productoId,
-    LineaDescuento linea,
-    int? maximo,
-  ) async {
-    var actual = linea.original!;
-    // Si quedará inactivo se desactiva antes que nada: así ni la edición ni la
-    // asignación chocan con los demás descuentos activos del producto.
-    if (!linea.activo && actual.activo) {
-      actual = linea.original = await _gateway.cambiarEstado(
-        negocioId,
-        actual.id,
-        activo: false,
-      );
-    }
-    final cambioDatos =
-        _cambiaRango(actual, linea, maximo) ||
-        actual.porcentaje != linea.porcentajeNumero;
-    if (cambioDatos) {
-      actual = linea.original = await _gateway.editar(
-        negocioId,
-        actual.id,
-        DatosDescuento(
-          nombre: actual.nombre,
-          cantidadMinima: linea.cantidadMinima,
-          cantidadMaxima: maximo?.toString() ?? '',
-          porcentaje: linea.porcentaje,
-        ),
-      );
-    }
-    if (!actual.productoIds.contains(productoId)) {
-      actual = linea.original = await _gateway.asignar(
-        negocioId,
-        actual.id,
-        DestinoDescuento.producto,
-        productoId,
-      );
-    }
-    if (linea.activo && !actual.activo) {
-      linea.original = await _gateway.cambiarEstado(
-        negocioId,
-        actual.id,
-        activo: true,
-      );
-    }
+  /// La línea difiere de su última versión conocida en el servidor.
+  bool _cambia(LineaDescuento linea, int? maximo, int productoId) {
+    final actual = linea.original;
+    return actual == null ||
+        actual.cantidadMinima != linea.cantidadMinimaNumero ||
+        actual.cantidadMaxima != maximo ||
+        actual.porcentaje != linea.porcentajeNumero ||
+        actual.activo != linea.activo ||
+        !actual.productoIds.contains(productoId);
   }
 
   String _nombreAutomatico(String producto, int minimo) {

@@ -120,4 +120,15 @@ void main() {
     await cache.catalogo(7);
     expect(origen.catalogos, 2);
   });
+
+  test('los descuentos de un producto salen de la lista vigente', () async {
+    // Sin lista guardada se piden al servidor solo los de ese producto.
+    await expectLater(cache.deProducto(7, 1), throwsUnimplementedError);
+    expect(origen.listados, 0);
+
+    final lista = await cache.listar(7);
+    final delProducto = await cache.deProducto(7, 1);
+    expect(origen.listados, 1);
+    expect(delProducto, lista.where((d) => d.productoIds.contains(1)).toList());
+  });
 }

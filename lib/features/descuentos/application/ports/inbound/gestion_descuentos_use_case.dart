@@ -20,8 +20,9 @@ abstract interface class GestionDescuentosUseCase {
 
   /// Deja los descuentos propios del producto como indican [lineas]: crea y
   /// asigna los nuevos, actualiza los modificados (datos y estado) y elimina los
-  /// ids de [eliminar]. Es progresivo: actualiza [lineas] y quita de [eliminar]
-  /// lo que ya hizo, así un reintento tras un fallo parcial continúa donde quedó.
+  /// ids de [eliminar]. Se aplica todo o nada: si falla no cambia nada y se
+  /// puede reintentar tal cual. Al terminar actualiza [lineas] y vacía
+  /// [eliminar].
   Future<void> guardarDeProducto(
     int negocioId,
     int productoId,

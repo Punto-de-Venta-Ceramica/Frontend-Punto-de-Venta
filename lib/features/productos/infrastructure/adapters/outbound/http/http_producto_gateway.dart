@@ -111,42 +111,36 @@ class HttpProductoGateway implements ProductoGateway {
   );
 
   @override
-  Future<List<AreaProducto>> areas(int negocioId) =>
-      _seguro(() => _areas(negocioId));
-
-  Future<List<AreaProducto>> _areas(int negocioId) async => _lista(
-    await _api.requestJson('GET', 'api/negocios/$negocioId/areas$_alcance'),
-    (data) {
-      final json = _map(data);
-      return AreaProducto(id: _id(json['id']), nombre: _texto(json['nombre']));
-    },
+  Future<List<AreaProducto>> areas(int negocioId) => _seguro(
+    () async => _lista(
+      await _api.requestJson('GET', 'api/negocios/$negocioId/areas$_alcance'),
+      (data) {
+        final json = _map(data);
+        return AreaProducto(
+          id: _id(json['id']),
+          nombre: _texto(json['nombre']),
+        );
+      },
+    ),
   );
 
-  /// El backend lista las categorías por área, así que se consolidan todas.
+  /// Todas las categorías del negocio en una sola petición.
   @override
   Future<List<CategoriaProducto>> categorias(int negocioId) => _seguro(
-    () async {
-      final areas = await _areas(negocioId);
-      final porArea = await Future.wait([
-        for (final area in areas)
-          _api
-              .requestJson(
-                'GET',
-                'api/negocios/$negocioId/areas/${area.id}/categorias$_alcance',
-              )
-              .then(
-                (data) => _lista(data, (item) {
-                  final json = _map(item);
-                  return CategoriaProducto(
-                    id: _id(json['id']),
-                    areaId: _id(json['areaId']),
-                    nombre: _texto(json['nombre']),
-                  );
-                }),
-              ),
-      ]);
-      return [for (final categorias in porArea) ...categorias];
-    },
+    () async => _lista(
+      await _api.requestJson(
+        'GET',
+        'api/negocios/$negocioId/categorias$_alcance',
+      ),
+      (data) {
+        final json = _map(data);
+        return CategoriaProducto(
+          id: _id(json['id']),
+          areaId: _id(json['areaId']),
+          nombre: _texto(json['nombre']),
+        );
+      },
+    ),
   );
 
   @override
