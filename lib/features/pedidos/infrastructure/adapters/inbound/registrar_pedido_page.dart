@@ -30,7 +30,7 @@ class RegistrarPedidoPage extends StatefulWidget {
 class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   final _form = GlobalKey<FormState>();
   final _descripcion = TextEditingController();
-  final _cantidad = TextEditingController(text: '1');
+  final _cantidad = TextEditingController();
   final _envio = TextEditingController();
   final _nombre = TextEditingController();
   final _telefono = TextEditingController();
@@ -45,6 +45,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   String _entrega = 'LOCAL', _metodo = 'EFECTIVO';
   String? _error;
   bool _cargando = true, _guardando = false;
+  // Sin turno de caja abierto no se cobra: el pedido se registra sin anticipo.
+  bool _cajaAbierta = true;
   int _paso = 0;
 
   @override
@@ -55,9 +57,16 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
 
   Future<void> _cargar() async {
     try {
-      final productos = await widget.gestion.productos(widget.sucursalId);
+      final (productos, cajaAbierta) = await (
+        widget.gestion.productos(widget.sucursalId),
+        widget.gestion.cajaAbierta(widget.sucursalId),
+      ).wait;
       if (mounted) {
-        setState(() => _productos = productos);
+        setState(() {
+          _productos = productos;
+          _cajaAbierta = cajaAbierta;
+          if (!cajaAbierta) _monto.text = '0';
+        });
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -355,6 +364,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     String? Function(String?)? validar,
     List<TextInputFormatter>? formatos,
     bool normalizarEspacios = false,
+    String? ayuda,
+    bool habilitado = true,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
     child: Column(
@@ -369,13 +380,21 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
           },
           child: TextFormField(
             controller: controller,
+            enabled: habilitado,
             maxLength: maxLength,
             keyboardType: teclado,
             inputFormatters: formatos,
-            decoration: productoDecoracion(
-              hint: hint,
-              error: _errores[campo],
-            ).copyWith(counterText: ''),
+            decoration: productoDecoracion(hint: hint, error: _errores[campo])
+                .copyWith(
+                  counterText: '',
+                  helperText: ayuda,
+                  helperMaxLines: 3,
+                  helperStyle: BarroTheme.type(
+                    12,
+                    18,
+                    color: BarroTheme.secondary,
+                  ),
+                ),
             validator: validar,
             onChanged: (_) {
               if (campo != null && _errores.containsKey(campo)) {
@@ -388,6 +407,15 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
           ),
         ),
       ],
+    ),
+  );
+
+  /// Leyenda bajo los campos que no son de texto (selectores).
+  Widget _leyenda(String texto) => Padding(
+    padding: const EdgeInsets.only(top: 6, left: 12, right: 12),
+    child: Text(
+      texto,
+      style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
     ),
   );
 
@@ -506,9 +534,11 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     }
     setState(() {
       _lineas.add(LineaPedido(productoId: _producto!, cantidad: cantidad));
+      // Deja listo el formulario para el siguiente producto.
       _producto = null;
-      _cantidad.text = '1';
+      _cantidad.clear();
       _limpiarErroresProductos();
+      _error = null;
     });
     return true;
   }
@@ -594,11 +624,16 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   hint: 'Ej. Personalizados con logotipo',
                   maxLength: 2000,
                   campo: 'descripcion',
+                  ayuda:
+                      'Opcional. Detalles generales del pedido, como personalización, colores o acabados.',
                   formatos: PedidoInputFormatters.texto,
                   normalizarEspacios: true,
                 ),
                 const ProductoEtiqueta('Producto *'),
                 _selectorProducto(),
+                _leyenda(
+                  'Busca y elige un producto del catálogo. Agrega uno a la vez.',
+                ),
                 if (_productos.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -610,10 +645,17 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                 _campo(
                   'Cantidad *',
                   _cantidad,
+                  hint: 'Ej. 10',
                   teclado: TextInputType.number,
                   maxLength: 10,
                   formatos: PedidoInputFormatters.cantidad,
-                  validar: PedidoInputFormatters.validarCantidad,
+                  // Vacía es válida si no hay producto por agregar (ya se agregaron).
+                  validar: (valor) =>
+                      _producto == null && (valor ?? '').trim().isEmpty
+                      ? null
+                      : PedidoInputFormatters.validarCantidad(valor),
+                  ayuda:
+                      'Número de piezas de este producto. El descuento de mayoreo se aplica según la cantidad.',
                 ),
                 ProductoBoton(
                   texto: 'Agregar producto',
@@ -657,12 +699,18 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   ],
                   onChanged: (v) => setState(() => _entrega = v!),
                 ),
+                _leyenda(
+                  'En sucursal: el cliente lo recoge. A domicilio: se envía a la dirección del cliente.',
+                ),
                 const SizedBox(height: 14),
                 _campo(
                   'Descripción de envío',
                   _envio,
+                  hint: 'Ej. Entregar por la tarde, casa con portón azul',
                   maxLength: 2000,
                   campo: 'descripcionEnvio',
+                  ayuda:
+                      'Opcional. Indicaciones para la entrega, como horario o referencias.',
                   formatos: PedidoInputFormatters.texto,
                   normalizarEspacios: true,
                 ),
@@ -675,6 +723,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   normalizarEspacios: true,
                   campo: 'cliente.nombre',
                   maxLength: 150,
+                  hint: 'Ej. Juan Pérez',
+                  ayuda: 'Nombre y apellidos del cliente, solo letras.',
                 ),
                 _campo(
                   'Teléfono *',
@@ -683,6 +733,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   formatos: PedidoInputFormatters.telefono,
                   campo: 'cliente.telefono',
                   maxLength: 10,
+                  hint: 'Ej. 4421234567',
+                  ayuda:
+                      '10 dígitos, sin espacios ni guiones. Se usa para avisarle del pedido.',
                   teclado: TextInputType.phone,
                 ),
                 _campo(
@@ -690,6 +743,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   _ciudad,
                   campo: 'cliente.ciudad',
                   maxLength: 120,
+                  hint: 'Ej. Querétaro',
+                  ayuda: 'Opcional. Ciudad del cliente o de entrega.',
                   formatos: PedidoInputFormatters.texto,
                   normalizarEspacios: true,
                 ),
@@ -698,6 +753,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   _colonia,
                   campo: 'cliente.colonia',
                   maxLength: 120,
+                  hint: 'Ej. Centro',
+                  ayuda: 'Opcional. Colonia o fraccionamiento.',
                   formatos: PedidoInputFormatters.texto,
                   normalizarEspacios: true,
                 ),
@@ -706,11 +763,21 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   _calle,
                   campo: 'cliente.calle',
                   maxLength: 200,
+                  hint: 'Ej. Hidalgo 123',
+                  ayuda:
+                      'Opcional. Calle y número; necesario si la entrega es a domicilio.',
                   formatos: PedidoInputFormatters.texto,
                   normalizarEspacios: true,
                 ),
               ] else ...[
                 const ProductoEtiqueta('Productos del pedido'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Revisa los productos y el total estimado antes de registrar.',
+                    style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                  ),
+                ),
                 for (final linea in _lineas)
                   Builder(
                     builder: (context) {
@@ -729,15 +796,23 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                     },
                   ),
                 _resumenImportes(),
-                const ProductoEtiqueta('Tipo de pago *'),
-                ProductoSelector<String>(
-                  valor: _metodo,
-                  opciones: const [
-                    ('EFECTIVO', 'Efectivo'),
-                    ('TARJETA', 'Tarjeta'),
-                  ],
-                  onChanged: (v) => setState(() => _metodo = v!),
-                ),
+                if (_cajaAbierta) ...[
+                  const ProductoEtiqueta('Tipo de pago *'),
+                  ProductoSelector<String>(
+                    valor: _metodo,
+                    opciones: const [
+                      ('EFECTIVO', 'Efectivo'),
+                      ('TARJETA', 'Tarjeta'),
+                    ],
+                    onChanged: (v) => setState(() => _metodo = v!),
+                  ),
+                  _leyenda('Método con el que el cliente paga el anticipo.'),
+                ] else
+                  const ProductoAviso(
+                    'Caja cerrada: abre un turno de caja para cobrar anticipo. '
+                    'Puedes registrar el pedido sin anticipo y cobrarlo después.',
+                    error: true,
+                  ),
                 const SizedBox(height: 14),
                 _campo(
                   'Anticipo *',
@@ -746,6 +821,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   campo: 'pagoInicial.monto',
                   formatos: PedidoInputFormatters.dinero,
                   validar: PedidoInputFormatters.validarDinero,
+                  habilitado: _cajaAbierta,
+                  ayuda: _cajaAbierta
+                      ? 'Lo que el cliente paga hoy. Escribe 0 si no deja anticipo; no puede superar el total.'
+                      : 'Sin turno de caja abierto el anticipo queda en \$0.',
                 ),
                 const SizedBox(height: 12),
                 const Text(

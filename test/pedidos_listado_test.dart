@@ -1,0 +1,251 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
+import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
+import 'package:punto_de_venta/features/pedidos/application/gestion_pedidos.dart';
+import 'package:punto_de_venta/features/pedidos/application/ports/pedidos_gateway.dart';
+import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
+import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/pedidos_page.dart';
+import 'package:punto_de_venta/features/productos/domain/producto.dart';
+
+class _IconoFalso implements IndicadorIcono {
+  @override
+  Future<void> actualizar(int cantidad) async {}
+}
+
+/// 21 pedidos: la primera página trae 20 y la segunda 1.
+class _Pedidos extends Fake implements PedidosGateway {
+  _Pedidos({this.estadoPedidos = 'ENCARGADO', this.caja = true});
+  final String estadoPedidos;
+  final bool caja;
+
+  @override
+  Future<bool> cajaAbierta(int sucursalId) async => caja;
+  final llamadas = <(String?, int)>[];
+  final consultados = <int>[];
+  final cambios = <(int, String)>[];
+
+  @override
+  Future<void> cambiarEstado(int pedidoId, String estado) async =>
+      cambios.add((pedidoId, estado));
+
+  ResumenPedido _resumen(int id) => ResumenPedido(
+    id: id,
+    estado: estadoPedidos,
+    cliente: 'Cliente $id',
+    tipoEntrega: 'LOCAL',
+    productos: const [LineaResumen(nombre: 'Taza', cantidad: 2)],
+    total: 200,
+    pagado: 50,
+    saldo: 150,
+  );
+
+  @override
+  Future<PaginaPedidos> listar(
+    int sucursalId, {
+    String? estado,
+    int pagina = 0,
+  }) async {
+    llamadas.add((estado, pagina));
+    return pagina == 0
+        ? PaginaPedidos(
+            pedidos: [for (var i = 1; i <= 20; i++) _resumen(i)],
+            pagina: 0,
+            ultima: false,
+            total: 21,
+          )
+        : PaginaPedidos(
+            pedidos: [_resumen(21)],
+            pagina: 1,
+            ultima: true,
+            total: 21,
+          );
+  }
+
+  @override
+  Future<Pedido> obtener(int pedidoId) async {
+    consultados.add(pedidoId);
+    return Pedido(
+      id: pedidoId,
+      folio: 'PED-000$pedidoId',
+      estado: estadoPedidos,
+      cliente: 'Cliente $pedidoId',
+      telefono: '2221234567',
+      ciudad: '',
+      colonia: '',
+      calle: '',
+      descripcion: '',
+      tipoEntrega: 'LOCAL',
+      productos: const [
+        DetallePedido(
+          nombre: 'Taza',
+          cantidad: 2,
+          subtotal: 200,
+          porcentajeDescuento: 0,
+        ),
+      ],
+      total: 200,
+      pagado: 50,
+      saldo: 150,
+    );
+  }
+}
+
+Widget _app(_Pedidos gateway, {bool esPropietario = false}) => MaterialApp(
+  theme: BarroTheme.data,
+  home: PedidosPage(
+    gestion: GestionPedidos(gateway),
+    sucursalId: 7,
+    negocio: NegocioProducto(id: 1, nombre: 'Barro'),
+    esPropietario: esPropietario,
+    contador: ContadorNotificaciones(
+      ApiClient(
+        baseUrl: 'http://localhost/',
+        client: MockClient(
+          (_) async => throw StateError('No se esperaba una solicitud'),
+        ),
+      ),
+      _IconoFalso(),
+    ),
+  ),
+);
+
+void _pantallaAlta(WidgetTester tester) {
+  // Alta para que la lista construya las 20 tarjetas y el botón de cargar más.
+  tester.view.physicalSize = const Size(800, 9000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+void main() {
+  testWidgets(
+    'el empleado abre filtrado por entregado, sin folio, de 20 en 20',
+    (tester) async {
+      _pantallaAlta(tester);
+      final gateway = _Pedidos(estadoPedidos: 'ENTREGADO');
+      await tester.pumpWidget(_app(gateway));
+      await tester.pumpAndSettle();
+
+      expect(gateway.llamadas, [('ENTREGADO', 0)]);
+      expect(find.text('Cliente 1'), findsOneWidget);
+      expect(find.textContaining('PED-'), findsNothing);
+      expect(find.text('Mostrando 20 de 21'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Cargar más pedidos'));
+      await tester.tap(find.text('Cargar más pedidos'));
+      await tester.pumpAndSettle();
+      expect(gateway.llamadas.last, ('ENTREGADO', 1));
+      expect(find.text('Cliente 21'), findsOneWidget);
+      expect(find.text('Mostrando 21 de 21'), findsOneWidget);
+      expect(find.text('Cargar más pedidos'), findsNothing);
+
+      await tester.ensureVisible(find.text('Todos'));
+      await tester.tap(find.text('Todos'));
+      await tester.pumpAndSettle();
+      expect(gateway.llamadas.last, (null, 0));
+      expect(find.text('Mostrando 20 de 21'), findsOneWidget);
+    },
+  );
+
+  testWidgets('abre el detalle en pantalla completa con el folio', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos();
+    await tester.pumpWidget(_app(gateway));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
+
+    expect(gateway.consultados, [1]);
+    expect(find.text('Detalle del pedido'), findsOneWidget);
+    expect(find.text('Folio: PED-0001'), findsOneWidget);
+    expect(find.text('Registrar pago'), findsOneWidget);
+    expect(find.text('Cancelar pedido'), findsNothing);
+    expect(find.text('Imprimir ticket'), findsNothing);
+    expect(find.text('Ver ticket'), findsNothing);
+  });
+
+  testWidgets('con la caja cerrada el detalle no deja registrar pagos', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos(caja: false);
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Caja cerrada'), findsOneWidget);
+    final pagar = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('Registrar pago'),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    expect(pagar.onPressed, isNull);
+    // Tiene $50 pagados: cancelarlo exige devolverlos desde una caja abierta.
+    final cancelar = tester.widget<OutlinedButton>(
+      find.ancestor(
+        of: find.text('Cancelar pedido'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    expect(cancelar.onPressed, isNull);
+  });
+
+  testWidgets(
+    'el detalle de un pedido terminado muestra los botones de ticket',
+    (tester) async {
+      _pantallaAlta(tester);
+      final gateway = _Pedidos(estadoPedidos: 'TERMINADO');
+      await tester.pumpWidget(_app(gateway));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ver detalle').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Imprimir ticket'), findsOneWidget);
+      expect(find.text('Ver ticket'), findsOneWidget);
+    },
+  );
+
+  testWidgets('el propietario abre en entregado y termina con confirmación', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos(estadoPedidos: 'ENTREGADO');
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
+    expect(gateway.llamadas, [('ENTREGADO', 0)]);
+
+    await tester.tap(find.text('Terminar pedido').first);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('¿Estás seguro de terminar'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(gateway.cambios, isEmpty);
+
+    await tester.tap(find.text('Terminar pedido').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sí, terminar'));
+    await tester.pumpAndSettle();
+    expect(gateway.cambios, [(1, 'TERMINADO')]);
+  });
+
+  test('reglas del selector de estado', () {
+    bool puede(String a, String b, bool propietario) =>
+        EstadosPedido.puedeCambiar(a, b, esPropietario: propietario);
+    expect(puede('ENCARGADO', 'PRODUCCION', true), isTrue);
+    expect(puede('ENCARGADO', 'PRODUCCION', false), isFalse);
+    expect(puede('ENCARGADO', 'ENTREGADO', true), isFalse);
+    expect(puede('PRODUCCION', 'ENTREGADO', true), isTrue);
+    expect(puede('PRODUCCION', 'ENTREGADO', false), isFalse);
+    expect(puede('ENTREGADO', 'ENCARGADO', true), isFalse);
+  });
+}

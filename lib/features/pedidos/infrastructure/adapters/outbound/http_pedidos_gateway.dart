@@ -38,39 +38,89 @@ class HttpPedidosGateway implements PedidosGateway {
         .toList(growable: false);
   }
 
+  Map<String, dynamic> _mapa(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return value;
+  }
+
   @override
-  Future<List<Pedido>> listar(int sucursalId) async =>
-      _lista(
-        await _api.requestJson('GET', 'api/pedidos?sucursalId=$sucursalId'),
-      ).map((j) {
-        final cliente = j['cliente'] as Map<String, dynamic>;
-        return Pedido(
-          id: j['id'] as int,
-          folio: j['folio'] as String,
-          estado: j['estado'] as String,
-          cliente: cliente['nombre'] as String,
-          telefono: cliente['telefono'] as String? ?? '',
-          ciudad: cliente['ciudad'] as String? ?? '',
-          colonia: cliente['colonia'] as String? ?? '',
-          calle: cliente['calle'] as String? ?? '',
-          descripcion: j['descripcion'] as String? ?? '',
-          tipoEntrega: j['tipoEntrega'] as String,
-          productos: _lista(j['productos'])
-              .map(
-                (p) => DetallePedido(
-                  nombre: p['nombre'] as String,
-                  cantidad: p['cantidad'] as int,
-                  subtotal: (p['subtotal'] as num).toDouble(),
-                  porcentajeDescuento: (p['porcentajeDescuento'] as num)
-                      .toDouble(),
-                ),
-              )
-              .toList(),
-          total: (j['total'] as num).toDouble(),
-          pagado: (j['totalPagado'] as num).toDouble(),
-          saldo: (j['saldoPendiente'] as num).toDouble(),
-        );
-      }).toList();
+  Future<PaginaPedidos> listar(
+    int sucursalId, {
+    String? estado,
+    int pagina = 0,
+  }) async {
+    final consulta = [
+      'sucursalId=$sucursalId',
+      'page=$pagina',
+      if (estado != null) 'estado=${Uri.encodeQueryComponent(estado)}',
+    ].join('&');
+    final json = _mapa(await _api.requestJson('GET', 'api/pedidos?$consulta'));
+    final total = json['totalElementos'];
+    final numeroPagina = json['pagina'];
+    final ultima = json['ultima'];
+    if (total is! int || numeroPagina is! int || ultima is! bool) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return PaginaPedidos(
+      pedidos: _lista(json['contenido'])
+          .map(
+            (j) => ResumenPedido(
+              id: j['id'] as int,
+              estado: j['estado'] as String,
+              cliente: j['cliente'] as String,
+              tipoEntrega: j['tipoEntrega'] as String,
+              productos: _lista(j['productos'])
+                  .map(
+                    (p) => LineaResumen(
+                      nombre: p['nombre'] as String,
+                      cantidad: p['cantidad'] as int,
+                    ),
+                  )
+                  .toList(),
+              total: (j['total'] as num).toDouble(),
+              pagado: (j['totalPagado'] as num).toDouble(),
+              saldo: (j['saldoPendiente'] as num).toDouble(),
+            ),
+          )
+          .toList(),
+      pagina: numeroPagina,
+      ultima: ultima,
+      total: total,
+    );
+  }
+
+  @override
+  Future<Pedido> obtener(int pedidoId) async {
+    final j = _mapa(await _api.requestJson('GET', 'api/pedidos/$pedidoId'));
+    final cliente = _mapa(j['cliente']);
+    return Pedido(
+      id: j['id'] as int,
+      folio: j['folio'] as String,
+      estado: j['estado'] as String,
+      cliente: cliente['nombre'] as String,
+      telefono: cliente['telefono'] as String? ?? '',
+      ciudad: cliente['ciudad'] as String? ?? '',
+      colonia: cliente['colonia'] as String? ?? '',
+      calle: cliente['calle'] as String? ?? '',
+      descripcion: j['descripcion'] as String? ?? '',
+      tipoEntrega: j['tipoEntrega'] as String,
+      productos: _lista(j['productos'])
+          .map(
+            (p) => DetallePedido(
+              nombre: p['nombre'] as String,
+              cantidad: p['cantidad'] as int,
+              subtotal: (p['subtotal'] as num).toDouble(),
+              porcentajeDescuento: (p['porcentajeDescuento'] as num).toDouble(),
+            ),
+          )
+          .toList(),
+      total: (j['total'] as num).toDouble(),
+      pagado: (j['totalPagado'] as num).toDouble(),
+      saldo: (j['saldoPendiente'] as num).toDouble(),
+    );
+  }
 
   @override
   Future<List<ProductoPedido>> productos(int sucursalId) async =>
@@ -98,6 +148,14 @@ class HttpPedidosGateway implements PedidosGateway {
             ),
           )
           .toList();
+
+  @override
+  Future<bool> cajaAbierta(int sucursalId) async => _lista(
+    await _api.requestJson(
+      'GET',
+      'api/pedidos/opciones/cortes?sucursalId=$sucursalId',
+    ),
+  ).isNotEmpty;
 
   @override
   Future<void> registrar(DatosPedido d) async {

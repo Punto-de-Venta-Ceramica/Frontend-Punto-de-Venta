@@ -1,0 +1,616 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
+import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/productos/domain/producto.dart';
+import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
+import '../../../application/gestion_pedidos.dart';
+import '../../../domain/pedido.dart';
+import 'pedido_input_formatters.dart';
+
+/// Detalle del pedido en pantalla completa, con el mismo estilo que el
+/// detalle de producto.
+///
+/// Consulta GET /api/pedidos/{id}, el único endpoint que devuelve el folio.
+/// Desde aquí se registran pagos y el propietario puede cancelar el pedido.
+class PedidoDetallePage extends StatefulWidget {
+  const PedidoDetallePage({
+    required this.gestion,
+    required this.pedidoId,
+    required this.sucursalId,
+    required this.esPropietario,
+    required this.negocio,
+    this.sucursalNombre,
+    super.key,
+  });
+  final GestionPedidos gestion;
+  final int pedidoId;
+  final int sucursalId;
+  final bool esPropietario;
+  final NegocioProducto negocio;
+  final String? sucursalNombre;
+  @override
+  State<PedidoDetallePage> createState() => _PedidoDetallePageState();
+}
+
+class _PedidoDetallePageState extends State<PedidoDetallePage> {
+  Pedido? _pedido;
+  String? _error;
+  String? _mensaje;
+  bool _cargando = true;
+  bool _busy = false;
+  // Sin turno de caja abierto no se cobran pagos ni se devuelve lo pagado.
+  bool _cajaAbierta = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+    try {
+      final (pedido, cajaAbierta) = await (
+        widget.gestion.obtener(widget.pedidoId),
+        widget.gestion.cajaAbierta(widget.sucursalId),
+      ).wait;
+      if (mounted) {
+        setState(() {
+          _pedido = pedido;
+          _cajaAbierta = cajaAbierta;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'No se pudo cargar el pedido.');
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  Future<void> _accion(Future<void> Function() operacion, String exito) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _mensaje = null;
+    });
+    try {
+      await operacion();
+      if (!mounted) return;
+      await _cargar();
+      if (mounted) setState(() => _mensaje = exito);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _copiarFolio(String folio) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: folio));
+      if (mounted) setState(() => _mensaje = 'Folio copiado.');
+    } catch (_) {
+      if (mounted) setState(() => _error = 'No se pudo copiar el folio.');
+    }
+  }
+
+  Future<void> _pagar(Pedido pedido) async {
+    final monto = TextEditingController();
+    String metodo = 'EFECTIVO';
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Nuevo pago'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Saldo pendiente: ${formatoPrecio(pedido.saldo)}'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: metodo,
+                decoration: const InputDecoration(labelText: 'Tipo de pago'),
+                items: const [
+                  DropdownMenuItem(value: 'EFECTIVO', child: Text('Efectivo')),
+                  DropdownMenuItem(value: 'TARJETA', child: Text('Tarjeta')),
+                ],
+                onChanged: (v) => update(() => metodo = v!),
+              ),
+              TextField(
+                controller: monto,
+                inputFormatters: PedidoInputFormatters.dinero,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad pagada',
+                  helperText: 'No puede superar el saldo pendiente.',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final valor = double.tryParse(monto.text.replaceAll(',', '.'));
+                if (valor == null ||
+                    !valor.isFinite ||
+                    valor <= 0 ||
+                    valor > pedido.saldo ||
+                    !RegExp(
+                      r'^\d+(?:[.,]\d{1,2})?$',
+                    ).hasMatch(monto.text.trim())) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Revisa el importe.')),
+                  );
+                  return;
+                }
+                Navigator.pop(context);
+                _accion(
+                  () => widget.gestion.pagar(pedido.id, valor, metodo),
+                  'Pago de ${formatoPrecio(valor)} registrado.',
+                );
+              },
+              child: const Text('Guardar pago'),
+            ),
+          ],
+        ),
+      ),
+    );
+    monto.dispose();
+  }
+
+  Future<void> _cancelar(Pedido pedido) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Cancelar este pedido?'),
+        content: Text(
+          'El pedido quedará cancelado y ya no podrá cambiar de estado ni recibir pagos.'
+          '${pedido.pagado > 0 ? '\n\nLo pagado (${formatoPrecio(pedido.pagado)}) se descontará del corte de caja de hoy como devolución.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancelar pedido'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar == true && mounted) {
+      await _accion(
+        () => widget.gestion.cancelar(pedido.id),
+        'Pedido cancelado.',
+      );
+    }
+  }
+
+  static String _entrega(String tipo) => switch (tipo) {
+    'LOCAL' => 'En sucursal',
+    'DOMICILIO' => 'A domicilio',
+    _ => tipo,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final pedido = _pedido;
+    return PopScope(
+      canPop: !_busy,
+      child: ProductoScaffold(
+        rol: widget.esPropietario ? 'Propietario' : 'Empleado',
+        onRefresh: _cargar,
+        children: [
+          const SizedBox(height: 14),
+          TextButton.icon(
+            onPressed: _busy ? null : () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              alignment: Alignment.centerLeft,
+            ),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text('Pedidos'),
+          ),
+          ProductoNegocioPanel(
+            negocio: widget.negocio,
+            sucursal: widget.sucursalNombre,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Detalle del pedido',
+            style: BarroTheme.type(28, 36, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 20),
+          if (_mensaje != null) ...[
+            ProductoAviso(_mensaje!),
+            const SizedBox(height: 20),
+          ],
+          if (_error != null) ...[
+            ProductoAviso(_error!, error: true),
+            const SizedBox(height: 20),
+          ],
+          if (pedido == null)
+            _cargando
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : Center(
+                    child: TextButton(
+                      onPressed: _cargar,
+                      child: const Text('Reintentar'),
+                    ),
+                  )
+          else ...[
+            if (_cargando) ...[
+              const LinearProgressIndicator(),
+              const SizedBox(height: 12),
+            ],
+            _tarjetaCliente(pedido),
+            const SizedBox(height: 24),
+            _titulo('Productos'),
+            const SizedBox(height: 12),
+            _tarjetaProductos(pedido),
+            const SizedBox(height: 24),
+            _titulo('Pagos'),
+            const SizedBox(height: 12),
+            _tarjetaPagos(pedido),
+            if (pedido.estado != 'CANCELADO') ...[
+              const SizedBox(height: 24),
+              // Cobrar o devolver mueve dinero: necesita un turno de caja abierto.
+              if (!_cajaAbierta &&
+                  (pedido.saldo > 0 ||
+                      (widget.esPropietario && pedido.pagado > 0))) ...[
+                const ProductoAviso(
+                  'Caja cerrada: abre un turno de caja para registrar pagos '
+                  'o cancelar pedidos con pagos.',
+                  error: true,
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (pedido.saldo > 0)
+                ProductoBoton(
+                  texto: 'Registrar pago',
+                  busy: _busy,
+                  onPressed: _busy || !_cajaAbierta
+                      ? null
+                      : () => _pagar(pedido),
+                ),
+              if (widget.esPropietario) ...[
+                const SizedBox(height: 12),
+                ProductoBotonPeligro(
+                  texto: 'Cancelar pedido',
+                  onPressed: _busy || (!_cajaAbierta && pedido.pagado > 0)
+                      ? null
+                      : () => _cancelar(pedido),
+                ),
+              ],
+            ],
+            // Tickets: solo en pedidos terminados, al final del detalle.
+            if (pedido.estado == 'TERMINADO') ...[
+              const SizedBox(height: 24),
+              ProductoBoton(
+                texto: 'Imprimir ticket',
+                onPressed: _busy ? null : () => _imprimirTicket(pedido),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _busy ? null : () => _verTicket(pedido),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: BarroTheme.primary,
+                    minimumSize: const Size.fromHeight(48),
+                    side: const BorderSide(color: BarroTheme.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: BarroTheme.type(14, 20, weight: FontWeight.w700),
+                  ),
+                  child: const Text('Ver ticket'),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Pendiente: la funcionalidad de impresión la implementa otro integrante.
+  void _imprimirTicket(Pedido pedido) {}
+
+  /// Pendiente: la vista del ticket la implementa otro integrante.
+  void _verTicket(Pedido pedido) {}
+
+  Widget _titulo(String texto) =>
+      Text(texto, style: BarroTheme.type(18, 26, weight: FontWeight.w700));
+
+  Widget _tarjetaCliente(Pedido pedido) {
+    final direccion = [pedido.calle, pedido.colonia, pedido.ciudad]
+        .map((parte) => parte.trim())
+        .where((parte) => parte.isNotEmpty)
+        .join(', ');
+    return _Tarjeta(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                pedido.cliente,
+                style: BarroTheme.type(22, 30, weight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _EstadoChip(pedido.estado),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Folio: ${pedido.folio}',
+                style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Copiar folio',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(
+                Icons.copy_outlined,
+                size: 18,
+                color: BarroTheme.primary,
+              ),
+              onPressed: () => _copiarFolio(pedido.folio),
+            ),
+          ],
+        ),
+        const Divider(height: 24, color: BarroTheme.border),
+        _Dato(icono: Icons.phone_outlined, texto: pedido.telefono),
+        if (direccion.isNotEmpty)
+          _Dato(icono: Icons.place_outlined, texto: direccion),
+        _Dato(
+          icono: Icons.local_shipping_outlined,
+          texto: _entrega(pedido.tipoEntrega),
+        ),
+        if (pedido.descripcion.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: productoSuave,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(pedido.descripcion, style: BarroTheme.type(14, 21)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _tarjetaProductos(Pedido pedido) => _Tarjeta(
+    children: [
+      for (final (i, d) in pedido.productos.indexed) ...[
+        if (i > 0) const Divider(height: 24, color: BarroTheme.border),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.nombre,
+                    style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formatoPiezas(d.cantidad),
+                    style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+                  ),
+                  if (d.porcentajeDescuento > 0) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: productoSuave,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.sell_outlined,
+                            size: 14,
+                            color: BarroTheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Mayoreo ${d.porcentajeDescuento.toStringAsFixed(2)} %',
+                            style: BarroTheme.type(
+                              11,
+                              16,
+                              weight: FontWeight.w700,
+                              color: BarroTheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Text(
+              formatoPrecio(d.subtotal),
+              style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ],
+    ],
+  );
+
+  Widget _tarjetaPagos(Pedido pedido) {
+    final liquidado = pedido.saldo == 0;
+    return _Tarjeta(
+      children: [
+        Text(
+          'Total',
+          style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              formatoPrecio(pedido.total),
+              style: BarroTheme.type(
+                30,
+                38,
+                weight: FontWeight.w700,
+                color: BarroTheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                'MXN',
+                style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 24, color: BarroTheme.border),
+        _Fila('Pagado', formatoPrecio(pedido.pagado)),
+        const SizedBox(height: 6),
+        _Fila('Saldo pendiente', formatoPrecio(pedido.saldo), fuerte: true),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: liquidado ? const Color(0xFFECF7F0) : productoSuave,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            liquidado ? 'Pagado' : 'Pago pendiente',
+            style: BarroTheme.type(
+              12,
+              18,
+              weight: FontWeight.w700,
+              color: liquidado ? BarroTheme.success : BarroTheme.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Contenedor blanco con borde, igual al del detalle de producto.
+class _Tarjeta extends StatelessWidget {
+  const _Tarjeta({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: BarroTheme.border),
+      borderRadius: BorderRadius.circular(21),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    ),
+  );
+}
+
+class _Dato extends StatelessWidget {
+  const _Dato({required this.icono, required this.texto});
+  final IconData icono;
+  final String texto;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icono, size: 18, color: BarroTheme.primary),
+        const SizedBox(width: 10),
+        Expanded(child: Text(texto, style: BarroTheme.type(14, 21))),
+      ],
+    ),
+  );
+}
+
+class _Fila extends StatelessWidget {
+  const _Fila(this.etiqueta, this.valor, {this.fuerte = false});
+  final String etiqueta, valor;
+  final bool fuerte;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(
+        etiqueta,
+        style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+      ),
+      Text(
+        valor,
+        style: BarroTheme.type(
+          fuerte ? 16 : 14,
+          fuerte ? 23 : 21,
+          weight: fuerte ? FontWeight.w700 : FontWeight.w400,
+        ),
+      ),
+    ],
+  );
+}
+
+class _EstadoChip extends StatelessWidget {
+  const _EstadoChip(this.estado);
+  final String estado;
+  @override
+  Widget build(BuildContext context) {
+    final (fondo, color) = switch (estado) {
+      'TERMINADO' => (const Color(0xFFECF7F0), BarroTheme.success),
+      'CANCELADO' => (productoErrorSuave, BarroTheme.error),
+      _ => (productoSuave, BarroTheme.primary),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        EstadosPedido.etiqueta(estado),
+        style: BarroTheme.type(12, 18, weight: FontWeight.w700, color: color),
+      ),
+    );
+  }
+}
