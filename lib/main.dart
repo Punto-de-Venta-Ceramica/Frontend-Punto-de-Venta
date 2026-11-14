@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show DefaultMaterialLocalizations;
 import 'package:http/http.dart' as http;
 import 'features/authentication/application/services/authentication_services.dart';
 import 'features/authentication/domain/auth_session.dart';
@@ -448,7 +451,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       onSesionExpirada: () => _cerrarSesion(context),
     ),
     // Mismo listado y detalle que el propietario, en solo lectura: el
-    // empleado únicamente ajusta existencias de su sucursal.
+    // empleado ajusta existencias de su sucursal y puede registrar productos.
     construirInventario: (s) => ProductosPage(
       gestion: () {
         final cache = _cacheEmpleado(s);
@@ -461,6 +464,10 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       negocioInicial: NegocioProducto(id: s.negocioId, nombre: s.negocio),
       sucursal: SucursalProducto(id: s.sucursalId, nombre: s.sucursal),
       soloLectura: true,
+      // El empleado registra productos solo en su sucursal y sin descuentos
+      // (sin `descuentos`, el formulario no muestra esa sección).
+      puedeRegistrar: true,
+      imagenes: _imagenesProducto,
       onSesionExpirada: () => _cerrarSesion(context),
     ),
     onCerrarSesion: () => _cerrarSesion(context),
@@ -479,6 +486,9 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: 'BarroControl',
     debugShowCheckedModeBanner: false,
+    // `dropdown_search` usa su propio material_ui: sus TextField piden las
+    // localizaciones de ese paquete (las de flutter/material.dart no sirven).
+    localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
     theme: BarroTheme.data,
     initialRoute: widget.initialRoute,
     home: _RestaurarSesion(store: widget.sessionStore, login: _login),

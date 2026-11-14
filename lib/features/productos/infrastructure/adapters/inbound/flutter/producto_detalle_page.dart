@@ -386,7 +386,27 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                   ],
                 ),
                 if (p.descuentos.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.local_offer_outlined,
+                        size: 18,
+                        color: BarroTheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Descuentos del producto',
+                        style: BarroTheme.type(14, 20, weight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Se aplican según la cantidad de piezas que se vendan.',
+                    style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                  ),
+                  const SizedBox(height: 10),
                   // Un chip por escalón: solo aplica aquel en que cae la cantidad.
                   Wrap(
                     key: const ValueKey('producto-detalle-descuentos'),
@@ -403,14 +423,27 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                             color: productoSuave,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Text(
-                            d.resumen,
-                            style: BarroTheme.type(
-                              11,
-                              16,
-                              weight: FontWeight.w700,
-                              color: BarroTheme.primary,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.sell_outlined,
+                                size: 14,
+                                color: BarroTheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  d.resumen,
+                                  style: BarroTheme.type(
+                                    11,
+                                    16,
+                                    weight: FontWeight.w700,
+                                    color: BarroTheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],

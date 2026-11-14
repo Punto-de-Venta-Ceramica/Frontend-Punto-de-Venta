@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show InputDecoration, ListTile, Material, MaterialType, OutlineInputBorder;
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
@@ -24,13 +28,21 @@ class ProductosPage extends StatefulWidget {
     this.descuentos,
     this.imagenes,
     this.soloLectura = false,
+    this.puedeRegistrar = false,
     super.key,
   });
   final GestionProductosUseCase gestion;
 
-  /// Vista del empleado: mismo listado y detalle, sin registrar, editar ni
-  /// eliminar productos; solo ajusta existencias de su sucursal.
+  /// Vista del empleado: mismo listado y detalle, sin editar ni eliminar
+  /// productos; solo ajusta existencias de su sucursal (y registra, si
+  /// [puedeRegistrar]).
   final bool soloLectura;
+
+  /// Con [soloLectura] (empleado) permite además registrar productos en su
+  /// sucursal. Editar y eliminar siguen siendo exclusivos del propietario.
+  final bool puedeRegistrar;
+
+  bool get _registra => !soloLectura || puedeRegistrar;
 
   /// Para registrar y editar los descuentos (varios, opcionales) de cada producto.
   final GestionDescuentosUseCase? descuentos;
@@ -166,17 +178,45 @@ class _ProductosPageState extends State<ProductosPage> {
         _total = pagina.total;
         _areas = resultados[1] as List<AreaProducto>;
         _categorias = resultados[2] as List<CategoriaProducto>;
-        _areaId = null;
         _sucursales = widget.sucursal == null
             ? resultados[3] as List<SucursalProducto>
             : const [];
+        _areaId = null;
         _sucursalFiltroId = null;
         _categoriaId = null;
         _busqueda.clear();
+        _busquedaConTexto = false;
         _precioMin.clear();
         _precioMax.clear();
         _errorPrecio = null;
         _busy = false;
+      });
+    } on ProductoFailure catch (e) {
+      if (mounted && carga == _carga) _fallo(e);
+    }
+  }
+
+  /// Al volver del detalle o del registro: se actualiza solo la lista, en
+  /// silencio. No hay pantalla de carga, se conserva el scroll, y la búsqueda y
+  /// los filtros siguen aplicados; áreas, categorías y sucursales no cambian
+  /// desde esas pantallas, así que no se vuelven a pedir.
+  Future<void> _refrescar({bool conservarMensaje = false}) async {
+    final negocio = _negocio;
+    if (negocio == null) return;
+    final carga = ++_carga;
+    if (!conservarMensaje && _mensaje != null) setState(() => _mensaje = null);
+    try {
+      final pagina = await widget.gestion.listar(
+        negocio.id,
+        filtro: _filtroActual,
+      );
+      if (!mounted || carga != _carga) return;
+      setState(() {
+        _productos = pagina.productos;
+        _pagina = pagina.pagina;
+        _ultima = pagina.ultima;
+        _total = pagina.total;
+        _listando = false;
       });
     } on ProductoFailure catch (e) {
       if (mounted && carga == _carga) _fallo(e);
@@ -203,7 +243,7 @@ class _ProductosPageState extends State<ProductosPage> {
     final error = min != null && max != null && min > max
         ? 'El precio mínimo no puede ser mayor que el máximo.'
         : null;
-    setState(() => _errorPrecio = error);
+    if (error != _errorPrecio) setState(() => _errorPrecio = error);
     if (error == null) {
       _espera = Timer(const Duration(milliseconds: 500), _aplicarFiltros);
     }
@@ -219,7 +259,14 @@ class _ProductosPageState extends State<ProductosPage> {
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'^\d{0,9}([.,]\d{0,2})?')),
         ],
-        decoration: productoDecoracion(hint: hint).copyWith(prefixText: '\$ '),
+        decoration: productoDecoracion(hint: hint).copyWith(
+          prefixIcon: Icon(
+            hint.contains('mín') ? Icons.arrow_downward : Icons.arrow_upward,
+            size: 18,
+            color: BarroTheme.primary,
+          ),
+          prefixText: '\$ ',
+        ),
         onChanged: _alCambiarPrecio,
       );
 
@@ -253,10 +300,80 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  void _alBuscar(String _) {
+  bool _busquedaConTexto = false;
+
+  void _alBuscar(String texto) {
     _espera?.cancel();
+    // Solo se reconstruye la pantalla cuando aparece o desaparece el botón de
+    // limpiar (no en cada tecla): evita repintar todas las tarjetas al escribir.
+    final conTexto = texto.isNotEmpty;
+    if (conTexto != _busquedaConTexto) {
+      setState(() => _busquedaConTexto = conTexto);
+    }
     _espera = Timer(const Duration(milliseconds: 400), _aplicarFiltros);
   }
+
+  bool get _hayFiltros =>
+      _busqueda.text.isNotEmpty ||
+      _areaId != null ||
+      _categoriaId != null ||
+      _sucursalFiltroId != null ||
+      _precioMin.text.isNotEmpty ||
+      _precioMax.text.isNotEmpty;
+
+  /// Quita la búsqueda y todos los filtros y recarga la lista completa.
+  void _limpiarFiltros() {
+    _espera?.cancel();
+    _quitarFoco();
+    setState(() {
+      _busqueda.clear();
+      _busquedaConTexto = false;
+      _precioMin.clear();
+      _precioMax.clear();
+      _areaId = null;
+      _categoriaId = null;
+      _sucursalFiltroId = null;
+      _errorPrecio = null;
+    });
+    _aplicarFiltros();
+  }
+
+  /// Aviso cuando la búsqueda o los filtros aplicados no traen productos.
+  Widget _sinResultados() => Container(
+    key: const ValueKey('productos-sin-resultados'),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: BarroTheme.border),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      children: [
+        const Icon(Icons.search_off, size: 40, color: BarroTheme.primary),
+        const SizedBox(height: 12),
+        Text(
+          'No hay productos con estos filtros',
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(16, 24, weight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Prueba con otra búsqueda o cambia los filtros aplicados.',
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+        ),
+        if (_hayFiltros) ...[
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _limpiarFiltros,
+            icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+            label: const Text('Limpiar filtros'),
+          ),
+        ],
+      ],
+    ),
+  );
 
   Future<void> _masProductos() async {
     final negocio = _negocio;
@@ -286,10 +403,11 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   Future<void> _registrar() async {
-    if (widget.soloLectura || _busy || _negocio == null || _error != null) {
+    if (!widget._registra || _busy || _negocio == null || _error != null) {
       return;
     }
     var registrados = 0;
+    _quitarFoco();
     final guardado = await Navigator.of(context).push<Producto>(
       MaterialPageRoute(
         builder: (_) => ProductoFormPage(
@@ -303,11 +421,12 @@ class _ProductosPageState extends State<ProductosPage> {
         ),
       ),
     );
+    _quitarFoco();
     if (!mounted || guardado == null) return;
     if (registrados > 1) {
       // Registro por lotes: se vuelve a la lista en lugar de abrir un solo producto.
       _mensaje = '$registrados productos registrados correctamente.';
-      await _cargar(_negocio!, conservarMensaje: true);
+      await _refrescar(conservarMensaje: true);
       return;
     }
     await _abrirDetalle(
@@ -319,6 +438,8 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   Future<void> _abrirDetalle(Producto producto, {String? mensaje}) async {
+    // Sin foco al salir, Flutter no devuelve el cursor (ni el teclado) al buscador.
+    _quitarFoco();
     final eliminado = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ProductoDetallePage(
@@ -334,9 +455,20 @@ class _ProductosPageState extends State<ProductosPage> {
         ),
       ),
     );
+    _quitarFoco();
     if (!mounted) return;
     if (eliminado == true) _mensaje = 'Producto eliminado correctamente.';
-    await _cargar(_negocio!, conservarMensaje: eliminado == true);
+    await _refrescar(conservarMensaje: eliminado == true);
+  }
+
+  /// Flutter devuelve el foco al campo que lo tenía al cerrar un menú o volver
+  /// de otra pantalla, y con él reaparece el teclado. Se suelta el foco antes de
+  /// abrir y, tras cerrar, en el siguiente frame.
+  void _quitarFoco() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => FocusManager.instance.primaryFocus?.unfocus(),
+    );
   }
 
   Widget _filtro(
@@ -344,42 +476,222 @@ class _ProductosPageState extends State<ProductosPage> {
     int? valor,
     List<(int, String)> opciones,
     ValueChanged<int?> onChanged,
+    IconData icono,
   ) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(
       color: productoSuave,
       borderRadius: BorderRadius.circular(10),
     ),
-    child: DropdownButtonHideUnderline(
-      child: DropdownButton<int?>(
-        value: valor,
-        isExpanded: true,
-        isDense: true,
-        icon: const Icon(
-          Icons.keyboard_arrow_down,
-          size: 16,
-          color: BarroTheme.primary,
-        ),
-        style: BarroTheme.type(
-          11,
-          16,
-          weight: FontWeight.w700,
-          color: BarroTheme.primary,
-        ),
-        items: [
-          DropdownMenuItem<int?>(value: null, child: Text(texto)),
-          for (final o in opciones)
-            DropdownMenuItem<int?>(
-              value: o.$1,
-              child: Text(o.$2, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: _busy || _listando ? null : onChanged,
-      ),
+    child: Row(
+      children: [
+        Icon(icono, size: 16, color: BarroTheme.primary),
+        const SizedBox(width: 6),
+        Expanded(child: _desplegable(texto, valor, opciones, onChanged)),
+      ],
     ),
   );
 
-  Widget _tarjeta(Producto p) => Container(
+  Widget _desplegable(
+    String texto,
+    int? valor,
+    List<(int, String)> opciones,
+    ValueChanged<int?> onChanged,
+  ) => DropdownButtonHideUnderline(
+    child: DropdownButton<int?>(
+      value: valor,
+      isExpanded: true,
+      isDense: true,
+      icon: const Icon(
+        Icons.keyboard_arrow_down,
+        size: 16,
+        color: BarroTheme.primary,
+      ),
+      style: BarroTheme.type(
+        11,
+        16,
+        weight: FontWeight.w700,
+        color: BarroTheme.primary,
+      ),
+      items: [
+        DropdownMenuItem<int?>(value: null, child: Text(texto)),
+        for (final o in opciones)
+          DropdownMenuItem<int?>(
+            value: o.$1,
+            child: Text(o.$2, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onTap: _quitarFoco,
+      onChanged: _busy || _listando ? null : onChanged,
+    ),
+  );
+
+  /// Desplegable de filtro con diseño propio. Con [conBuscador] muestra un
+  /// campo para filtrar por nombre en el cliente (la lista ya viene completa).
+  /// El botón "x" limpia el filtro (equivale a "Todas ...").
+  Widget _filtroDesplegable({
+    required Key key,
+    required String texto,
+    required String textoBuscador,
+    required int? valor,
+    required List<(int, String)> opciones,
+    required ValueChanged<int?> onChanged,
+    required IconData icono,
+    bool conBuscador = false,
+  }) {
+    (int, String)? seleccionado;
+    for (final o in opciones) {
+      if (o.$1 == valor) seleccionado = o;
+    }
+    final estilo = BarroTheme.type(13, 18, color: BarroTheme.primary);
+    // dropdown_search usa su propio material_ui: necesita un Material de ese
+    // paquete como ancestro (el de flutter/material.dart no le sirve).
+    return mui.Material(
+      type: mui.MaterialType.transparency,
+      child: DropdownSearch<(int, String)>(
+        key: key,
+        items: (filtro, _) => opciones,
+        selectedItem: seleccionado,
+        itemAsString: (o) => o.$2,
+        compareFn: (a, b) => a.$1 == b.$1,
+        filterFn: (o, filtro) =>
+            o.$2.toLowerCase().contains(filtro.trim().toLowerCase()),
+        enabled: !(_busy || _listando),
+        onBeforePopupOpening: (_) {
+          _quitarFoco();
+          return true;
+        },
+        onSelected: (o) {
+          onChanged(o?.$1);
+          _quitarFoco();
+        },
+        decoratorProps: DropDownDecoratorProps(
+          baseStyle: estilo.copyWith(fontWeight: FontWeight.w700),
+          decoration: mui.InputDecoration(
+            hintText: texto,
+            hintStyle: estilo.copyWith(fontWeight: FontWeight.w700),
+            prefixIcon: Icon(icono, size: 18, color: BarroTheme.primary),
+            filled: true,
+            fillColor: productoSuave,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 12,
+            ),
+            border: mui.OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: mui.OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: mui.OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: BarroTheme.primary),
+            ),
+          ),
+        ),
+        suffixProps: const DropdownSuffixProps(
+          clearButtonProps: ClearButtonProps(
+            isVisible: true,
+            icon: Icon(Icons.close, size: 16),
+            padding: EdgeInsets.zero,
+            tooltip: 'Quitar filtro',
+          ),
+          dropdownButtonProps: DropdownButtonProps(
+            iconClosed: Icon(
+              Icons.keyboard_arrow_down,
+              size: 20,
+              color: BarroTheme.primary,
+            ),
+            iconOpened: Icon(
+              Icons.keyboard_arrow_up,
+              size: 20,
+              color: BarroTheme.primary,
+            ),
+          ),
+        ),
+        popupProps: PopupProps.menu(
+          showSearchBox: conBuscador,
+          fit: FlexFit.loose,
+          constraints: const BoxConstraints(maxHeight: 320),
+          menuProps: MenuProps(
+            // Se usa `shape` (no `borderRadius`): MenuProps ya trae un shape por
+            // defecto y Material no admite ambos a la vez.
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 4,
+          ),
+          searchFieldProps: TextFieldProps(
+            autofocus: false,
+            style: BarroTheme.type(14, 21),
+            decoration: mui.InputDecoration(
+              hintText: textoBuscador,
+              hintStyle: BarroTheme.type(14, 21, color: BarroTheme.placeholder),
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 20,
+                color: BarroTheme.primary,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+              border: mui.OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: BarroTheme.border),
+              ),
+              enabledBorder: mui.OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: BarroTheme.border),
+              ),
+              focusedBorder: mui.OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: BarroTheme.primary),
+              ),
+            ),
+          ),
+          itemBuilder: (context, o, deshabilitado, activo) => mui.ListTile(
+            dense: true,
+            selected: activo,
+            selectedTileColor: productoSuave,
+            title: Text(
+              o.$2,
+              style: BarroTheme.type(
+                14,
+                20,
+                weight: activo ? FontWeight.w700 : FontWeight.w400,
+                color: activo ? BarroTheme.primary : BarroTheme.text,
+              ),
+            ),
+            trailing: activo
+                ? const Icon(Icons.check, size: 18, color: BarroTheme.primary)
+                : null,
+          ),
+          emptyBuilder: (context, busqueda) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              conBuscador && busqueda.isNotEmpty
+                  ? 'Sin resultados para "$busqueda"'
+                  : 'Sin opciones disponibles',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tarjeta(Producto p) => RepaintBoundary(
+    key: ValueKey('producto-tarjeta-${p.id}'),
+    child: _tarjetaContenido(p),
+  );
+
+  Widget _tarjetaContenido(Producto p) => Container(
     margin: const EdgeInsets.only(bottom: 16),
     decoration: BoxDecoration(
       color: Colors.white,
@@ -459,14 +771,14 @@ class _ProductosPageState extends State<ProductosPage> {
       ),
       const SizedBox(height: 24),
       Text(
-        widget.soloLectura
+        widget.soloLectura && !widget.puedeRegistrar
             ? 'Esta sucursal aún no tiene productos'
             : 'Agrega tu primer producto',
         textAlign: TextAlign.center,
         style: BarroTheme.type(20, 28, weight: FontWeight.w700),
       ),
       const SizedBox(height: 12),
-      if (!widget.soloLectura) ...[
+      if (widget._registra) ...[
         Text(
           widget.sucursal != null
               ? 'Registra su precio, clasificación y existencia en esta sucursal para empezar a vender.'
@@ -485,8 +797,15 @@ class _ProductosPageState extends State<ProductosPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Solo es "catálogo vacío" si no hay filtros: con una búsqueda o filtro sin
+    // resultados se mantiene la pantalla de filtros y se avisa que no hay
+    // coincidencias.
     final vacioTotal =
-        !_busy && _error == null && _negocio != null && _productos.isEmpty;
+        !_busy &&
+        _error == null &&
+        _negocio != null &&
+        _productos.isEmpty &&
+        !_hayFiltros;
     final categoriasVisibles = _categorias
         .where((c) => _areaId == null || c.areaId == _areaId)
         .toList();
@@ -560,7 +879,25 @@ class _ProductosPageState extends State<ProductosPage> {
             key: const ValueKey('producto-busqueda'),
             controller: _busqueda,
             style: BarroTheme.type(14, 21),
-            decoration: productoDecoracion(hint: 'Buscar producto...'),
+            decoration: productoDecoracion(hint: 'Buscar producto...').copyWith(
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 22,
+                color: BarroTheme.primary,
+              ),
+              suffixIcon: !_busquedaConTexto
+                  ? null
+                  : IconButton(
+                      tooltip: 'Limpiar búsqueda',
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              _busqueda.clear();
+                              _alBuscar('');
+                            },
+                    ),
+            ),
             onChanged: _alBuscar,
           ),
           const SizedBox(height: 12),
@@ -573,38 +910,38 @@ class _ProductosPageState extends State<ProductosPage> {
                 setState(() => _sucursalFiltroId = id);
                 _aplicarFiltros();
               },
+              Icons.storefront_outlined,
             ),
             const SizedBox(height: 12),
           ],
-          Row(
-            children: [
-              Expanded(
-                child: _filtro(
-                  'Todas las áreas',
-                  _areaId,
-                  [for (final a in _areas) (a.id, a.nombre)],
-                  (id) {
-                    setState(() {
-                      _areaId = id;
-                      _categoriaId = null;
-                    });
-                    _aplicarFiltros();
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _filtro(
-                  'Todas las categorías',
-                  _categoriaId,
-                  [for (final c in categoriasVisibles) (c.id, c.nombre)],
-                  (id) {
-                    setState(() => _categoriaId = id);
-                    _aplicarFiltros();
-                  },
-                ),
-              ),
-            ],
+          _filtroDesplegable(
+            key: ValueKey('filtro-area-$_areaId'),
+            texto: 'Todas las áreas',
+            textoBuscador: 'Buscar área...',
+            valor: _areaId,
+            opciones: [for (final a in _areas) (a.id, a.nombre)],
+            onChanged: (id) {
+              setState(() {
+                _areaId = id;
+                _categoriaId = null;
+              });
+              _aplicarFiltros();
+            },
+            icono: Icons.grid_view_outlined,
+          ),
+          const SizedBox(height: 12),
+          _filtroDesplegable(
+            key: ValueKey('filtro-categoria-$_areaId-$_categoriaId'),
+            texto: 'Todas las categorías',
+            textoBuscador: 'Buscar categoría...',
+            valor: _categoriaId,
+            opciones: [for (final c in categoriasVisibles) (c.id, c.nombre)],
+            onChanged: (id) {
+              setState(() => _categoriaId = id);
+              _aplicarFiltros();
+            },
+            icono: Icons.label_outline,
+            conBuscador: true,
           ),
           const SizedBox(height: 12),
           Row(
@@ -625,8 +962,20 @@ class _ProductosPageState extends State<ProductosPage> {
               style: BarroTheme.type(12, 18, color: BarroTheme.error),
             ),
           ],
-          const SizedBox(height: 16),
-          if (!widget.soloLectura) ...[
+          if (_hayFiltros) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const ValueKey('limpiar-filtros'),
+                onPressed: _busy || _listando ? null : _limpiarFiltros,
+                icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                label: const Text('Limpiar filtros'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (widget._registra) ...[
             ProductoBoton(texto: '+ Registrar producto', onPressed: _registrar),
             const SizedBox(height: 20),
           ] else
@@ -642,8 +991,7 @@ class _ProductosPageState extends State<ProductosPage> {
               child: Center(child: CircularProgressIndicator()),
             )
           else ...[
-            if (_productos.isEmpty)
-              const ProductoAviso('Ningún producto coincide con tu búsqueda.'),
+            if (_productos.isEmpty) _sinResultados(),
             for (final p in _productos) _tarjeta(p),
             if (!_ultima)
               Padding(

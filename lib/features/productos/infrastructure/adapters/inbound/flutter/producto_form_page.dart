@@ -330,46 +330,75 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ProductoImagen(
-              url: _imagenUrl,
-              bytes: _imagenPendiente?.bytes,
-              size: 104,
+            Expanded(
+              flex: 11,
+              child: LayoutBuilder(
+                builder: (context, restricciones) => ProductoImagen(
+                  url: _imagenUrl,
+                  bytes: _imagenPendiente?.bytes,
+                  size: 220,
+                  ancho: restricciones.maxWidth,
+                ),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
+              flex: 9,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _busy
-                            ? null
-                            : () => _seleccionarImagen(camara: false),
-                        icon: const Icon(Icons.upload_file_outlined),
-                        label: const Text('Subir imagen'),
-                      ),
-                      if (_permiteTomarFoto)
-                        OutlinedButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () => _seleccionarImagen(camara: true),
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          label: const Text('Tomar foto'),
-                        ),
-                      if (hayImagen)
-                        TextButton.icon(
-                          onPressed: _busy ? null : _quitarImagen,
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Quitar imagen'),
-                        ),
-                    ],
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    onPressed: _busy
+                        ? null
+                        : () => _seleccionarImagen(camara: false),
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: const Text('Subir imagen'),
                   ),
-                  Text(
-                    'PNG o JPEG. Se optimiza al guardar.',
-                    style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                  if (_permiteTomarFoto) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                      onPressed: _busy
+                          ? null
+                          : () => _seleccionarImagen(camara: true),
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: const Text('Tomar foto'),
+                    ),
+                  ],
+                  if (hayImagen) ...[
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: _busy ? null : _quitarImagen,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Quitar imagen'),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 18,
+                        color: BarroTheme.secondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Formatos permitidos: PNG o JPEG',
+                          style: BarroTheme.type(
+                            12,
+                            18,
+                            color: BarroTheme.secondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -663,54 +692,34 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         formatos: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
       ),
       const SizedBox(height: 20),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ProductoEtiqueta('Área *'),
-                ProductoSelector<int>(
-                  key: const ValueKey('producto-area'),
-                  valor: _areaId,
-                  hint: 'Área',
-                  opciones: [for (final a in _areas) (a.id, a.nombre)],
-                  onChanged: _busy
-                      ? null
-                      : (id) => setState(() {
-                          _areaId = id;
-                          _categoriaId = null;
-                          _errores.remove('categoriaId');
-                        }),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ProductoEtiqueta('Categoría *'),
-                ProductoSelector<int>(
-                  key: const ValueKey('producto-categoria'),
-                  valor: _categoriaId,
-                  hint: 'Categoría',
-                  opciones: [
-                    for (final c in categoriasDelArea) (c.id, c.nombre),
-                  ],
-                  onChanged: _busy || _areaId == null
-                      ? null
-                      : (id) => setState(() {
-                          _categoriaId = id;
-                          _errores.remove('categoriaId');
-                        }),
-                ),
-              ],
-            ),
-          ),
-        ],
+      const ProductoEtiqueta('Área *'),
+      ProductoSelector<int>(
+        key: const ValueKey('producto-area'),
+        valor: _areaId,
+        hint: 'Área',
+        opciones: [for (final a in _areas) (a.id, a.nombre)],
+        onChanged: _busy
+            ? null
+            : (id) => setState(() {
+                _areaId = id;
+                _categoriaId = null;
+                _errores.remove('categoriaId');
+              }),
+      ),
+      const SizedBox(height: 20),
+      const ProductoEtiqueta('Categoría *'),
+      ProductoSelectorBuscable(
+        key: const ValueKey('producto-categoria'),
+        valor: _categoriaId,
+        hint: 'Categoría',
+        textoBuscador: 'Buscar categoría...',
+        opciones: [for (final c in categoriasDelArea) (c.id, c.nombre)],
+        onChanged: _busy || _areaId == null
+            ? null
+            : (id) => setState(() {
+                _categoriaId = id;
+                _errores.remove('categoriaId');
+              }),
       ),
       if (_errores['categoriaId'] != null)
         Padding(

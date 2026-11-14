@@ -2,7 +2,11 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show InputDecoration, ListTile, Material, MaterialType, OutlineInputBorder;
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import '../../../../domain/producto.dart';
@@ -50,6 +54,8 @@ class ProductoImagen extends StatelessWidget {
       return Image.memory(
         seleccionada,
         fit: BoxFit.cover,
+        // Se decodifica al tamaño que se muestra, no la foto completa.
+        cacheWidth: tamaniosImagenCloudinary.last,
         errorBuilder: (_, _, _) => _placeholder(error: true),
       );
     }
@@ -379,6 +385,137 @@ class ProductoSelector<T> extends StatelessWidget {
     ],
     onChanged: onChanged,
   );
+}
+
+/// Desplegable con buscador por nombre (filtra en el cliente la lista completa).
+/// Usa `dropdown_search`, que trae su propio `material_ui`: por eso el `Material`
+/// y los tipos de decoración son los de ese paquete, y la app declara su
+/// delegado de localización en `MaterialApp`.
+class ProductoSelectorBuscable extends StatelessWidget {
+  const ProductoSelectorBuscable({
+    required this.valor,
+    required this.opciones,
+    required this.onChanged,
+    this.hint,
+    this.textoBuscador = 'Buscar...',
+    this.error,
+    super.key,
+  });
+  final int? valor;
+  final List<(int, String)> opciones;
+  final ValueChanged<int?>? onChanged;
+  final String? hint;
+  final String textoBuscador;
+  final String? error;
+
+  mui.OutlineInputBorder _borde(Color color) => mui.OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide(color: color),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    (int, String)? seleccionado;
+    for (final o in opciones) {
+      if (o.$1 == valor) seleccionado = o;
+    }
+    return mui.Material(
+      type: mui.MaterialType.transparency,
+      child: DropdownSearch<(int, String)>(
+        items: (filtro, _) => opciones,
+        selectedItem: seleccionado,
+        itemAsString: (o) => o.$2,
+        compareFn: (a, b) => a.$1 == b.$1,
+        filterFn: (o, filtro) =>
+            o.$2.toLowerCase().contains(filtro.trim().toLowerCase()),
+        enabled: onChanged != null,
+        onSelected: (o) => onChanged?.call(o?.$1),
+        decoratorProps: DropDownDecoratorProps(
+          baseStyle: BarroTheme.type(14, 21),
+          decoration: mui.InputDecoration(
+            hintText: hint,
+            hintStyle: BarroTheme.type(14, 21, color: BarroTheme.placeholder),
+            errorText: error,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            border: _borde(BarroTheme.border),
+            enabledBorder: _borde(BarroTheme.border),
+            disabledBorder: _borde(BarroTheme.border),
+            focusedBorder: _borde(BarroTheme.primary),
+            errorBorder: _borde(BarroTheme.error),
+          ),
+        ),
+        suffixProps: const DropdownSuffixProps(
+          dropdownButtonProps: DropdownButtonProps(
+            iconClosed: Icon(Icons.keyboard_arrow_down),
+            iconOpened: Icon(Icons.keyboard_arrow_up),
+          ),
+        ),
+        popupProps: PopupProps.menu(
+          showSearchBox: true,
+          fit: FlexFit.loose,
+          constraints: const BoxConstraints(maxHeight: 320),
+          menuProps: MenuProps(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 4,
+          ),
+          searchFieldProps: TextFieldProps(
+            style: BarroTheme.type(14, 21),
+            decoration: mui.InputDecoration(
+              hintText: textoBuscador,
+              hintStyle: BarroTheme.type(14, 21, color: BarroTheme.placeholder),
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 20,
+                color: BarroTheme.primary,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+              border: _borde(BarroTheme.border),
+              enabledBorder: _borde(BarroTheme.border),
+              focusedBorder: _borde(BarroTheme.primary),
+            ),
+          ),
+          itemBuilder: (context, o, deshabilitado, activo) => mui.ListTile(
+            dense: true,
+            selected: activo,
+            selectedTileColor: productoSuave,
+            title: Text(
+              o.$2,
+              style: BarroTheme.type(
+                14,
+                20,
+                weight: activo ? FontWeight.w700 : FontWeight.w400,
+                color: activo ? BarroTheme.primary : BarroTheme.text,
+              ),
+            ),
+            trailing: activo
+                ? const Icon(Icons.check, size: 18, color: BarroTheme.primary)
+                : null,
+          ),
+          emptyBuilder: (context, busqueda) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              busqueda.isNotEmpty
+                  ? 'Sin resultados para "$busqueda"'
+                  : 'Sin opciones disponibles',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class ProductoPasos extends StatelessWidget {
