@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import '../../../../domain/corte_caja.dart';
 
 const Color corteSuave = Color(0xFFF7E7DF);
@@ -56,39 +56,7 @@ class CorteCabecera extends StatelessWidget {
   final bool esPropietario;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SvgPicture.asset(
-        'assets/icons/brand.svg',
-        width: 36,
-        height: 36,
-        semanticsLabel: 'Logo de BarroControl',
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          'BarroControl',
-          style: BarroTheme.type(21, 28, weight: FontWeight.w700),
-        ),
-      ),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: corteSuave,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          esPropietario ? 'Propietario' : 'Empleado',
-          style: BarroTheme.type(
-            12,
-            17,
-            weight: FontWeight.w600,
-            color: BarroTheme.primary,
-          ),
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) => const BarroHeader();
 }
 
 /// Tarjeta informativa de la sucursal, fecha y responsable.

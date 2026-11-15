@@ -67,6 +67,7 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
         refreshExpiresAt: refreshExpiry,
         userId: data['usuarioId'] as int,
         role: data['rol'] as String,
+        forcePasswordChange: data['forcePasswordChange'] == true,
       );
     } on ApiException catch (error) {
       throw _failure(error);
@@ -95,6 +96,60 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
       );
     } on ApiException catch (error) {
       throw _failure(error);
+    }
+  }
+
+  @override
+  Future<void> cambiarPassword({
+    required String passwordActual,
+    required String nuevaPassword,
+    required String confirmarPassword,
+  }) async {
+    try {
+      await _api.patchJson('api/auth/password', {
+        'passwordActual': passwordActual,
+        'nuevaPassword': nuevaPassword,
+        'confirmarPassword': confirmarPassword,
+      });
+    } on ApiException catch (error) {
+      throw AuthenticationFailure(error.detail ?? error.message);
+    }
+  }
+
+  @override
+  Future<void> solicitarCodigo(String correo) async {
+    try {
+      await _api.requestJson(
+        'POST',
+        'api/auth/forgot',
+        body: {'correo': correo.trim()},
+        authenticated: false,
+      );
+    } on ApiException catch (error) {
+      throw AuthenticationFailure(error.detail ?? error.message);
+    }
+  }
+
+  @override
+  Future<void> restablecerPassword({
+    required String correo,
+    required String codigo,
+    required String nuevaPassword,
+    required String confirmarPassword,
+  }) async {
+    try {
+      await _api.patchJson(
+        'api/auth/forgot/password',
+        {
+          'correo': correo.trim(),
+          'codigo': codigo.trim(),
+          'nuevaPassword': nuevaPassword,
+          'confirmarPassword': confirmarPassword,
+        },
+        authenticated: false,
+      );
+    } on ApiException catch (error) {
+      throw AuthenticationFailure(error.detail ?? error.message);
     }
   }
 }

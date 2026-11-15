@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart'
     as mui
     show InputDecoration, ListTile, Material, MaterialType, OutlineInputBorder;
 import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
@@ -425,8 +426,13 @@ class _ProductosPageState extends State<ProductosPage> {
     if (!mounted || guardado == null) return;
     if (registrados > 1) {
       // Registro por lotes: se vuelve a la lista en lugar de abrir un solo producto.
-      _mensaje = '$registrados productos registrados correctamente.';
-      await _refrescar(conservarMensaje: true);
+      _mensaje = null;
+      AlertaServicio.registro(
+        context,
+        'Productos',
+        detalle: '$registrados productos registrados correctamente.',
+      );
+      await _refrescar(conservarMensaje: false);
       return;
     }
     await _abrirDetalle(
@@ -457,8 +463,11 @@ class _ProductosPageState extends State<ProductosPage> {
     );
     _quitarFoco();
     if (!mounted) return;
-    if (eliminado == true) _mensaje = 'Producto eliminado correctamente.';
-    await _refrescar(conservarMensaje: eliminado == true);
+    if (eliminado == true) {
+      _mensaje = null;
+      AlertaServicio.eliminacion(context, 'Producto');
+    }
+    await _refrescar(conservarMensaje: false);
   }
 
   /// Flutter devuelve el foco al campo que lo tenía al cerrar un menú o volver

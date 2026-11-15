@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
 import '../../../../application/ports/inbound/gestion_catalogo_use_case.dart';
 import '../../../../domain/catalogo.dart';
 import 'area_detalle_controller_page.dart';
@@ -102,12 +103,16 @@ class _CatalogoPageState extends State<CatalogoPage> {
         ),
       );
       if (!mounted) return;
-      var mensaje = resultado == null ? null : 'Área registrada correctamente.';
-      if (resultado != null && resultado.abrirDetalle) {
-        final eliminada = await _detalle(resultado.area, mensaje: mensaje);
-        if (eliminada == true) mensaje = 'Área eliminada correctamente.';
+      if (resultado != null) {
+        AlertaServicio.registro(context, 'Área');
       }
-      if (mounted) await _cargar(mensaje: mensaje);
+      if (resultado != null && resultado.abrirDetalle) {
+        final eliminada = await _detalle(resultado.area);
+        if (eliminada == true && mounted) {
+          AlertaServicio.eliminacion(context, 'Área');
+        }
+      }
+      if (mounted) await _cargar();
     } finally {
       if (mounted) setState(() => _navegando = false);
     }
@@ -120,9 +125,10 @@ class _CatalogoPageState extends State<CatalogoPage> {
       final area = _areas.firstWhere((r) => r.area.id == id).area;
       final eliminada = await _detalle(area);
       if (mounted) {
-        await _cargar(
-          mensaje: eliminada == true ? 'Área eliminada correctamente.' : null,
-        );
+        if (eliminada == true) {
+          AlertaServicio.eliminacion(context, 'Área');
+        }
+        await _cargar();
       }
     } finally {
       if (mounted) setState(() => _navegando = false);

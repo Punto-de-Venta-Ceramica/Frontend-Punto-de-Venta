@@ -79,35 +79,142 @@ class _EmpleadoInicioPageState extends State<EmpleadoInicioPage> {
     _pantallas.clear();
   });
 
-  void _cambiarSucursal() => setState(() {
-    _actual = null;
-    _pantallas.clear();
-  });
+  void _abrirPerfil() {
+    if (BarroHeader.accionPerfilGlobal != null) {
+      BarroHeader.accionPerfilGlobal!(context);
+    }
+  }
 
-  void _abrirPerfil() => showModalBottomSheet<void>(
-    context: context,
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_sucursales.length > 1)
-            ListTile(
-              leading: const Icon(Icons.store_outlined),
-              title: const Text('Cambiar de sucursal'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _cambiarSucursal();
-              },
-            ),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded),
-            title: const Text('Cerrar sesión'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              widget.onCerrarSesion();
-            },
+  Widget _tarjetaSucursal(SucursalAsignada s) => Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: const Color(0xFFF0E5E0)),
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0A000000),
+          blurRadius: 10,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => _elegir(s),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7E7DF),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.storefront_rounded,
+                      size: 28,
+                      color: BarroTheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.sucursal,
+                          style: BarroTheme.type(
+                            18,
+                            24,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.business_rounded,
+                              size: 14,
+                              color: BarroTheme.secondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                s.negocio,
+                                overflow: TextOverflow.ellipsis,
+                                style: BarroTheme.type(
+                                  13,
+                                  18,
+                                  color: BarroTheme.secondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: BarroTheme.primary,
+                    size: 26,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECF7F1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Sucursal asignada',
+                      style: BarroTheme.type(
+                        11,
+                        16,
+                        weight: FontWeight.w600,
+                        color: const Color(0xFF1B6A3E),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Ingresar',
+                        style: BarroTheme.type(
+                          13,
+                          18,
+                          weight: FontWeight.w700,
+                          color: BarroTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                        color: BarroTheme.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     ),
   );
@@ -166,33 +273,48 @@ class _EmpleadoInicioPageState extends State<EmpleadoInicioPage> {
     final actual = _actual;
     if (actual == null) {
       return Scaffold(
+        backgroundColor: BarroTheme.background,
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: const BoxConstraints(maxWidth: 480),
               child: ListView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 children: [
                   const BarroHeader(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
                   Text(
                     '¿En qué sucursal trabajas hoy?',
-                    style: BarroTheme.type(24, 32, weight: FontWeight.w700),
+                    style: BarroTheme.type(26, 34, weight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 16),
-                  for (final s in _sucursales)
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.store_outlined),
-                        title: Text(s.sucursal),
-                        subtitle: Text(s.negocio),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _elegir(s),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Selecciona la sucursal para registrar pedidos, caja e inventario.',
+                    style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    '${_sucursales.length} ${_sucursales.length == 1 ? 'sucursal asignada' : 'sucursales asignadas'}',
+                    style: BarroTheme.type(
+                      13,
+                      18,
+                      weight: FontWeight.w600,
+                      color: BarroTheme.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  for (final s in _sucursales) _tarjetaSucursal(s),
+                  const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: widget.onCerrarSesion,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                  TextButton(
-                    onPressed: widget.onCerrarSesion,
-                    child: const Text('Cerrar sesión'),
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Cerrar sesión'),
                   ),
                 ],
               ),

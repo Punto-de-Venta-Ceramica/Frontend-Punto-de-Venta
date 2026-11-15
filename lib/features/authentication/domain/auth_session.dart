@@ -6,6 +6,7 @@ class AuthSession {
     required this.refreshExpiresAt,
     required this.userId,
     required this.role,
+    this.forcePasswordChange = false,
   });
 
   /// Token de acceso (corto). El [ApiClient] lo renueva solo, sin avisar al usuario.
@@ -17,6 +18,9 @@ class AuthSession {
   final DateTime refreshExpiresAt;
   final int userId;
   final String role;
+
+  /// Si es true el usuario debe cambiar su contraseña antes de continuar.
+  final bool forcePasswordChange;
 
   /// La sesión terminó: ya no se puede renovar el acceso y hay que iniciar sesión otra vez.
   bool get isExpired => !refreshExpiresAt.isAfter(DateTime.now());

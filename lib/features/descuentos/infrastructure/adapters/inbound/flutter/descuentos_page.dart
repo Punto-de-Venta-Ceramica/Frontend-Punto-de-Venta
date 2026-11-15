@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
@@ -28,7 +29,6 @@ class _DescuentosPageState extends State<DescuentosPage> {
   List<Descuento> _descuentos = [];
   bool _busy = true;
   String? _error;
-  String? _mensaje;
 
   @override
   void initState() {
@@ -36,11 +36,10 @@ class _DescuentosPageState extends State<DescuentosPage> {
     _cargar();
   }
 
-  Future<void> _cargar({bool conservarMensaje = false}) async {
+  Future<void> _cargar() async {
     setState(() {
       _busy = true;
       _error = null;
-      if (!conservarMensaje) _mensaje = null;
     });
     try {
       final descuentos = await widget.gestion.listar(widget.negocio.id);
@@ -75,8 +74,14 @@ class _DescuentosPageState extends State<DescuentosPage> {
       ),
     );
     if (!mounted || resultado == null) return;
-    setState(() => _mensaje = resultado.mensaje);
-    await _cargar(conservarMensaje: true);
+    if (resultado.eliminado) {
+      AlertaServicio.eliminacion(context, 'Descuento');
+    } else if (resultado.mensaje.contains('registrado')) {
+      AlertaServicio.registro(context, 'Descuento');
+    } else {
+      AlertaServicio.actualizacion(context, 'Descuento');
+    }
+    await _cargar();
   }
 
   Future<void> _administrar(Descuento descuento) async {
@@ -194,10 +199,6 @@ class _DescuentosPageState extends State<DescuentosPage> {
         style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
       ),
       const SizedBox(height: 20),
-      if (_mensaje != null) ...[
-        ProductoAviso(_mensaje!),
-        const SizedBox(height: 20),
-      ],
       if (_busy)
         const Padding(
           padding: EdgeInsets.all(40),
