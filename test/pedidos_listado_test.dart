@@ -164,6 +164,10 @@ void main() {
     expect(gateway.consultados, [1]);
     expect(find.text('Detalle del pedido'), findsOneWidget);
     expect(find.text('Folio: PED-0001'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('pedido-producto-imagen-0')),
+      findsOneWidget,
+    );
     expect(find.text('Registrar pago'), findsOneWidget);
     expect(find.text('Cancelar pedido'), findsNothing);
     expect(find.text('Imprimir ticket'), findsNothing);

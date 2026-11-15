@@ -232,6 +232,10 @@ class SucursalNavegacion extends StatelessWidget {
                         onInventario!();
                         return;
                       }
+                      if (item.$2 == 'Caja' && onCaja != null) {
+                        onCaja!();
+                        return;
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(

@@ -46,9 +46,12 @@ class ProductoPedido {
   bool aplicaDescuento(int cantidad) => porcentajePara(cantidad) != null;
 
   /// Estima el subtotal en centavos, con el redondeo por línea del backend.
-  BigInt subtotalEstimadoCentavos(int cantidad) {
+  /// Sin [conDescuento] se calcula a precio de lista.
+  BigInt subtotalEstimadoCentavos(int cantidad, {bool conDescuento = true}) {
     final precioCentavos = BigInt.from((precio * 100).round());
-    final descuento = ((porcentajePara(cantidad) ?? 0) * 100).round();
+    final descuento = conDescuento
+        ? ((porcentajePara(cantidad) ?? 0) * 100).round()
+        : 0;
     final importe =
         precioCentavos * BigInt.from(cantidad) * BigInt.from(10000 - descuento);
     return (importe + BigInt.from(5000)) ~/ BigInt.from(10000);
@@ -56,8 +59,23 @@ class ProductoPedido {
 }
 
 class LineaPedido {
-  const LineaPedido({required this.productoId, required this.cantidad});
+  const LineaPedido({
+    required this.productoId,
+    required this.cantidad,
+    this.aplicarDescuento = true,
+  });
   final int productoId, cantidad;
+
+  /// Si se usa el descuento vigente del producto. El servidor lo resuelve por
+  /// jerarquía (producto, luego categoría, luego área); aquí solo se decide
+  /// aplicarlo o no.
+  final bool aplicarDescuento;
+
+  LineaPedido conDescuento(bool aplicar) => LineaPedido(
+    productoId: productoId,
+    cantidad: cantidad,
+    aplicarDescuento: aplicar,
+  );
 }
 
 class AvisoPedido {
@@ -102,10 +120,14 @@ class DetallePedido {
     required this.cantidad,
     required this.subtotal,
     required this.porcentajeDescuento,
+    this.imagenUrl,
   });
   final String nombre;
   final int cantidad;
   final double subtotal, porcentajeDescuento;
+
+  /// Imagen del producto en el catálogo; null si no tiene.
+  final String? imagenUrl;
 }
 
 class DatosPedido {

@@ -113,6 +113,7 @@ class HttpPedidosGateway implements PedidosGateway {
               cantidad: p['cantidad'] as int,
               subtotal: (p['subtotal'] as num).toDouble(),
               porcentajeDescuento: (p['porcentajeDescuento'] as num).toDouble(),
+              imagenUrl: p['imagenUrl'] as String?,
             ),
           )
           .toList(),
@@ -174,7 +175,11 @@ class HttpPedidosGateway implements PedidosGateway {
         },
         'productos': [
           for (final producto in d.productos)
-            {'productoId': producto.productoId, 'cantidad': producto.cantidad},
+            {
+              'productoId': producto.productoId,
+              'cantidad': producto.cantidad,
+              'aplicarDescuento': producto.aplicarDescuento,
+            },
         ],
         'tipoEntrega': d.tipoEntrega,
         'descripcionEnvio': d.descripcionEnvio.trim(),
