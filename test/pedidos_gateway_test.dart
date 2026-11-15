@@ -7,6 +7,46 @@ import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/outbound/http_pedidos_gateway.dart';
 
 void main() {
+  test('muestra el mensaje del servidor cuando trae su código', () async {
+    final casos = <(int, Map<String, String>, String)>[
+      (
+        409,
+        {
+          'codigo': 'TRANSICION_ESTADO_INVALIDA',
+          'detail':
+              'El pedido está en Encargado; solo puede pasar a En producción o cancelarse.',
+        },
+        'El pedido está en Encargado; solo puede pasar a En producción o cancelarse.',
+      ),
+      (
+        400,
+        {
+          'codigo': 'CORTE_CAJA_NO_ABIERTO',
+          'detail':
+              'No hay un corte de caja abierto en esta sucursal. Abre uno antes de cancelar un pedido con pagos, para descontar la devolución.',
+        },
+        'No hay un corte de caja abierto en esta sucursal. Abre uno antes de cancelar un pedido con pagos, para descontar la devolución.',
+      ),
+    ];
+    for (final (estado, respuesta, mensaje) in casos) {
+      final client = ApiClient(
+        baseUrl: 'http://localhost/',
+        // En UTF-8, como el servidor: los mensajes llevan acentos.
+        client: MockClient(
+          (_) async =>
+              http.Response.bytes(utf8.encode(jsonEncode(respuesta)), estado),
+        ),
+      );
+      await expectLater(
+        client.requestJson('PATCH', 'api/pedidos/3/estado', body: {}),
+        throwsA(
+          isA<ApiException>().having((e) => e.message, 'mensaje', mensaje),
+        ),
+      );
+      client.close();
+    }
+  });
+
   test('identifica errores de pedidos sin mostrar detalles técnicos', () async {
     final casos = <(Map<String, String>, String?, String)>[
       (
@@ -90,6 +130,43 @@ void main() {
     );
     client.close();
   });
+
+  test(
+    'edita los datos del pedido con PUT y omite la dirección vacía',
+    () async {
+      late http.Request enviado;
+      final client = ApiClient(
+        baseUrl: 'http://localhost/',
+        client: MockClient((request) async {
+          enviado = request;
+          return http.Response('', 204);
+        }),
+      );
+      await HttpPedidosGateway(client).editarDatos(
+        9,
+        const DatosEdicionPedido(
+          descripcion: ' Tazas azules ',
+          tipoEntrega: 'DOMICILIO',
+          descripcionEnvio: 'Por la tarde',
+          cliente: 'Ana López',
+          telefono: '5512345678',
+          calle: 'Hidalgo 123',
+        ),
+      );
+      expect(enviado.method, 'PUT');
+      expect(enviado.url.path, '/api/pedidos/9/datos');
+      final json = jsonDecode(enviado.body) as Map<String, dynamic>;
+      expect(json['descripcion'], 'Tazas azules');
+      expect(json['tipoEntrega'], 'DOMICILIO');
+      expect(json['descripcionEnvio'], 'Por la tarde');
+      expect(json['cliente'], {
+        'nombre': 'Ana López',
+        'telefono': '5512345678',
+        'calle': 'Hidalgo 123',
+      });
+      client.close();
+    },
+  );
 
   test('lista una página sin folio y envía estado y página', () async {
     Uri? url;

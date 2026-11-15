@@ -489,6 +489,8 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                           cargando: _ajustandoId == e.inventarioId,
                           onAjustar: (c) => _ajustar(e, c),
                           onCantidad: () => _ajustarCantidad(e),
+                          // Ajustar inventario es solo del propietario (HU-05).
+                          editable: !widget.soloLectura,
                           // Solo el propietario, desde el negocio, y si queda
                           // al menos otra sucursal con el producto.
                           onQuitar:
@@ -512,12 +514,15 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                _modoSucursal
-                    ? 'Disponible en la sucursal'
-                    : 'Total disponible',
-                style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+              Expanded(
+                child: Text(
+                  _modoSucursal
+                      ? 'Disponible en la sucursal'
+                      : 'Total disponible',
+                  style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+                ),
               ),
+              const SizedBox(width: 8),
               Text(
                 formatoPiezas(p.existenciaTotal),
                 style: BarroTheme.type(16, 23, weight: FontWeight.w700),
@@ -581,12 +586,16 @@ class _FilaExistencia extends StatelessWidget {
     required this.onAjustar,
     required this.onCantidad,
     this.onQuitar,
+    this.editable = true,
   });
   final ExistenciaSucursal existencia;
   final bool ocupado;
   final bool cargando;
   final ValueChanged<int> onAjustar;
   final VoidCallback onCantidad;
+
+  /// Sin permiso de ajuste (empleado) solo se muestra la existencia.
+  final bool editable;
 
   /// Null cuando no se puede quitar (modo sucursal, empleado o última sucursal).
   final VoidCallback? onQuitar;
@@ -625,40 +634,44 @@ class _FilaExistencia extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              IconButton.outlined(
-                key: ValueKey('existencia-menos-${e.inventarioId}'),
-                tooltip: 'Quitar 1 pieza',
-                onPressed: ocupado || e.existencia < 1
-                    ? null
-                    : () => onAjustar(-1),
-                icon: const Icon(Icons.remove),
-              ),
-              Expanded(
-                child: Center(
-                  child: cargando
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : TextButton(
-                          key: ValueKey('existencia-ajustar-${e.inventarioId}'),
-                          onPressed: ocupado ? null : onCantidad,
-                          child: const Text('Ajustar cantidad'),
-                        ),
+          if (editable) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton.outlined(
+                  key: ValueKey('existencia-menos-${e.inventarioId}'),
+                  tooltip: 'Quitar 1 pieza',
+                  onPressed: ocupado || e.existencia < 1
+                      ? null
+                      : () => onAjustar(-1),
+                  icon: const Icon(Icons.remove),
                 ),
-              ),
-              IconButton.filled(
-                key: ValueKey('existencia-mas-${e.inventarioId}'),
-                tooltip: 'Agregar 1 pieza',
-                onPressed: ocupado ? null : () => onAjustar(1),
-                icon: const Icon(Icons.add),
-              ),
-            ],
-          ),
+                Expanded(
+                  child: Center(
+                    child: cargando
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : TextButton(
+                            key: ValueKey(
+                              'existencia-ajustar-${e.inventarioId}',
+                            ),
+                            onPressed: ocupado ? null : onCantidad,
+                            child: const Text('Ajustar cantidad'),
+                          ),
+                  ),
+                ),
+                IconButton.filled(
+                  key: ValueKey('existencia-mas-${e.inventarioId}'),
+                  tooltip: 'Agregar 1 pieza',
+                  onPressed: ocupado ? null : () => onAjustar(1),
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

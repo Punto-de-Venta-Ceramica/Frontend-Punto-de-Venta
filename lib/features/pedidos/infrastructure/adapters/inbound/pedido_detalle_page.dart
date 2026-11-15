@@ -6,6 +6,8 @@ import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
+import 'editar_pedido_page.dart';
 import 'pedido_input_formatters.dart';
 import 'pedido_widgets.dart';
 
@@ -172,6 +174,33 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     monto.dispose();
   }
 
+  Future<void> _editar(Pedido pedido) async {
+    // La nueva ruta queda fuera del scope de la campana: se le pasa el mismo.
+    final campana = BarroHeaderScope.maybeOf(context);
+    final pantalla = EditarPedidoPage(
+      gestion: widget.gestion,
+      pedido: pedido,
+      negocio: widget.negocio,
+      sucursalNombre: widget.sucursalNombre,
+    );
+    final guardado = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => campana == null
+            ? pantalla
+            : BarroHeaderScope(
+                onPerfil: campana.onPerfil,
+                onNotificaciones: campana.onNotificaciones,
+                conteoNotificaciones: campana.conteoNotificaciones,
+                child: pantalla,
+              ),
+      ),
+    );
+    if (guardado == true && mounted) {
+      await _cargar();
+      if (mounted) setState(() => _mensaje = 'Datos del pedido actualizados.');
+    }
+  }
+
   Future<void> _cancelar(Pedido pedido) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -200,12 +229,6 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
       );
     }
   }
-
-  static String _entrega(String tipo) => switch (tipo) {
-    'LOCAL' => 'En sucursal',
-    'DOMICILIO' => 'A domicilio',
-    _ => tipo,
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +287,23 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
               const SizedBox(height: 12),
             ],
             _tarjetaCliente(pedido),
+            // Cambio de estado (antes estaba en la tarjeta del listado).
+            if (EstadosPedido.progreso.contains(pedido.estado)) ...[
+              const SizedBox(height: 16),
+              _Tarjeta(
+                children: [
+                  PedidoEstadoSelector(
+                    estado: pedido.estado,
+                    esPropietario: widget.esPropietario,
+                    habilitado: !_busy,
+                    onCambiar: (estado) => _accion(
+                      () => widget.gestion.cambiarEstado(pedido.id, estado),
+                      'Estado actualizado a ${EstadosPedido.etiqueta(estado).toLowerCase()}.',
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
             _titulo('Productos'),
             const SizedBox(height: 12),
@@ -274,6 +314,31 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
             _tarjetaPagos(pedido),
             if (pedido.estado != 'CANCELADO') ...[
               const SizedBox(height: 24),
+              // Datos del pedido y del cliente: solo el propietario (HU-05).
+              if (widget.esPropietario) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _editar(pedido),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Editar datos del pedido'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: BarroTheme.primary,
+                      minimumSize: const Size.fromHeight(48),
+                      side: const BorderSide(color: BarroTheme.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: BarroTheme.type(
+                        14,
+                        20,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               // Cobrar o devolver mueve dinero: necesita un turno de caja abierto.
               if (!_cajaAbierta &&
                   (pedido.saldo > 0 ||
@@ -388,10 +453,12 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
         _Dato(icono: Icons.phone_outlined, texto: pedido.telefono),
         if (direccion.isNotEmpty)
           _Dato(icono: Icons.place_outlined, texto: direccion),
-        _Dato(
-          icono: Icons.local_shipping_outlined,
-          texto: _entrega(pedido.tipoEntrega),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: PedidoTipoEntrega(pedido.tipoEntrega, tamano: 14),
         ),
+        if (pedido.descripcionEnvio.isNotEmpty)
+          _Dato(icono: Icons.notes_outlined, texto: pedido.descripcionEnvio),
         if (pedido.descripcion.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(

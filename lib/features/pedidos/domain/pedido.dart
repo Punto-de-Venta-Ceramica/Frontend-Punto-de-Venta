@@ -106,12 +106,30 @@ class Pedido {
     required this.total,
     required this.pagado,
     required this.saldo,
+    this.descripcionEnvio = '',
   });
   final int id;
   final String folio, estado, cliente, telefono, ciudad, colonia, calle;
-  final String descripcion, tipoEntrega;
+  final String descripcion, tipoEntrega, descripcionEnvio;
   final List<DetallePedido> productos;
   final double total, pagado, saldo;
+}
+
+/// Datos editables de un pedido (solo propietario). No incluye productos ni
+/// pagos: esos no se modifican con esta operación.
+class DatosEdicionPedido {
+  const DatosEdicionPedido({
+    required this.descripcion,
+    required this.tipoEntrega,
+    required this.descripcionEnvio,
+    required this.cliente,
+    required this.telefono,
+    this.ciudad = '',
+    this.colonia = '',
+    this.calle = '',
+  });
+  final String descripcion, tipoEntrega, descripcionEnvio;
+  final String cliente, telefono, ciudad, colonia, calle;
 }
 
 class DetallePedido {
