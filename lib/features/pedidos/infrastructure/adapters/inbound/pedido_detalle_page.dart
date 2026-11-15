@@ -7,6 +7,7 @@ import 'package:punto_de_venta/features/productos/infrastructure/adapters/inboun
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
 import 'pedido_input_formatters.dart';
+import 'pedido_widgets.dart';
 
 /// Detalle del pedido en pantalla completa, con el mismo estilo que el
 /// detalle de producto.
@@ -359,7 +360,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
               ),
             ),
             const SizedBox(width: 12),
-            _EstadoChip(pedido.estado),
+            PedidoEstadoChip(pedido.estado),
           ],
         ),
         const SizedBox(height: 8),
@@ -411,6 +412,14 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     children: [
       for (final (i, d) in pedido.productos.indexed) ...[
         if (i > 0) const Divider(height: 24, color: BarroTheme.border),
+        // Misma imagen que en el apartado de productos (Cloudinary, con caché).
+        ProductoImagen(
+          key: ValueKey('pedido-producto-imagen-$i'),
+          size: 180,
+          ancho: double.infinity,
+          url: d.imagenUrl,
+        ),
+        const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -589,28 +598,4 @@ class _Fila extends StatelessWidget {
       ),
     ],
   );
-}
-
-class _EstadoChip extends StatelessWidget {
-  const _EstadoChip(this.estado);
-  final String estado;
-  @override
-  Widget build(BuildContext context) {
-    final (fondo, color) = switch (estado) {
-      'TERMINADO' => (const Color(0xFFECF7F0), BarroTheme.success),
-      'CANCELADO' => (productoErrorSuave, BarroTheme.error),
-      _ => (productoSuave, BarroTheme.primary),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: fondo,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        EstadosPedido.etiqueta(estado),
-        style: BarroTheme.type(12, 18, weight: FontWeight.w700, color: color),
-      ),
-    );
-  }
 }

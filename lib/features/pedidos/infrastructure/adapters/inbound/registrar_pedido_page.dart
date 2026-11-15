@@ -16,6 +16,9 @@ class RegistrarPedidoPage extends StatefulWidget {
     required this.negocio,
     required this.esPropietario,
     this.sucursalNombre,
+    this.onInicio,
+    this.onCaja,
+    this.onInventario,
     super.key,
   });
   final GestionPedidos gestion;
@@ -23,6 +26,10 @@ class RegistrarPedidoPage extends StatefulWidget {
   final String? sucursalNombre;
   final NegocioProducto negocio;
   final bool esPropietario;
+
+  /// Destinos de la barra inferior. Se llaman después de cerrar esta pantalla,
+  /// desde el listado de pedidos que la abrió.
+  final VoidCallback? onInicio, onCaja, onInventario;
   @override
   State<RegistrarPedidoPage> createState() => _RegistrarPedidoPageState();
 }
@@ -166,7 +173,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         total +
         _productos
             .firstWhere((producto) => producto.id == linea.productoId)
-            .subtotalEstimadoCentavos(linea.cantidad),
+            .subtotalEstimadoCentavos(
+              linea.cantidad,
+              conDescuento: linea.aplicarDescuento,
+            ),
   );
 
   BigInt? _leerCentavos(String texto) {
@@ -543,12 +553,58 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     return true;
   }
 
+  /// Si ya se capturó algo que se perdería al salir.
+  bool get _hayDatos =>
+      _lineas.isNotEmpty ||
+      _producto != null ||
+      [
+        _descripcion,
+        _cantidad,
+        _envio,
+        _nombre,
+        _telefono,
+        _ciudad,
+        _colonia,
+        _calle,
+      ].any((c) => c.text.trim().isNotEmpty);
+
+  /// Sale desde la barra inferior: cierra el registro (pidiendo confirmación si
+  /// hay datos capturados) y después abre [destino], si hay uno.
+  Future<void> _salir(VoidCallback? destino) async {
+    if (_guardando) return;
+    if (_hayDatos) {
+      final salir = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('¿Salir sin registrar el pedido?'),
+          content: const Text('Se perderán los datos que capturaste.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Seguir capturando'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Salir'),
+            ),
+          ],
+        ),
+      );
+      if (salir != true || !mounted) return;
+    }
+    Navigator.of(context).pop();
+    destino?.call();
+  }
+
   @override
   Widget build(BuildContext context) => ProductoScaffold(
     barraInferior: widget.esPropietario
         ? SucursalNavegacion(
             seleccionada: 'Pedidos',
-            onPedidos: () => Navigator.of(context).maybePop(),
+            onInicio: () => _salir(widget.onInicio),
+            onPedidos: () => _salir(null),
+            onCaja: () => _salir(widget.onCaja),
+            onInventario: () => _salir(widget.onInventario),
           )
         : null,
     rol: widget.esPropietario ? 'Propietario' : 'Empleado',
@@ -661,23 +717,47 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   texto: 'Agregar producto',
                   onPressed: _agregarProducto,
                 ),
-                for (final linea in _lineas)
+                for (final (i, linea) in _lineas.indexed)
                   Builder(
                     builder: (context) {
                       final producto = _productos.firstWhere(
                         (p) => p.id == linea.productoId,
                       );
-                      final descuento = producto.aplicaDescuento(
+                      final porcentaje = producto.porcentajePara(
                         linea.cantidad,
                       );
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text('${linea.cantidad} × ${producto.nombre}'),
-                        subtitle: Text(
-                          descuento
-                              ? 'Aplica descuento de mayoreo: ${producto.porcentajePara(linea.cantidad)!.toStringAsFixed(2)} %'
-                              : 'Sin descuento de mayoreo',
-                        ),
+                        subtitle: porcentaje == null
+                            ? const Text('Sin descuento de mayoreo')
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    linea.aplicarDescuento
+                                        ? 'Aplica descuento de mayoreo: ${porcentaje.toStringAsFixed(2)} %'
+                                        : 'Descuento de ${porcentaje.toStringAsFixed(2)} % disponible, sin aplicar',
+                                  ),
+                                  // El vendedor decide si usa el descuento vigente.
+                                  Row(
+                                    children: [
+                                      const Text('Aplicar descuento'),
+                                      Switch(
+                                        key: ValueKey(
+                                          'aplicar-descuento-${linea.productoId}',
+                                        ),
+                                        value: linea.aplicarDescuento,
+                                        onChanged: (aplicar) => setState(
+                                          () => _lineas[i] = linea.conDescuento(
+                                            aplicar,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                         trailing: IconButton(
                           tooltip: 'Quitar ${producto.nombre}',
                           icon: const Icon(Icons.delete_outline),
@@ -784,13 +864,18 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                       final producto = _productos.firstWhere(
                         (p) => p.id == linea.productoId,
                       );
-                      final descuento = producto.aplicaDescuento(
+                      final porcentaje = producto.porcentajePara(
                         linea.cantidad,
                       );
+                      final detalle = porcentaje == null
+                          ? 'sin descuento de mayoreo'
+                          : linea.aplicarDescuento
+                          ? 'descuento de mayoreo ${porcentaje.toStringAsFixed(2)} %'
+                          : 'descuento no aplicado';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
-                          '${linea.cantidad} × ${producto.nombre} · ${descuento ? 'descuento de mayoreo ${producto.porcentajePara(linea.cantidad)!.toStringAsFixed(2)} %' : 'sin descuento de mayoreo'}',
+                          '${linea.cantidad} × ${producto.nombre} · $detalle',
                         ),
                       );
                     },

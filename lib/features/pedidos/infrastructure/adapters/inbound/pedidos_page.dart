@@ -9,6 +9,7 @@ import 'pedido_detalle_page.dart';
 import 'registrar_pedido_page.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'notificaciones_page.dart';
+import 'pedido_widgets.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
 import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
 
@@ -138,6 +139,10 @@ class _PedidosPageState extends State<PedidosPage> {
           negocio: widget.negocio,
           esPropietario: widget.esPropietario,
           sucursalNombre: widget.sucursalNombre,
+          // Se llaman ya cerrado el registro: mismos destinos que esta barra.
+          onInicio: () => Navigator.of(context).maybePop(),
+          onCaja: widget.onCaja,
+          onInventario: widget.onInventario,
         ),
       ),
     );
@@ -193,66 +198,239 @@ class _PedidosPageState extends State<PedidosPage> {
     ),
   );
 
-  Widget _tarjeta(ResumenPedido p) => Card(
-    color: Colors.white,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
+  /// Productos visibles en la tarjeta; el resto se resume en "+N más".
+  static const _productosVisibles = 3;
+
+  Widget _tarjeta(ResumenPedido p) {
+    final (_, colorEstado, _) = PedidoEstadoChip.colores(p.estado);
+    final extra = p.productos.length - _productosVisibles;
+    final inicial = p.cliente.trim().isEmpty
+        ? '?'
+        : p.cliente.trim().characters.first.toUpperCase();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: BarroTheme.border),
+        borderRadius: BorderRadius.circular(21),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  p.cliente,
-                  style: BarroTheme.type(
-                    16,
-                    22,
-                    weight: FontWeight.w700,
-                    color: BarroTheme.primary,
+          // Franja con el color del estado: se distingue al recorrer la lista.
+          Container(height: 4, color: colorEstado),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: productoSuave,
+                      child: Text(
+                        inicial,
+                        style: BarroTheme.type(
+                          16,
+                          22,
+                          weight: FontWeight.w700,
+                          color: BarroTheme.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.cliente,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: BarroTheme.type(
+                              17,
+                              24,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Icon(
+                                p.tipoEntrega == 'DOMICILIO'
+                                    ? Icons.local_shipping_outlined
+                                    : Icons.storefront_outlined,
+                                size: 14,
+                                color: BarroTheme.secondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                p.tipoEntrega == 'DOMICILIO'
+                                    ? 'A domicilio'
+                                    : 'En sucursal',
+                                style: BarroTheme.type(
+                                  12,
+                                  18,
+                                  color: BarroTheme.secondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    PedidoEstadoChip(p.estado),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                for (final d in p.productos.take(_productosVisibles))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: productoSuave,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${d.cantidad}×',
+                            style: BarroTheme.type(
+                              12,
+                              18,
+                              weight: FontWeight.w700,
+                              color: BarroTheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            d.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: BarroTheme.type(14, 21),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                if (extra > 0)
+                  Text(
+                    '+$extra ${extra == 1 ? 'producto' : 'productos'} más',
+                    style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                  ),
+                const SizedBox(height: 10),
+                _importes(p),
+                const SizedBox(height: 14),
+                _estadoPedido(p),
+                const SizedBox(height: 10),
+                // Wrap: en pantallas angostas el botón de terminar baja de renglón.
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _detalle(p),
+                      iconAlignment: IconAlignment.end,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      label: const Text('Ver detalle'),
+                    ),
+                    if (p.estado == 'ENTREGADO')
+                      FilledButton.icon(
+                        onPressed: () => _terminar(p),
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text('Terminar pedido'),
+                      ),
+                  ],
                 ),
-              ),
-              Text(EstadosPedido.etiqueta(p.estado)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final d in p.productos) Text('${d.cantidad} × ${d.nombre}'),
-          Text(
-            'Total: ${formatoPrecio(p.total)}   Saldo: ${formatoPrecio(p.saldo)}',
-          ),
-          const SizedBox(height: 12),
-          _estadoPedido(p),
-          const SizedBox(height: 12),
-          // Wrap: en pantallas angostas el botón de terminar baja de renglón.
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              TextButton(
-                onPressed: () => _detalle(p),
-                child: const Text('Ver detalle'),
-              ),
-              if (p.estado == 'ENTREGADO')
-                FilledButton.icon(
-                  onPressed: () => _terminar(p),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Terminar pedido'),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
+
+  /// Total, pagado y saldo en un recuadro suave; liquidado en verde.
+  Widget _importes(ResumenPedido p) {
+    final liquidado = p.saldo <= 0;
+    Widget columna(String etiqueta, String valor, {Color? color}) => Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            etiqueta,
+            style: BarroTheme.type(11, 16, color: BarroTheme.secondary),
+          ),
+          Text(
+            valor,
+            style: BarroTheme.type(
+              15,
+              22,
+              weight: FontWeight.w700,
+              color: color ?? BarroTheme.text,
+            ),
+          ),
+        ],
+      ),
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: BarroTheme.background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          columna('Total', formatoPrecio(p.total)),
+          columna('Pagado', formatoPrecio(p.pagado)),
+          liquidado
+              ? Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.verified_outlined,
+                        size: 16,
+                        color: BarroTheme.success,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Liquidado',
+                        style: BarroTheme.type(
+                          13,
+                          20,
+                          weight: FontWeight.w700,
+                          color: BarroTheme.success,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : columna(
+                  'Saldo',
+                  formatoPrecio(p.saldo),
+                  color: BarroTheme.primary,
+                ),
+        ],
+      ),
+    );
+  }
 
   /// Selector de estado: muestra el actual y solo habilita el siguiente paso
   /// permitido para el rol. Terminado y cancelado no se editan aquí.
   Widget _estadoPedido(ResumenPedido p) {
+    // Terminado y cancelado ya se ven en la etiqueta de arriba.
     if (!EstadosPedido.progreso.contains(p.estado)) {
-      return Text('Estado: ${EstadosPedido.etiqueta(p.estado)}');
+      return const SizedBox.shrink();
     }
     bool habilitado(String destino) => EstadosPedido.puedeCambiar(
       p.estado,

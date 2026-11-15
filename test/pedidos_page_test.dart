@@ -304,6 +304,138 @@ void main() {
     expect(gateway.recibido?.monto, 0);
   });
 
+  testWidgets('permite no aplicar el descuento vigente de un producto', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(416, 858);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final gateway = _Gateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BarroTheme.data,
+        home: RegistrarPedidoPage(
+          gestion: GestionPedidos(gateway),
+          sucursalId: 1,
+          negocio: const NegocioProducto(id: 1, nombre: 'Cerámica'),
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Taza'));
+    await tester.pumpAndSettle();
+    // 2 tazas: aplica el 10 % de mayoreo.
+    await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.ensureVisible(find.text('Agregar producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agregar producto'));
+    await tester.pumpAndSettle();
+
+    final interruptor = find.byKey(const ValueKey('aplicar-descuento-3'));
+    expect(tester.widget<Switch>(interruptor).value, isTrue);
+    await tester.ensureVisible(interruptor);
+    await tester.pumpAndSettle();
+    await tester.tap(interruptor);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(interruptor).value, isFalse);
+    expect(find.textContaining('sin aplicar'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    final campos = find.byType(TextFormField);
+    await tester.enterText(campos.at(0), 'Ana');
+    await tester.enterText(campos.at(1), '5512345678');
+    await tester.ensureVisible(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+
+    // Precio de lista: 2 × $100.
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('pedido-total-estimado')))
+          .data,
+      r'$200.00',
+    );
+    await tester.ensureVisible(find.text('Registrar pedido').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registrar pedido').last);
+    await tester.pumpAndSettle();
+    expect(gateway.recibido?.productos.single.aplicarDescuento, isFalse);
+  });
+
+  group('barra inferior al registrar', () {
+    Future<List<String>> abrir(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(416, 858);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final destinos = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: BarroTheme.data,
+          home: const Scaffold(body: Text('Listado')),
+        ),
+      );
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => RegistrarPedidoPage(
+                gestion: GestionPedidos(_Gateway()),
+                sucursalId: 1,
+                negocio: const NegocioProducto(id: 1, nombre: 'Cerámica'),
+                esPropietario: true,
+                onInicio: () => destinos.add('inicio'),
+                onCaja: () => destinos.add('caja'),
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+      return destinos;
+    }
+
+    testWidgets('sin datos capturados, Inicio sale directo', (tester) async {
+      final destinos = await abrir(tester);
+      await tester.tap(find.byTooltip('Inicio'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Listado'), findsOneWidget);
+      expect(destinos, ['inicio']);
+      expect(find.textContaining('aún no está disponible'), findsNothing);
+    });
+
+    testWidgets('con datos capturados, pide confirmación antes de salir', (
+      tester,
+    ) async {
+      final destinos = await abrir(tester);
+      await tester.enterText(find.byType(TextFormField).first, 'Tazas');
+      // Espera a que termine el desplazamiento por el foco del campo.
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Caja'));
+      await tester.pumpAndSettle();
+      expect(find.text('¿Salir sin registrar el pedido?'), findsOneWidget);
+
+      await tester.tap(find.text('Seguir capturando'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RegistrarPedidoPage), findsOneWidget);
+      expect(destinos, isEmpty);
+
+      await tester.tap(find.byTooltip('Caja'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salir'));
+      await tester.pumpAndSettle();
+      expect(find.text('Listado'), findsOneWidget);
+      expect(destinos, ['caja']);
+    });
+  });
+
   testWidgets('permite registrar sin dirección del cliente', (tester) async {
     tester.view.physicalSize = const Size(416, 858);
     tester.view.devicePixelRatio = 1;
