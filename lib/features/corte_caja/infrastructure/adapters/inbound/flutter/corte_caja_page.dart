@@ -388,11 +388,13 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                 ],
               ),
             ),
-            IconButton(
-              onPressed: _abrirHistorial,
-              icon: const Icon(Icons.history, color: BarroTheme.primary),
-              tooltip: 'Ver historial de cortes',
-            ),
+            // El historial es información financiera: solo el propietario (HU-05).
+            if (widget.esPropietario)
+              IconButton(
+                onPressed: _abrirHistorial,
+                icon: const Icon(Icons.history, color: BarroTheme.primary),
+                tooltip: 'Ver historial de cortes',
+              ),
           ],
         ),
         const SizedBox(height: 24),
@@ -492,20 +494,22 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                   ),
                 ),
         ),
-        const SizedBox(height: 14),
-        OutlinedButton.icon(
-          onPressed: _abrirHistorial,
-          icon: const Icon(Icons.history_rounded),
-          label: const Text('Ver historial de cortes anteriores'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: BarroTheme.primary,
-            side: const BorderSide(color: BarroTheme.border),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+        if (widget.esPropietario) ...[
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: _abrirHistorial,
+            icon: const Icon(Icons.history_rounded),
+            label: const Text('Ver historial de cortes anteriores'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: BarroTheme.primary,
+              side: const BorderSide(color: BarroTheme.border),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     ),
   );
@@ -545,11 +549,12 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: _abrirHistorial,
-                icon: const Icon(Icons.history, color: BarroTheme.primary),
-                tooltip: 'Historial de cortes',
-              ),
+              if (widget.esPropietario)
+                IconButton(
+                  onPressed: _abrirHistorial,
+                  icon: const Icon(Icons.history, color: BarroTheme.primary),
+                  tooltip: 'Historial de cortes',
+                ),
             ],
           ),
           const SizedBox(height: 20),

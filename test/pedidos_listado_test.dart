@@ -7,6 +7,7 @@ import 'package:punto_de_venta/features/notificaciones/application/contador_noti
 import 'package:punto_de_venta/features/pedidos/application/gestion_pedidos.dart';
 import 'package:punto_de_venta/features/pedidos/application/ports/pedidos_gateway.dart';
 import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
+import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/notificaciones_page.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/pedidos_page.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 
@@ -26,6 +27,14 @@ class _Pedidos extends Fake implements PedidosGateway {
   final llamadas = <(String?, int)>[];
   final consultados = <int>[];
   final cambios = <(int, String)>[];
+  final editados = <(int, DatosEdicionPedido)>[];
+
+  @override
+  Future<List<AvisoPedido>> notificaciones() async => [];
+
+  @override
+  Future<void> editarDatos(int pedidoId, DatosEdicionPedido datos) async =>
+      editados.add((pedidoId, datos));
 
   @override
   Future<void> cambiarEstado(int pedidoId, String estado) async =>
@@ -71,7 +80,10 @@ class _Pedidos extends Fake implements PedidosGateway {
       id: pedidoId,
       folio: 'PED-000$pedidoId',
       estado: estadoPedidos,
-      cliente: 'Cliente $pedidoId',
+      // Tras editar, el detalle recargado muestra el nombre guardado.
+      cliente: editados.isEmpty
+          ? 'Cliente $pedidoId'
+          : editados.last.$2.cliente,
       telefono: '2221234567',
       ciudad: '',
       colonia: '',
@@ -203,21 +215,24 @@ void main() {
     expect(cancelar.onPressed, isNull);
   });
 
-  testWidgets(
-    'el detalle de un pedido terminado muestra los botones de ticket',
-    (tester) async {
-      _pantallaAlta(tester);
-      final gateway = _Pedidos(estadoPedidos: 'TERMINADO');
-      await tester.pumpWidget(_app(gateway));
-      await tester.pumpAndSettle();
+  testWidgets('un pedido terminado solo ofrece imprimir el ticket', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos(estadoPedidos: 'TERMINADO');
+    // El propietario es quien vería editar, cobrar y cancelar.
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Ver detalle').first);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Imprimir ticket'), findsOneWidget);
-      expect(find.text('Ver ticket'), findsOneWidget);
-    },
-  );
+    expect(find.text('Imprimir ticket'), findsOneWidget);
+    expect(find.text('Ver ticket'), findsNothing);
+    expect(find.text('Editar datos del pedido'), findsNothing);
+    expect(find.text('Registrar pago'), findsNothing);
+    expect(find.text('Cancelar pedido'), findsNothing);
+  });
 
   testWidgets('el propietario abre en entregado y termina con confirmación', (
     tester,
@@ -240,6 +255,96 @@ void main() {
     await tester.tap(find.text('Sí, terminar'));
     await tester.pumpAndSettle();
     expect(gateway.cambios, [(1, 'TERMINADO')]);
+  });
+
+  testWidgets('una sola campana: la de la cabecera, también en el detalle', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    await tester.pumpWidget(_app(_Pedidos()));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Notificaciones'), findsOneWidget);
+
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Notificaciones'), findsOneWidget);
+    await tester.tap(find.byTooltip('Notificaciones'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificacionesPage), findsOneWidget);
+  });
+
+  testWidgets('el estado se cambia en el detalle, no en el listado', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos();
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Estado del pedido'), findsNothing);
+    expect(find.text('Tipo de entrega:'), findsWidgets);
+
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Tipo de entrega:'), findsOneWidget);
+    expect(find.text('Estado del pedido'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('estado-ENCARGADO')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('En producción').last);
+    await tester.pumpAndSettle();
+    expect(gateway.cambios, [(1, 'PRODUCCION')]);
+    expect(find.text('Estado actualizado a en producción.'), findsOneWidget);
+  });
+
+  testWidgets('solo el propietario ve "Editar datos del pedido"', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    await tester.pumpWidget(_app(_Pedidos()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Editar datos del pedido'), findsNothing);
+  });
+
+  testWidgets('el propietario edita los datos del cliente y se recarga', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos();
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Editar datos del pedido'));
+    await tester.pumpAndSettle();
+    expect(find.text('Editar pedido'), findsOneWidget);
+    // Precargado con los datos actuales.
+    expect(find.text('2221234567'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('editar-cliente.nombre')),
+      'Ana   López',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('editar-cliente.telefono')),
+      '5512345678',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guardar cambios'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.editados, hasLength(1));
+    final (id, datos) = gateway.editados.single;
+    expect(id, 1);
+    expect(datos.cliente, 'Ana López');
+    expect(datos.telefono, '5512345678');
+    expect(datos.tipoEntrega, 'LOCAL');
+    // De vuelta en el detalle, ya recargado.
+    expect(find.text('Detalle del pedido'), findsOneWidget);
+    expect(find.text('Datos del pedido actualizados.'), findsOneWidget);
+    expect(find.text('Ana López'), findsOneWidget);
   });
 
   test('reglas del selector de estado', () {

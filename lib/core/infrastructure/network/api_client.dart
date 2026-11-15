@@ -326,7 +326,7 @@ class ApiClient {
                   .replaceFirst(RegExp(r'^/+'), '')
                   .split('?')
                   .first;
-              if (response.statusCode == 400 &&
+              if ((response.statusCode == 400 || response.statusCode == 409) &&
                   (ruta == 'api/pedidos' || ruta.startsWith('api/pedidos/'))) {
                 final recibido = problem['codigo'];
                 final detalle = problem['detail'];
@@ -339,9 +339,21 @@ class ApiClient {
                             'El corte de caja debe estar abierto y pertenecer a la sucursal del pedido.')) {
                   code = 'CORTE_CAJA_NO_ABIERTO';
                 }
+                // Solo si el servidor mandó el código: los textos antiguos sin
+                // código conservan el mensaje fijo.
+                final textoServidor =
+                    recibido is String &&
+                        detalle is String &&
+                        detalle.trim().isNotEmpty
+                    ? detalle.trim()
+                    : null;
                 message = switch (code) {
+                  // El servidor dice si faltó la caja para cobrar o para cancelar.
                   'CORTE_CAJA_NO_ABIERTO' =>
-                    'No hay un corte de caja abierto en esta sucursal. Abre uno antes de registrar un pago.',
+                    textoServidor ??
+                        'No hay un corte de caja abierto en esta sucursal. Abre uno antes de registrar un pago.',
+                  // Dice en qué estado está el pedido y a cuál puede pasar.
+                  'TRANSICION_ESTADO_INVALIDA' => textoServidor ?? message,
                   'PAGO_SUPERA_SALDO' =>
                     'El pago supera el saldo calculado por el servidor. Actualiza el pedido y revisa el importe.',
                   'PRODUCTO_NO_DISPONIBLE' =>

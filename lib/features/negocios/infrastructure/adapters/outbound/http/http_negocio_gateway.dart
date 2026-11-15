@@ -29,13 +29,15 @@ class HttpNegocioGateway implements NegocioGateway {
         data['id'] is! int ||
         (data['id'] as int) <= 0 ||
         data['nombre'] is! String ||
-        (data['logo'] != null && data['logo'] is! String)) {
+        (data['logo'] != null && data['logo'] is! String) ||
+        (data['eslogan'] != null && data['eslogan'] is! String)) {
       throw const FormatException();
     }
     return Negocio(
       id: data['id'] as int,
       nombre: data['nombre'] as String,
       logo: data['logo'] as String?,
+      eslogan: data['eslogan'] as String?,
     );
   }
 
@@ -51,6 +53,7 @@ class HttpNegocioGateway implements NegocioGateway {
         ruta,
         fields: {
           'nombre': datos.nombre.trim(),
+          'eslogan': datos.eslogan.trim(),
           if (edicion) 'eliminarLogo': datos.eliminarLogo.toString(),
         },
         files: [

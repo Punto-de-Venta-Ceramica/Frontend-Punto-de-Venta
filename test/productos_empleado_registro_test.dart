@@ -32,6 +32,25 @@ class _Gestion implements GestionProductosUseCase {
   ];
 
   @override
+  Producto? detalleGuardado(int productoId) => null;
+
+  @override
+  Future<Producto> consultar(int productoId, int negocioId) async =>
+      const Producto(
+        id: 1,
+        nombre: 'Jarrón',
+        precio: 80,
+        existencias: [
+          ExistenciaSucursal(
+            inventarioId: 5,
+            sucursalId: 10,
+            sucursalNombre: 'Lindavista',
+            existencia: 7,
+          ),
+        ],
+      );
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
@@ -72,6 +91,20 @@ void main() {
 
     expect(find.text('+ Registrar producto'), findsNothing);
     expect(find.text('Jarrón'), findsOneWidget);
+  });
+
+  testWidgets('el empleado ve la existencia pero no puede ajustarla', (
+    tester,
+  ) async {
+    await _abrir(tester, puedeRegistrar: true);
+    await tester.tap(find.text('Jarrón'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Existencia en Lindavista'), findsOneWidget);
+    expect(find.text('7 piezas'), findsWidgets);
+    expect(find.text('Ajustar cantidad'), findsNothing);
+    expect(find.byTooltip('Agregar 1 pieza'), findsNothing);
+    expect(find.byTooltip('Quitar 1 pieza'), findsNothing);
   });
 
   testWidgets(

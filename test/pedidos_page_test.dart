@@ -52,6 +52,8 @@ class _Gateway implements PedidosGateway {
   Future<void> cambiarEstado(int id, String estado) async {}
   @override
   Future<void> cancelar(int id) async {}
+  @override
+  Future<void> editarDatos(int id, DatosEdicionPedido datos) async {}
 }
 
 void main() {
