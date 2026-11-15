@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:material_ui/material_ui.dart'
     as mui
     show InputDecoration, ListTile, Material, MaterialType, OutlineInputBorder;
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import '../../../../domain/producto.dart';
@@ -676,12 +677,10 @@ class ProductoNavegacion extends StatelessWidget {
                     ),
                     onPressed: () {
                       if (item.$2 == 'Inventario') return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'El módulo de ${item.$2.toLowerCase()} aún no está disponible.',
-                          ),
-                        ),
+                      NotificacionServicio.info(
+                        context,
+                        'El módulo de ${item.$2.toLowerCase()} aún no está disponible.',
+                        titulo: 'Próximamente',
                       );
                     },
                     icon: Icon(item.$1, size: 25),

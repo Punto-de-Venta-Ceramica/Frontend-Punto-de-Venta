@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/empleados/domain/empleado.dart';
 
@@ -25,11 +26,10 @@ class _CredencialesEmpleadoDialogState
     await Clipboard.setData(ClipboardData(text: texto));
     if (!mounted) return;
     setState(() => _copiado = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Credenciales copiadas al portapapeles.'),
-        duration: Duration(seconds: 2),
-      ),
+    NotificacionServicio.info(
+      context,
+      'Credenciales copiadas al portapapeles.',
+      titulo: 'Copiado',
     );
   }
 

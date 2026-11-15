@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
@@ -75,11 +75,11 @@ class _DescuentosPageState extends State<DescuentosPage> {
     );
     if (!mounted || resultado == null) return;
     if (resultado.eliminado) {
-      AlertaServicio.eliminacion(context, 'Descuento');
-    } else if (resultado.mensaje.contains('registrado')) {
-      AlertaServicio.registro(context, 'Descuento');
+      NotificacionServicio.eliminacion(context, resultado.mensaje);
+    } else if (descuento == null) {
+      NotificacionServicio.registro(context, resultado.mensaje);
     } else {
-      AlertaServicio.actualizacion(context, 'Descuento');
+      NotificacionServicio.actualizacion(context, resultado.mensaje);
     }
     await _cargar();
   }

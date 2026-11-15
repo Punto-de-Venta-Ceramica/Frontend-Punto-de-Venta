@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
@@ -32,7 +33,6 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
   final _porcentaje = TextEditingController();
   final _errores = <String, String>{};
   bool _busy = false;
-  String? _error;
   bool get _edicion => widget.descuento != null;
 
   @override
@@ -67,8 +67,8 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
       widget.onSesionExpirada();
       return;
     }
+    NotificacionServicio.error(context, e.message);
     setState(() {
-      _error = e.message;
       _busy = false;
       for (final entry in e.fieldErrors.entries) {
         _errores[entry.key.split('.').last] = entry.value;
@@ -86,10 +86,7 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
   Future<void> _ejecutar(Future<ResultadoDescuento> Function() accion) async {
     if (_busy) return;
     FocusScope.of(context).unfocus();
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
     try {
       final resultado = await accion();
       if (!mounted) return;
@@ -107,7 +104,6 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
         _errores
           ..clear()
           ..addAll(errores);
-        _error = null;
       });
       return;
     }
@@ -164,7 +160,7 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
   }
 
   void _limpiar(String clave) {
-    if (_errores.containsKey(clave) || _error != null) {
+    if (_errores.containsKey(clave)) {
       setState(() => _errores.remove(clave));
     }
   }
@@ -232,10 +228,6 @@ class _DescuentoFormPageState extends State<DescuentoFormPage> {
             style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
           ),
           const SizedBox(height: 20),
-          if (_error != null) ...[
-            ProductoAviso(_error!, error: true),
-            const SizedBox(height: 16),
-          ],
           _texto(
             'nombre',
             'Nombre del descuento *',

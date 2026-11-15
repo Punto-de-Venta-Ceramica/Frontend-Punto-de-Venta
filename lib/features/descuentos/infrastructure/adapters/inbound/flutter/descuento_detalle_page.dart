@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
@@ -30,11 +31,6 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
   bool _cargando = true;
   bool _busy = false;
   String? _error;
-  String? _mensaje;
-
-  /// El error vino de cargar el catálogo (no de asignar o quitar): solo
-  /// entonces tiene sentido ofrecer "Reintentar".
-  bool _errorDeCarga = false;
 
   @override
   void initState() {
@@ -42,14 +38,16 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
     _cargarCatalogo();
   }
 
+  /// Un error al cargar el catálogo se queda en pantalla con "Reintentar";
+  /// uno al asignar o quitar se avisa con una notificación.
   void _fallo(DescuentoFailure e, {bool deCarga = false}) {
     if (e.sesionExpirada) {
       widget.onSesionExpirada();
       return;
     }
+    if (!deCarga) NotificacionServicio.error(context, e.message);
     setState(() {
-      _error = e.message;
-      _errorDeCarga = deCarga;
+      if (deCarga) _error = e.message;
       _cargando = false;
       _busy = false;
     });
@@ -77,19 +75,15 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
     String mensaje,
   ) async {
     if (_busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _mensaje = null;
-    });
+    setState(() => _busy = true);
     try {
       final actualizado = await accion();
       if (!mounted) return;
       setState(() {
         _descuento = actualizado;
-        _mensaje = mensaje;
         _busy = false;
       });
+      NotificacionServicio.actualizacion(context, mensaje);
     } on DescuentoFailure catch (e) {
       if (mounted) _fallo(e);
     }
@@ -237,20 +231,15 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
           'Un producto usa sus propios descuentos; si no tiene, los de su categoría y, después, los de su área. Los rangos de un mismo elemento no pueden cruzarse.',
           style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
         ),
-        if (_mensaje != null) ...[
-          const SizedBox(height: 16),
-          ProductoAviso(_mensaje!),
-        ],
         if (_error != null) ...[
           const SizedBox(height: 16),
           ProductoAviso(_error!, error: true),
-          if (_errorDeCarga)
-            Center(
-              child: TextButton(
-                onPressed: _cargarCatalogo,
-                child: const Text('Reintentar'),
-              ),
+          Center(
+            child: TextButton(
+              onPressed: _cargarCatalogo,
+              child: const Text('Reintentar'),
             ),
+          ),
         ],
         if (_cargando)
           const Padding(

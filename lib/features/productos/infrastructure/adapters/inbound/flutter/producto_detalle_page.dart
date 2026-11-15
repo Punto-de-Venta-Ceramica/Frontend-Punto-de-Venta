@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
@@ -16,7 +17,6 @@ class ProductoDetallePage extends StatefulWidget {
     required this.gestion,
     required this.onSesionExpirada,
     this.sucursal,
-    this.mensajeInicial,
     this.descuentos,
     this.imagenes,
     this.soloLectura = false,
@@ -33,7 +33,6 @@ class ProductoDetallePage extends StatefulWidget {
   final GestionDescuentosUseCase? descuentos;
   final ImagenesProducto? imagenes;
   final VoidCallback onSesionExpirada;
-  final String? mensajeInicial;
 
   /// Con sucursal solo se gestiona su existencia; sin ella (modo negocio) se
   /// ven todas las sucursales y se puede asignar el producto a las que faltan.
@@ -45,8 +44,6 @@ class ProductoDetallePage extends StatefulWidget {
 class _ProductoDetallePageState extends State<ProductoDetallePage> {
   late Producto _producto = widget.producto;
   bool _cargando = true;
-  String? _mensaje;
-  String? _error;
   bool _busy = false;
   int? _ajustandoId;
   List<SucursalProducto> _sucursales = [];
@@ -65,7 +62,6 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   @override
   void initState() {
     super.initState();
-    _mensaje = widget.mensajeInicial;
     // Lo guardado se muestra de inmediato; _cargarDetalle trae existencias frescas.
     final guardado = widget.gestion.detalleGuardado(widget.producto.id);
     if (guardado != null) {
@@ -94,11 +90,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       builder: (_) => _AsignarDialog(sucursal: sucursal),
     );
     if (eleccion == null || !mounted) return;
-    setState(() {
-      _ajustandoId = -sucursal.id;
-      _error = null;
-      _mensaje = null;
-    });
+    setState(() => _ajustandoId = -sucursal.id);
     try {
       final nueva = await widget.gestion.asignarASucursal(
         _producto.id,
@@ -112,9 +104,12 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             ..sort((a, b) => a.sucursalNombre.compareTo(b.sucursalNombre)),
         );
         _ajustandoId = null;
-        _mensaje =
-            'Producto asignado a ${sucursal.nombre} con ${formatoPiezas(nueva.existencia)}.';
       });
+      NotificacionServicio.exito(
+        context,
+        'Producto asignado a ${sucursal.nombre} con ${formatoPiezas(nueva.existencia)}.',
+        titulo: 'Producto asignado',
+      );
     } on ProductoFailure catch (f) {
       if (!mounted) return;
       setState(() => _ajustandoId = null);
@@ -152,11 +147,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       ),
     );
     if (confirmado != true || !mounted) return;
-    setState(() {
-      _ajustandoId = e.inventarioId;
-      _error = null;
-      _mensaje = null;
-    });
+    setState(() => _ajustandoId = e.inventarioId);
     try {
       await widget.gestion.quitarDeSucursal(e.inventarioId);
       if (!mounted) return;
@@ -166,8 +157,12 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             if (x.inventarioId != e.inventarioId) x,
         ]);
         _ajustandoId = null;
-        _mensaje = 'Producto quitado de ${e.sucursalNombre}.';
       });
+      NotificacionServicio.exito(
+        context,
+        'Producto quitado de ${e.sucursalNombre}.',
+        titulo: 'Sucursal actualizada',
+      );
     } on ProductoFailure catch (f) {
       if (!mounted) return;
       setState(() => _ajustandoId = null);
@@ -180,10 +175,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       widget.onSesionExpirada();
       return;
     }
-    setState(() {
-      _error = e.message;
-      _mensaje = null;
-    });
+    NotificacionServicio.error(context, e.message);
   }
 
   /// El listado trae solo lo mínimo: categoría, área y existencias se piden aquí.
@@ -210,11 +202,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   /// Suma (positiva) o resta (negativa) piezas en una sucursal.
   Future<void> _ajustar(ExistenciaSucursal e, int cantidad) async {
     if (_busy || _ajustandoId != null) return;
-    setState(() {
-      _ajustandoId = e.inventarioId;
-      _error = null;
-      _mensaje = null;
-    });
+    setState(() => _ajustandoId = e.inventarioId);
     try {
       final nueva = await widget.gestion.ajustarExistencia(
         e.inventarioId,
@@ -227,9 +215,12 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             x.inventarioId == e.inventarioId ? x.conExistencia(nueva) : x,
         ]);
         _ajustandoId = null;
-        _mensaje =
-            '${e.sucursalNombre}: ${cantidad > 0 ? '+' : '−'}${cantidad.abs()}, ahora ${formatoPiezas(nueva)}.';
       });
+      NotificacionServicio.exito(
+        context,
+        '${e.sucursalNombre}: ${cantidad > 0 ? '+' : '−'}${cantidad.abs()}, ahora ${formatoPiezas(nueva)}.',
+        titulo: 'Existencia actualizada',
+      );
     } on ProductoFailure catch (f) {
       if (!mounted) return;
       setState(() => _ajustandoId = null);
@@ -266,9 +257,11 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       _producto = widget.sucursal == null
           ? editado
           : editado.soloSucursal(widget.sucursal!.id);
-      _mensaje = 'Cambios guardados correctamente.';
-      _error = null;
     });
+    NotificacionServicio.actualizacion(
+      context,
+      'Cambios guardados correctamente.',
+    );
   }
 
   Future<void> _eliminar() async {
@@ -279,10 +272,7 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       negocio: widget.negocio,
     );
     if (!confirmar || !mounted) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
     try {
       await widget.gestion.eliminar(_producto.id);
       if (!mounted) return;
@@ -327,14 +317,6 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
               ),
           ],
           const SizedBox(height: 20),
-          if (_mensaje != null) ...[
-            ProductoAviso(_mensaje!),
-            const SizedBox(height: 20),
-          ],
-          if (_error != null) ...[
-            ProductoAviso(_error!, error: true),
-            const SizedBox(height: 20),
-          ],
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),

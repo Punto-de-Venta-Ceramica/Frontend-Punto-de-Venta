@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import 'package:punto_de_venta/features/descuentos/domain/descuento.dart';
@@ -93,7 +94,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   bool _crearMas = false;
   int _registrados = 0;
   Producto? _ultimo;
-  String? _aviso;
   final _arriba = GlobalKey();
   List<AreaProducto> _areas = [];
   List<CategoriaProducto> _categorias = [];
@@ -103,7 +103,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   int _paso = 0;
   bool _cargando = true;
   bool _busy = false;
-  String? _error;
+
+  /// No se pudieron cargar áreas y categorías (y lo demás del formulario):
+  /// se avisa bajo esos campos, con opción de reintentar.
+  String? _errorCarga;
   bool get _edicion => widget.producto != null;
   bool get _permiteTomarFoto =>
       !kIsWeb &&
@@ -143,8 +146,8 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       widget.onSesionExpirada();
       return;
     }
+    NotificacionServicio.error(context, e.message);
     setState(() {
-      _error = e.message;
       _cargando = false;
       _busy = false;
       if (e.fieldErrors.isNotEmpty) {
@@ -196,18 +199,29 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         _cargando = false;
       });
     } on ProductoFailure catch (e) {
-      if (mounted) _fallo(e);
+      if (mounted) _falloCarga(e.sesionExpirada);
     } on DescuentoFailure catch (e) {
-      if (!mounted) return;
-      if (e.sesionExpirada) {
-        widget.onSesionExpirada();
-        return;
-      }
-      setState(() {
-        _error = e.message;
-        _cargando = false;
-      });
+      if (mounted) _falloCarga(e.sesionExpirada);
     }
+  }
+
+  void _falloCarga(bool sesionExpirada) {
+    if (sesionExpirada) {
+      widget.onSesionExpirada();
+      return;
+    }
+    setState(() {
+      _cargando = false;
+      _errorCarga = 'No se pudieron cargar las áreas y categorías.';
+    });
+  }
+
+  void _reintentarCarga() {
+    setState(() {
+      _cargando = true;
+      _errorCarga = null;
+    });
+    _cargar();
   }
 
   TextEditingController _controladorExistencia(int sucursalId) =>
@@ -259,7 +273,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         _errores
           ..clear()
           ..addAll(errores);
-        _error = null;
       });
       return;
     }
@@ -275,7 +288,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _errores
         ..clear()
         ..addAll(errores);
-      _error = null;
       if (errores.isEmpty && descuentosOk) _paso = 1;
     });
   }
@@ -296,14 +308,14 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           ? await servicio.tomarFoto()
           : await servicio.elegirImagen();
       if (!mounted || archivo == null) return;
-      setState(() {
-        _imagenPendiente = archivo;
-        _error = null;
-        _aviso = null;
-      });
+      setState(() => _imagenPendiente = archivo);
     } on ImagenProductoException catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.mensaje);
+      NotificacionServicio.error(
+        context,
+        e.mensaje,
+        titulo: 'Imagen no válida',
+      );
     }
   }
 
@@ -314,7 +326,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _imagenUrl = null;
       _imagenPublicId = null;
       _progresoImagen = null;
-      _error = null;
     });
   }
 
@@ -435,11 +446,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       }
     }
     if (!_descuentosValidos()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _aviso = null;
-    });
+    setState(() => _busy = true);
     try {
       final imagenPendiente = _imagenPendiente;
       if (imagenPendiente != null) {
@@ -498,11 +505,12 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             return;
           }
           if (!mounted) return;
-          setState(() {
-            _busy = false;
-            _error =
-                'El producto se guardó, pero los descuentos no. ${e.message}';
-          });
+          setState(() => _busy = false);
+          NotificacionServicio.advertencia(
+            context,
+            'El producto se guardó, pero los descuentos no. ${e.message}',
+            titulo: 'Guardado incompleto',
+          );
           return;
         }
       }
@@ -515,6 +523,13 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       if (!_edicion) {
         _registrados++;
         widget.onRegistrados?.call(_registrados);
+        // Con varios registrados, la lista muestra el resumen del lote.
+        if (_registrados == 1) {
+          NotificacionServicio.registro(
+            context,
+            'Producto «${guardado.nombre}» registrado correctamente.',
+          );
+        }
       }
       Navigator.of(context).pop<Producto>(guardado);
     } on ProductoFailure catch (e) {
@@ -523,9 +538,13 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.mensaje;
         _progresoImagen = null;
       });
+      NotificacionServicio.error(
+        context,
+        e.mensaje,
+        titulo: 'Imagen no válida',
+      );
     }
   }
 
@@ -537,9 +556,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     final anteriores = [..._filas];
     setState(() {
       _busy = false;
-      _error = null;
-      _aviso =
-          'Producto «${guardado.nombre}» registrado correctamente. Llevas $_registrados ${_registrados == 1 ? 'registrado' : 'registrados'}; completa el siguiente.';
       _nombre.clear();
       _precio.clear();
       _areaId = null;
@@ -561,6 +577,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         c.clear();
       }
     });
+    NotificacionServicio.registro(
+      context,
+      'Producto «${guardado.nombre}» registrado correctamente. Llevas $_registrados ${_registrados == 1 ? 'registrado' : 'registrados'}; completa el siguiente.',
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       for (final f in anteriores) {
         f.dispose();
@@ -641,7 +661,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   }
 
   void _limpiar(String clave) {
-    if (_errores.containsKey(clave) || _error != null) {
+    if (_errores.containsKey(clave)) {
       setState(() => _errores.remove(clave));
     }
   }
@@ -727,6 +747,31 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           child: Text(
             _errores['categoriaId']!,
             style: BarroTheme.type(12, 18, color: BarroTheme.error),
+          ),
+        ),
+      if (_errorCarga != null)
+        Padding(
+          key: const ValueKey('producto-error-carga'),
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 18,
+                color: BarroTheme.error,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _errorCarga!,
+                  style: BarroTheme.type(12, 18, color: BarroTheme.error),
+                ),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _reintentarCarga,
+                child: const Text('Reintentar'),
+              ),
+            ],
           ),
         ),
       if (widget.descuentos != null) ..._seccionDescuentos(),
@@ -1201,14 +1246,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           if (!_edicion && !_unaPantalla) ...[
             ProductoPasos(paso: _paso),
             const SizedBox(height: 20),
-          ],
-          if (_aviso != null) ...[
-            ProductoAviso(_aviso!),
-            const SizedBox(height: 16),
-          ],
-          if (_error != null) ...[
-            ProductoAviso(_error!, error: true),
-            const SizedBox(height: 16),
           ],
           if (_cargando)
             const Padding(

@@ -6,7 +6,7 @@ import 'package:material_ui/material_ui.dart'
     as mui
     show InputDecoration, ListTile, Material, MaterialType, OutlineInputBorder;
 import 'package:flutter/services.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
@@ -87,7 +87,6 @@ class _ProductosPageState extends State<ProductosPage> {
   bool _cargandoMas = false;
   bool _busy = true;
   String? _error;
-  String? _mensaje;
   int _carga = 0;
 
   @override
@@ -140,16 +139,12 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  Future<void> _cargar(
-    NegocioProducto negocio, {
-    bool conservarMensaje = false,
-  }) async {
+  Future<void> _cargar(NegocioProducto negocio) async {
     final carga = ++_carga;
     setState(() {
       _negocio = negocio;
       _busy = true;
       _error = null;
-      if (!conservarMensaje) _mensaje = null;
     });
     try {
       // La clasificación es complementaria: si áreas/categorías no responden
@@ -201,11 +196,10 @@ class _ProductosPageState extends State<ProductosPage> {
   /// silencio. No hay pantalla de carga, se conserva el scroll, y la búsqueda y
   /// los filtros siguen aplicados; áreas, categorías y sucursales no cambian
   /// desde esas pantallas, así que no se vuelven a pedir.
-  Future<void> _refrescar({bool conservarMensaje = false}) async {
+  Future<void> _refrescar() async {
     final negocio = _negocio;
     if (negocio == null) return;
     final carga = ++_carga;
-    if (!conservarMensaje && _mensaje != null) setState(() => _mensaje = null);
     try {
       final pagina = await widget.gestion.listar(
         negocio.id,
@@ -426,24 +420,22 @@ class _ProductosPageState extends State<ProductosPage> {
     if (!mounted || guardado == null) return;
     if (registrados > 1) {
       // Registro por lotes: se vuelve a la lista en lugar de abrir un solo producto.
-      _mensaje = null;
-      AlertaServicio.registro(
+      NotificacionServicio.registro(
         context,
-        'Productos',
-        detalle: '$registrados productos registrados correctamente.',
+        '$registrados productos registrados correctamente.',
       );
-      await _refrescar(conservarMensaje: false);
+      await _refrescar();
       return;
     }
+    // El formulario ya avisó del registro de este producto.
     await _abrirDetalle(
       widget.sucursal == null
           ? guardado
           : guardado.soloSucursal(widget.sucursal!.id),
-      mensaje: 'Producto guardado correctamente.',
     );
   }
 
-  Future<void> _abrirDetalle(Producto producto, {String? mensaje}) async {
+  Future<void> _abrirDetalle(Producto producto) async {
     // Sin foco al salir, Flutter no devuelve el cursor (ni el teclado) al buscador.
     _quitarFoco();
     final eliminado = await Navigator.of(context).push<bool>(
@@ -456,7 +448,6 @@ class _ProductosPageState extends State<ProductosPage> {
           descuentos: widget.descuentos,
           imagenes: widget.imagenes,
           onSesionExpirada: widget.onSesionExpirada,
-          mensajeInicial: mensaje,
           soloLectura: widget.soloLectura,
         ),
       ),
@@ -464,10 +455,12 @@ class _ProductosPageState extends State<ProductosPage> {
     _quitarFoco();
     if (!mounted) return;
     if (eliminado == true) {
-      _mensaje = null;
-      AlertaServicio.eliminacion(context, 'Producto');
+      NotificacionServicio.eliminacion(
+        context,
+        'Producto eliminado correctamente.',
+      );
     }
-    await _refrescar(conservarMensaje: false);
+    await _refrescar();
   }
 
   /// Flutter devuelve el foco al campo que lo tenía al cerrar un menú o volver
@@ -860,10 +853,6 @@ class _ProductosPageState extends State<ProductosPage> {
           style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
         ),
         const SizedBox(height: 20),
-        if (_mensaje != null) ...[
-          ProductoAviso(_mensaje!),
-          const SizedBox(height: 20),
-        ],
         if (_busy)
           const Padding(
             padding: EdgeInsets.all(40),

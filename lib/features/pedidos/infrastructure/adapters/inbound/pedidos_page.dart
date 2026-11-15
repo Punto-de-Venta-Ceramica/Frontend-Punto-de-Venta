@@ -45,7 +45,9 @@ class _PedidosPageState extends State<PedidosPage> {
   String _busqueda = '';
 
   /// Estado filtrado en el servidor; null = todos.
-  String? _estado = EstadosPedido.porDefecto;
+  late String? _estado = EstadosPedido.porDefecto(
+    esPropietario: widget.esPropietario,
+  );
   int _pagina = 0;
   bool _ultima = true;
   int _total = 0;

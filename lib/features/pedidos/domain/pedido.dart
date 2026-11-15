@@ -189,9 +189,11 @@ class DatosPedido {
 class EstadosPedido {
   EstadosPedido._();
 
-  /// Filtro con el que abre el listado, para ambos roles: lo entregado,
-  /// que es lo que falta terminar.
-  static const porDefecto = 'ENTREGADO';
+  /// Filtro con el que abre el listado. El propietario ve lo encargado (los
+  /// pedidos que tiene que hacer); el empleado, lo entregado en sucursal, que
+  /// es lo que le falta terminar.
+  static String porDefecto({required bool esPropietario}) =>
+      esPropietario ? 'ENCARGADO' : 'ENTREGADO';
 
   /// Estados del selector de la tarjeta, en orden.
   static const progreso = ['ENCARGADO', 'PRODUCCION', 'ENTREGADO'];

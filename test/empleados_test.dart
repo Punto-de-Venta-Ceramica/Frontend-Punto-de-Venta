@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'notificaciones_test_utils.dart';
 import 'package:punto_de_venta/features/empleados/application/ports/inbound/gestion_empleados_use_case.dart';
 import 'package:punto_de_venta/features/empleados/domain/empleado.dart';
 import 'package:punto_de_venta/features/empleados/infrastructure/adapters/inbound/flutter/asignar_sucursales_page.dart';
@@ -142,66 +144,70 @@ void main() {
   });
 
   group('Pantallas de Empleados', () {
-    testWidgets('lista empleados con sucursal asignada e iniciales', (
-      tester,
-    ) async {
-      final fake = GestionEmpleadosFake();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: EmpleadosPage(
-            gestion: fake,
-            negocioInicial: const NegocioEmpleado(
-              id: 10,
-              nombre: 'Cerámica del Centro',
+    testWidgetsConNotificaciones(
+      'lista empleados con sucursal asignada e iniciales',
+      (tester) async {
+        final fake = GestionEmpleadosFake();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EmpleadosPage(
+              gestion: fake,
+              negocioInicial: const NegocioEmpleado(
+                id: 10,
+                nombre: 'Cerámica del Centro',
+              ),
+              onSesionExpirada: () {},
             ),
-            onSesionExpirada: () {},
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.text('Empleados'), findsOneWidget);
-      expect(find.text('2 empleados en tu negocio'), findsOneWidget);
-      expect(find.text('María López'), findsOneWidget);
-      expect(find.text('maria.lopez@correo.com'), findsOneWidget);
-      expect(find.text('Sucursal Centro'), findsOneWidget);
-      expect(find.text('Jorge Ramírez'), findsOneWidget);
-      expect(find.text('Sin sucursal asignada'), findsOneWidget);
-    });
+        expect(find.text('Empleados'), findsOneWidget);
+        expect(find.text('2 empleados en tu negocio'), findsOneWidget);
+        expect(find.text('María López'), findsOneWidget);
+        expect(find.text('maria.lopez@correo.com'), findsOneWidget);
+        expect(find.text('Sucursal Centro'), findsOneWidget);
+        expect(find.text('Jorge Ramírez'), findsOneWidget);
+        expect(find.text('Sin sucursal asignada'), findsOneWidget);
+      },
+    );
 
-    testWidgets('empleado en varias sucursales las muestra todas', (
+    testWidgetsConNotificaciones(
+      'empleado en varias sucursales las muestra todas',
+      (tester) async {
+        final fake = GestionEmpleadosFake()
+          ..empleados = [
+            const Empleado(
+              id: 1,
+              negocioId: 10,
+              nombre: 'María',
+              correoElectronico: 'maria@correo.com',
+              sucursales: [
+                SucursalEmpleado(id: 100, nombre: 'Sucursal Centro'),
+                SucursalEmpleado(id: 101, nombre: 'Sucursal Norte'),
+              ],
+            ),
+          ];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EmpleadosPage(
+              gestion: fake,
+              negocioInicial: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
+              onSesionExpirada: () {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Sucursal Centro'), findsOneWidget);
+        expect(find.text('Sucursal Norte'), findsOneWidget);
+      },
+    );
+
+    testWidgetsConNotificaciones('asigna y desasigna sucursales de un empleado', (
       tester,
     ) async {
-      final fake = GestionEmpleadosFake()
-        ..empleados = [
-          const Empleado(
-            id: 1,
-            negocioId: 10,
-            nombre: 'María',
-            correoElectronico: 'maria@correo.com',
-            sucursales: [
-              SucursalEmpleado(id: 100, nombre: 'Sucursal Centro'),
-              SucursalEmpleado(id: 101, nombre: 'Sucursal Norte'),
-            ],
-          ),
-        ];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: EmpleadosPage(
-            gestion: fake,
-            negocioInicial: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
-            onSesionExpirada: () {},
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Sucursal Centro'), findsOneWidget);
-      expect(find.text('Sucursal Norte'), findsOneWidget);
-    });
-
-    testWidgets('asigna y desasigna sucursales de un empleado', (tester) async {
       final fake = GestionEmpleadosFake();
       await tester.pumpWidget(
         MaterialApp(
@@ -235,64 +241,68 @@ void main() {
       expect(fake.empleados[0].sucursales.map((s) => s.id), [101]);
     });
 
-    testWidgets('vista de sucursal solo muestra a sus empleados', (
-      tester,
-    ) async {
-      final fake = GestionEmpleadosFake();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: EmpleadosPage(
-            gestion: fake,
-            sucursalId: 100,
-            sucursalNombre: 'Sucursal Centro',
-            negocioInicial: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
-            onSesionExpirada: () {},
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('María López'), findsOneWidget);
-      expect(find.text('Jorge Ramírez'), findsNothing);
-      expect(find.text('1 empleado en esta sucursal'), findsOneWidget);
-      expect(find.text('Asignar sucursales'), findsNothing);
-    });
-
-    testWidgets('diálogo de confirmación de eliminación ejecuta delete', (
-      tester,
-    ) async {
-      final fake = GestionEmpleadosFake();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: EmpleadosPage(
-            gestion: fake,
-            negocioInicial: const NegocioEmpleado(
-              id: 10,
-              nombre: 'Cerámica del Centro',
+    testWidgetsConNotificaciones(
+      'vista de sucursal solo muestra a sus empleados',
+      (tester) async {
+        final fake = GestionEmpleadosFake();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EmpleadosPage(
+              gestion: fake,
+              sucursalId: 100,
+              sucursalNombre: 'Sucursal Centro',
+              negocioInicial: const NegocioEmpleado(id: 10, nombre: 'Negocio'),
+              onSesionExpirada: () {},
             ),
-            onSesionExpirada: () {},
           ),
-        ),
-      );
+        );
+        await tester.pumpAndSettle();
 
-      await tester.pumpAndSettle();
+        expect(find.text('María López'), findsOneWidget);
+        expect(find.text('Jorge Ramírez'), findsNothing);
+        expect(find.text('1 empleado en esta sucursal'), findsOneWidget);
+        expect(find.text('Asignar sucursales'), findsNothing);
+      },
+    );
 
-      // Tap en el primer botón Eliminar
-      await tester.tap(find.text('Eliminar').first);
-      await tester.pumpAndSettle();
+    testWidgetsConNotificaciones(
+      'diálogo de confirmación de eliminación ejecuta delete',
+      (tester) async {
+        final fake = GestionEmpleadosFake();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EmpleadosPage(
+              gestion: fake,
+              negocioInicial: const NegocioEmpleado(
+                id: 10,
+                nombre: 'Cerámica del Centro',
+              ),
+              onSesionExpirada: () {},
+            ),
+          ),
+        );
 
-      expect(find.text('¿Eliminar empleado?'), findsOneWidget);
-      expect(find.byType(EliminarEmpleadoDialog), findsOneWidget);
+        await tester.pumpAndSettle();
 
-      // Confirmar eliminación
-      await tester.tap(find.widgetWithText(FilledButton, 'Eliminar empleado'));
-      await tester.pumpAndSettle();
+        // Tap en el primer botón Eliminar
+        await tester.tap(find.text('Eliminar').first);
+        await tester.pumpAndSettle();
 
-      expect(fake.eliminados, 1);
-      expect(find.text('1 empleado en tu negocio'), findsOneWidget);
-    });
+        expect(find.text('¿Eliminar empleado?'), findsOneWidget);
+        expect(find.byType(EliminarEmpleadoDialog), findsOneWidget);
 
-    testWidgets(
+        // Confirmar eliminación
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Eliminar empleado'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(fake.eliminados, 1);
+        expect(find.text('1 empleado en tu negocio'), findsOneWidget);
+      },
+    );
+
+    testWidgetsConNotificaciones(
       'diálogo de credenciales muestra correo y contraseña generada',
       (tester) async {
         const creado = EmpleadoCreado(
@@ -323,7 +333,7 @@ void main() {
       },
     );
 
-    testWidgets(
+    testWidgetsConNotificaciones(
       'formulario nuevo empleado valida y registra mostrando credenciales',
       (tester) async {
         final fake = GestionEmpleadosFake();

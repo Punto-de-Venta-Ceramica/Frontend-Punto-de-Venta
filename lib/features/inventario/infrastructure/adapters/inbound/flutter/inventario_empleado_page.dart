@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
@@ -117,15 +118,18 @@ class _InventarioEmpleadoPageState extends State<InventarioEmpleadoPage> {
             i.inventarioId == item.inventarioId ? i.conExistencia(nueva) : i,
         ];
       });
+      NotificacionServicio.exito(
+        context,
+        '${item.productoNombre}: ${cantidad > 0 ? '+' : '−'}${cantidad.abs()}, ahora ${formatoPiezas(nueva)}.',
+        titulo: 'Existencia actualizada',
+      );
     } on InventarioFailure catch (e) {
       if (!mounted) return;
       if (e.sesionExpirada) {
         widget.onSesionExpirada();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: BarroTheme.error),
-      );
+      NotificacionServicio.error(context, e.message);
     }
   }
 
