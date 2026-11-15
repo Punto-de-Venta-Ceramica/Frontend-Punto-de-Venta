@@ -107,12 +107,20 @@ class Pedido {
     required this.pagado,
     required this.saldo,
     this.descripcionEnvio = '',
+    this.fechaCreacion,
+    this.negocioEslogan,
   });
   final int id;
   final String folio, estado, cliente, telefono, ciudad, colonia, calle;
   final String descripcion, tipoEntrega, descripcionEnvio;
   final List<DetallePedido> productos;
   final double total, pagado, saldo;
+
+  /// Cuándo se encargó el pedido (hora local); null si no llegó.
+  final DateTime? fechaCreacion;
+
+  /// Eslogan del negocio para el pie del ticket; null si no tiene.
+  final String? negocioEslogan;
 }
 
 /// Datos editables de un pedido (solo propietario). No incluye productos ni
@@ -138,11 +146,15 @@ class DetallePedido {
     required this.cantidad,
     required this.subtotal,
     required this.porcentajeDescuento,
+    this.precioUnitario,
     this.imagenUrl,
   });
   final String nombre;
   final int cantidad;
   final double subtotal, porcentajeDescuento;
+
+  /// Precio de lista con el que se registró la línea, antes del descuento.
+  final double? precioUnitario;
 
   /// Imagen del producto en el catálogo; null si no tiene.
   final String? imagenUrl;
