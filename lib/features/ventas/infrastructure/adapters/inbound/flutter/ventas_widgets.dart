@@ -14,6 +14,8 @@ class VentaScaffold extends StatelessWidget {
     this.onAccion,
     this.procesando = false,
     this.resumen,
+    this.debajoAccion,
+    this.textoCancelar = 'Cancelar',
     this.espacioAntesContenido = 28,
     super.key,
   });
@@ -26,6 +28,11 @@ class VentaScaffold extends StatelessWidget {
   final VoidCallback? onCancelar;
   final bool procesando;
   final Widget? resumen;
+
+  /// Contenido entre la acción principal y el botón de cancelar (p. ej. la
+  /// sección para imprimir el ticket de la venta registrada).
+  final Widget? debajoAccion;
+  final String textoCancelar;
   final double espacioAntesContenido;
 
   @override
@@ -75,6 +82,8 @@ class VentaScaffold extends StatelessWidget {
                       onAccion: onAccion,
                       onCancelar: onCancelar,
                       procesando: procesando,
+                      debajoAccion: debajoAccion,
+                      textoCancelar: textoCancelar,
                     ),
                   ],
                 ),
@@ -266,12 +275,16 @@ class _AccionesVenta extends StatelessWidget {
     required this.onAccion,
     required this.onCancelar,
     required this.procesando,
+    required this.debajoAccion,
+    required this.textoCancelar,
   });
 
   final String accion;
   final VoidCallback? onAccion;
   final VoidCallback? onCancelar;
   final bool procesando;
+  final Widget? debajoAccion;
+  final String textoCancelar;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -296,13 +309,17 @@ class _AccionesVenta extends StatelessWidget {
               )
             : Text(accion, textAlign: TextAlign.center),
       ),
+      if (debajoAccion case final contenido?) ...[
+        const SizedBox(height: 8),
+        contenido,
+      ],
       TextButton(
         onPressed: onCancelar,
         style: TextButton.styleFrom(
           minimumSize: const Size.fromHeight(44),
           textStyle: BarroTheme.type(14, 20, weight: FontWeight.w600),
         ),
-        child: const Text('Cancelar'),
+        child: Text(textoCancelar),
       ),
     ],
   );

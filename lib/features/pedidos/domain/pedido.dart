@@ -108,7 +108,6 @@ class Pedido {
     required this.saldo,
     this.descripcionEnvio = '',
     this.fechaCreacion,
-    this.negocioEslogan,
   });
   final int id;
   final String folio, estado, cliente, telefono, ciudad, colonia, calle;
@@ -118,9 +117,6 @@ class Pedido {
 
   /// Cuándo se encargó el pedido (hora local); null si no llegó.
   final DateTime? fechaCreacion;
-
-  /// Eslogan del negocio para el pie del ticket; null si no tiene.
-  final String? negocioEslogan;
 }
 
 /// Datos editables de un pedido (solo propietario). No incluye productos ni

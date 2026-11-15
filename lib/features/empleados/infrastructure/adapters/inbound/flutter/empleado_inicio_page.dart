@@ -175,7 +175,10 @@ class _EmpleadoInicioPageState extends State<EmpleadoInicioPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFECF7F1),
                       borderRadius: BorderRadius.circular(8),
@@ -279,7 +282,10 @@ class _EmpleadoInicioPageState extends State<EmpleadoInicioPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 children: [
                   const BarroHeader(),
                   const SizedBox(height: 28),

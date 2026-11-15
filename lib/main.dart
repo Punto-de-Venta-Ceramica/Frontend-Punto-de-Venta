@@ -336,7 +336,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     if (context.mounted) {
       final cambio = venta.cambio;
       final mensaje =
-          'Venta #${venta.id} registrada por ${dineroVenta(venta.total)}.';
+          'Venta ${venta.folio} registrada por ${dineroVenta(venta.total)}.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -649,7 +649,6 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     ),
   );
 }
-
 
 class _ConnectionHome extends StatefulWidget {
   const _ConnectionHome();

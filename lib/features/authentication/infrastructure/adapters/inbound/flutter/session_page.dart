@@ -120,7 +120,10 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 child: BarroHeader(
                   conteoNotificaciones: widget.conteoNotificaciones,
                   onNotificaciones: widget.openNotifications,
@@ -155,7 +158,11 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
                           Text(
                             'Sesión iniciada',
                             textAlign: TextAlign.center,
-                            style: BarroTheme.type(28, 36, weight: FontWeight.w700),
+                            style: BarroTheme.type(
+                              28,
+                              36,
+                              weight: FontWeight.w700,
+                            ),
                           ),
                           const SizedBox(height: 10),
                           Center(

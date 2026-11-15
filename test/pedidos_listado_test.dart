@@ -344,7 +344,10 @@ void main() {
     // De vuelta en el detalle, ya recargado.
     expect(find.text('Detalle del pedido'), findsOneWidget);
     expect(find.text('Datos del pedido actualizados.'), findsOneWidget);
-    expect(find.text('Ana López'), findsOneWidget);
+    expect(
+      find.textContaining('Ana López', findRichText: true),
+      findsOneWidget,
+    );
   });
 
   test('reglas del selector de estado', () {

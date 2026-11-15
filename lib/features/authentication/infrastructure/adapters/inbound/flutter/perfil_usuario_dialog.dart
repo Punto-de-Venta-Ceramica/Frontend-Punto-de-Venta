@@ -24,15 +24,14 @@ class PerfilUsuarioDialog extends StatefulWidget {
     required ApiClient api,
     required AuthenticationGateway gateway,
     VoidCallback? onCerrarSesion,
-  }) =>
-      showDialog<void>(
-        context: context,
-        builder: (_) => PerfilUsuarioDialog(
-          api: api,
-          gateway: gateway,
-          onCerrarSesion: onCerrarSesion,
-        ),
-      );
+  }) => showDialog<void>(
+    context: context,
+    builder: (_) => PerfilUsuarioDialog(
+      api: api,
+      gateway: gateway,
+      onCerrarSesion: onCerrarSesion,
+    ),
+  );
 
   @override
   State<PerfilUsuarioDialog> createState() => _PerfilUsuarioDialogState();
@@ -183,7 +182,11 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
                       children: [
                         Text(
                           'Mi perfil',
-                          style: BarroTheme.type(20, 26, weight: FontWeight.w700),
+                          style: BarroTheme.type(
+                            20,
+                            26,
+                            weight: FontWeight.w700,
+                          ),
                         ),
                         if (_rol.isNotEmpty)
                           Text(
@@ -218,7 +221,10 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       _error!,
-                      style: const TextStyle(color: BarroTheme.error, fontSize: 13),
+                      style: const TextStyle(
+                        color: BarroTheme.error,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 // Correo (solo lectura)
@@ -328,4 +334,3 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
     );
   }
 }
-

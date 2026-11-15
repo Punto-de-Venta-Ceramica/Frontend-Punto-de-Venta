@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
     show ProductoImagen;
+import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 
 import '../../../../application/services/gestion_ventas.dart';
 import '../../../../domain/venta.dart';
@@ -16,6 +18,7 @@ class RegistrarVentaPage extends StatefulWidget {
     required this.gestion,
     required this.sucursalId,
     required this.onSesionExpirada,
+    this.impresion = impresionTicketsBluetooth,
     super.key,
   });
 
@@ -23,6 +26,9 @@ class RegistrarVentaPage extends StatefulWidget {
   final GestionVentas gestion;
   final int sucursalId;
   final VoidCallback onSesionExpirada;
+
+  /// Impresión del ticket una vez registrada la venta.
+  final ImpresionTickets impresion;
 
   @override
   State<RegistrarVentaPage> createState() => _RegistrarVentaPageState();
@@ -165,6 +171,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
           sucursalId: widget.sucursalId,
           productos: seleccion,
           onSesionExpirada: widget.onSesionExpirada,
+          impresion: widget.impresion,
         ),
       ),
     );

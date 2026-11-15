@@ -52,9 +52,12 @@ class BarroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alcance = BarroHeaderScope.maybeOf(context);
-    final perfil = onPerfil ??
+    final perfil =
+        onPerfil ??
         alcance?.onPerfil ??
-        (accionPerfilGlobal != null ? () => accionPerfilGlobal!(context) : null);
+        (accionPerfilGlobal != null
+            ? () => accionPerfilGlobal!(context)
+            : null);
     final notificaciones = onNotificaciones ?? alcance?.onNotificaciones;
     final conteo = conteoNotificaciones ?? alcance?.conteoNotificaciones;
     return SizedBox(height: 48, child: _fila(perfil, notificaciones, conteo));

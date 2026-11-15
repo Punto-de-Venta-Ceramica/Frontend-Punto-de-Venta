@@ -60,11 +60,15 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
       return;
     }
     if (nueva.length < 8) {
-      setState(() => _error = 'La nueva contraseña debe tener al menos 8 caracteres.');
+      setState(
+        () => _error = 'La nueva contraseña debe tener al menos 8 caracteres.',
+      );
       return;
     }
     if (nueva != confirmar) {
-      setState(() => _error = 'La nueva contraseña y su confirmación no coinciden.');
+      setState(
+        () => _error = 'La nueva contraseña y su confirmación no coinciden.',
+      );
       return;
     }
 
@@ -85,7 +89,8 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
+      if (mounted)
+        setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -124,7 +129,8 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                 focusNode: _actualFocus,
                 label: 'Contraseña actual',
                 ocultar: _ocultarActual,
-                onToggle: () => setState(() => _ocultarActual = !_ocultarActual),
+                onToggle: () =>
+                    setState(() => _ocultarActual = !_ocultarActual),
                 onSubmitted: () => _nuevaFocus.requestFocus(),
               ),
               const SizedBox(height: 12),
@@ -142,7 +148,8 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                 focusNode: _confirmarFocus,
                 label: 'Confirmar nueva contraseña',
                 ocultar: _ocultarConfirmar,
-                onToggle: () => setState(() => _ocultarConfirmar = !_ocultarConfirmar),
+                onToggle: () =>
+                    setState(() => _ocultarConfirmar = !_ocultarConfirmar),
                 onSubmitted: _busy ? null : _submit,
               ),
               if (_error != null)
@@ -150,7 +157,10 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     _error!,
-                    style: const TextStyle(color: BarroTheme.error, fontSize: 13),
+                    style: const TextStyle(
+                      color: BarroTheme.error,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
             ],
@@ -172,7 +182,10 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Text('Guardar'),
           ),
@@ -188,20 +201,18 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
     required bool ocultar,
     required VoidCallback onToggle,
     void Function()? onSubmitted,
-  }) =>
-      TextField(
-        controller: controller,
-        focusNode: focusNode,
-        obscureText: ocultar,
-        onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          suffixIcon: IconButton(
-            icon: Icon(ocultar ? Icons.visibility_off : Icons.visibility),
-            onPressed: onToggle,
-          ),
-        ),
-      );
+  }) => TextField(
+    controller: controller,
+    focusNode: focusNode,
+    obscureText: ocultar,
+    onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
+    decoration: InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      suffixIcon: IconButton(
+        icon: Icon(ocultar ? Icons.visibility_off : Icons.visibility),
+        onPressed: onToggle,
+      ),
+    ),
+  );
 }
-

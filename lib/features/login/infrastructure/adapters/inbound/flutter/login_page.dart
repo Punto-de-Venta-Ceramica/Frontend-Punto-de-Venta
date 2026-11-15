@@ -108,10 +108,8 @@ class _LoginPageState extends State<LoginPage> {
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
-          builder: (_) => CambiarPasswordDialog(
-            gateway: widget.gateway,
-            obligatorio: true,
-          ),
+          builder: (_) =>
+              CambiarPasswordDialog(gateway: widget.gateway, obligatorio: true),
         );
         if (!mounted) return;
       }
