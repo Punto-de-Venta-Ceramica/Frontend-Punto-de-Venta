@@ -204,12 +204,14 @@ class ApiClient {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String> headers = const {},
     bool authenticated = true,
   }) async {
     final uri = _resolve(path);
     return _send(
       () {
         final request = http.Request(method, uri);
+        request.headers.addAll(headers);
         if (body != null) {
           request.headers['Content-Type'] = 'application/json; charset=utf-8';
           request.body = jsonEncode(body);

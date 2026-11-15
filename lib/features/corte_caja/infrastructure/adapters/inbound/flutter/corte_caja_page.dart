@@ -24,6 +24,7 @@ class CorteCajaPage extends StatefulWidget {
     this.onInicio,
     this.onPedidos,
     this.onInventario,
+    this.onRegistrarVenta,
     super.key,
   });
 
@@ -37,6 +38,7 @@ class CorteCajaPage extends StatefulWidget {
   final VoidCallback? onInicio;
   final VoidCallback? onPedidos;
   final VoidCallback? onInventario;
+  final Future<bool> Function(BuildContext context)? onRegistrarVenta;
 
   @override
   State<CorteCajaPage> createState() => _CorteCajaPageState();
@@ -54,6 +56,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
   );
   double _diferencia = 0.0;
   bool _guardando = false;
+  bool _abriendoVenta = false;
 
   @override
   void initState() {
@@ -288,6 +291,20 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     );
   }
 
+  Future<void> _registrarVenta() async {
+    final abrirVenta = widget.onRegistrarVenta;
+    if (abrirVenta == null || _abriendoVenta || _guardando || _corte == null) {
+      return;
+    }
+    setState(() => _abriendoVenta = true);
+    try {
+      final registrada = await abrirVenta(context);
+      if (mounted && registrada) await _cargar();
+    } finally {
+      if (mounted) setState(() => _abriendoVenta = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: BarroTheme.background,
@@ -363,7 +380,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Abre un turno para registrar movimientos',
+                    widget.onRegistrarVenta == null
+                        ? 'Abre un turno para registrar movimientos'
+                        : 'Abre un corte de caja para registrar ventas.',
                     style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
                   ),
                 ],
@@ -550,6 +569,20 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
             usuarioNombre: corte.usuarioNombre,
           ),
           const SizedBox(height: 18),
+
+          if (widget.onRegistrarVenta != null && !corte.cerrado) ...[
+            FilledButton.icon(
+              onPressed: _guardando || _abriendoVenta ? null : _registrarVenta,
+              icon: const Icon(Icons.point_of_sale_outlined),
+              label: const Text('Registrar venta'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                backgroundColor: BarroTheme.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
 
           // Tabla: Resumen del día (Efectivo vs Tarjeta)
           Container(

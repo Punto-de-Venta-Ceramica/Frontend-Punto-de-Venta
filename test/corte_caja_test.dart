@@ -11,6 +11,7 @@ class FakeCorteCajaGateway implements CorteCajaGateway {
   CorteCaja? corteActivo;
   int abrirCorteLlamadas = 0;
   int cerrarCorteLlamadas = 0;
+  int consultasCorteActivo = 0;
 
   @override
   Future<CorteCaja> abrirCorte({
@@ -65,7 +66,10 @@ class FakeCorteCajaGateway implements CorteCajaGateway {
   }
 
   @override
-  Future<CorteCaja?> obtenerCorteActivo(int sucursalId) async => corteActivo;
+  Future<CorteCaja?> obtenerCorteActivo(int sucursalId) async {
+    consultasCorteActivo++;
+    return corteActivo;
+  }
 
   @override
   Future<CorteCaja> cerrarCorte({
@@ -217,6 +221,7 @@ void main() {
 
       final fake = FakeCorteCajaGateway()..corteActivo = null;
       final gestion = GestionCorteCaja(fake);
+      var ventasRegistradas = 0;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -225,6 +230,10 @@ void main() {
             sucursalId: 1,
             sucursalNombre: 'Centro',
             esPropietario: true,
+            onRegistrarVenta: (_) async {
+              ventasRegistradas++;
+              return true;
+            },
           ),
         ),
       );
@@ -232,6 +241,7 @@ void main() {
 
       expect(find.text('Caja cerrada'), findsOneWidget);
       expect(find.text('Abrir turno de caja'), findsOneWidget);
+      expect(find.text('Registrar venta'), findsNothing);
 
       // Abre el turno
       final botonAbrir = find.text('Abrir turno de caja');
@@ -241,6 +251,13 @@ void main() {
 
       expect(fake.abrirCorteLlamadas, 1);
       expect(find.text('Corte de caja'), findsOneWidget);
+      final accesoVentas = find.text('Registrar venta');
+      await tester.ensureVisible(accesoVentas);
+      await tester.tap(accesoVentas);
+      await tester.pumpAndSettle();
+
+      expect(ventasRegistradas, 1);
+      expect(fake.consultasCorteActivo, 2);
     });
 
     testWidgets(
