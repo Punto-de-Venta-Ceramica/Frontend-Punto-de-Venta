@@ -48,6 +48,11 @@ import 'features/empleados/infrastructure/adapters/outbound/http/http_empleado_g
 import 'features/corte_caja/application/services/gestion_corte_caja.dart';
 import 'features/corte_caja/infrastructure/adapters/outbound/http/http_corte_caja_gateway.dart';
 import 'features/corte_caja/infrastructure/adapters/inbound/flutter/corte_caja_page.dart';
+import 'features/ventas/application/services/gestion_ventas.dart';
+import 'features/ventas/domain/venta.dart';
+import 'features/ventas/infrastructure/adapters/inbound/flutter/registrar_venta_page.dart';
+import 'features/ventas/infrastructure/adapters/inbound/flutter/ventas_widgets.dart';
+import 'features/ventas/infrastructure/adapters/outbound/http/http_ventas_gateway.dart';
 
 import 'features/empleados/domain/sucursal_asignada.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleado_inicio_page.dart';
@@ -96,6 +101,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   /// listado 5 min, áreas/categorías 30 min). Usa gateways con alcance de
   /// sucursal, por eso no comparte la del propietario.
   final _productosEmpleado = <int, CacheProductos>{};
+  final _revisionInventarioEmpleado = ValueNotifier<int>(0);
 
   CacheProductos _cacheEmpleado(SucursalAsignada s) =>
       _productosEmpleado.putIfAbsent(
@@ -160,6 +166,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   void dispose() {
     _contador.dispose();
     _sesionExpirada.dispose();
+    _revisionInventarioEmpleado.dispose();
     _api.close();
     super.dispose();
   }
@@ -272,6 +279,13 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         usuarioNombre: _sesionActual?.role ?? 'Propietario',
         esPropietario: true,
         onSesionExpirada: () => _cerrarSesion(context),
+        onRegistrarVenta: (context) => _abrirRegistroVenta(
+          context,
+          sucursalId: sucursal.id,
+          sucursal: sucursal.nombre,
+          negocio: negocio.nombre,
+          rol: 'Propietario',
+        ),
         onInicio: () => Navigator.of(cajaContext).popUntil((r) => r.isFirst),
         onPedidos: () =>
             _abrirPedidos(cajaContext, negocio, sucursal, reemplazar: true),
@@ -281,6 +295,48 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     );
     final navigator = Navigator.of(context);
     return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
+  }
+
+  Future<bool> _abrirRegistroVenta(
+    BuildContext context, {
+    required int sucursalId,
+    required String sucursal,
+    required String negocio,
+    required String rol,
+  }) async {
+    final venta = await Navigator.of(context).push<VentaRegistrada>(
+      MaterialPageRoute(
+        builder: (ventasContext) => RegistrarVentaPage(
+          gestion: GestionVentas(HttpVentasGateway(_api)),
+          sucursalId: sucursalId,
+          contexto: VentaContexto(
+            negocio: negocio,
+            sucursal: sucursal,
+            rol: rol,
+          ),
+          onSesionExpirada: () => _cerrarSesion(ventasContext),
+        ),
+      ),
+    );
+    if (venta == null || !mounted) return false;
+    _productos.descartar();
+    _productosEmpleado[sucursalId]?.descartar();
+    _revisionInventarioEmpleado.value++;
+    if (context.mounted) {
+      final cambio = venta.cambio;
+      final mensaje =
+          'Venta #${venta.id} registrada por ${dineroVenta(venta.total)}.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            cambio == null
+                ? mensaje
+                : '$mensaje Cambio: ${dineroVenta(cambio)}.',
+          ),
+        ),
+      );
+    }
+    return true;
   }
 
   Future<void> _abrirEmpleados(
@@ -449,26 +505,35 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       usuarioNombre: _sesionActual?.role ?? 'Empleado',
       esPropietario: false,
       onSesionExpirada: () => _cerrarSesion(context),
+      onRegistrarVenta: (context) => _abrirRegistroVenta(
+        context,
+        sucursalId: s.sucursalId,
+        sucursal: s.sucursal,
+        negocio: s.negocio,
+        rol: 'Empleado',
+      ),
     ),
     // Mismo listado y detalle que el propietario, en solo lectura: el
     // empleado ajusta existencias de su sucursal y puede registrar productos.
-    construirInventario: (s) => ProductosPage(
-      gestion: () {
+    construirInventario: (s) => ValueListenableBuilder<int>(
+      valueListenable: _revisionInventarioEmpleado,
+      builder: (_, revision, _) {
         final cache = _cacheEmpleado(s);
-        return GestionProductos(
-          cache.productos,
-          cache.existencias,
-          cache: cache,
+        return ProductosPage(
+          key: ValueKey(revision),
+          gestion: GestionProductos(
+            cache.productos,
+            cache.existencias,
+            cache: cache,
+          ),
+          negocioInicial: NegocioProducto(id: s.negocioId, nombre: s.negocio),
+          sucursal: SucursalProducto(id: s.sucursalId, nombre: s.sucursal),
+          soloLectura: true,
+          puedeRegistrar: true,
+          imagenes: _imagenesProducto,
+          onSesionExpirada: () => _cerrarSesion(context),
         );
-      }(),
-      negocioInicial: NegocioProducto(id: s.negocioId, nombre: s.negocio),
-      sucursal: SucursalProducto(id: s.sucursalId, nombre: s.sucursal),
-      soloLectura: true,
-      // El empleado registra productos solo en su sucursal y sin descuentos
-      // (sin `descuentos`, el formulario no muestra esa sección).
-      puedeRegistrar: true,
-      imagenes: _imagenesProducto,
-      onSesionExpirada: () => _cerrarSesion(context),
+      },
     ),
     onCerrarSesion: () => _cerrarSesion(context),
     conteoNotificaciones: _contador,

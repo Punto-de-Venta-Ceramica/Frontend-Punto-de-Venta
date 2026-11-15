@@ -26,34 +26,52 @@ class ProductoImagen extends StatelessWidget {
     this.ancho,
     this.url,
     this.bytes,
+    this.conservarProporcion = false,
     super.key,
   });
 
-  /// Alto (y ancho, si `ancho` es null) del recuadro.
+  /// Alto del recuadro y ancho por defecto cuando el recuadro es fijo.
   final double size;
   final double? ancho;
   final String? url;
   final Uint8List? bytes;
 
+  /// Ajusta el ancho según la foto y el espacio disponible.
+  final bool conservarProporcion;
+
+  BoxFit get _ajuste => conservarProporcion ? BoxFit.contain : BoxFit.cover;
+  Alignment get _alineacion =>
+      conservarProporcion ? Alignment.topLeft : Alignment.center;
+
   @override
-  Widget build(BuildContext context) => Container(
-    width: ancho ?? size,
-    height: size,
-    decoration: BoxDecoration(
-      color: productoSuave,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: BarroTheme.border),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: _contenido(),
-  );
+  Widget build(BuildContext context) {
+    final radio = BorderRadius.circular(14);
+    if (conservarProporcion) {
+      return ClipRRect(
+        borderRadius: radio,
+        child: SizedBox(height: size, child: _contenido()),
+      );
+    }
+    return Container(
+      width: ancho ?? size,
+      height: size,
+      decoration: BoxDecoration(
+        color: productoSuave,
+        borderRadius: radio,
+        border: Border.all(color: BarroTheme.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: _contenido(),
+    );
+  }
 
   Widget _contenido() {
     final seleccionada = bytes;
     if (seleccionada != null) {
       return Image.memory(
         seleccionada,
-        fit: BoxFit.cover,
+        fit: _ajuste,
+        alignment: _alineacion,
         // Se decodifica al tamaño que se muestra, no la foto completa.
         cacheWidth: tamaniosImagenCloudinary.last,
         errorBuilder: (_, _, _) => _placeholder(error: true),
@@ -71,7 +89,8 @@ class ProductoImagen extends StatelessWidget {
             math.max(ancho, size) * MediaQuery.devicePixelRatioOf(context);
         return CachedNetworkImage(
           imageUrl: urlImagenCloudinary(direccion, ladoPx),
-          fit: BoxFit.cover,
+          fit: _ajuste,
+          alignment: _alineacion,
           placeholder: (_, _) => _placeholder(cargando: true),
           errorWidget: (_, _, _) => _placeholder(error: true),
         );
@@ -80,6 +99,7 @@ class ProductoImagen extends StatelessWidget {
   }
 
   Widget _placeholder({bool cargando = false, bool error = false}) => Container(
+    width: conservarProporcion ? size : null,
     color: productoSuave,
     alignment: Alignment.center,
     child: cargando
