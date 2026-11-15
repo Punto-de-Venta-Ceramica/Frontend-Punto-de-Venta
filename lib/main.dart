@@ -53,6 +53,10 @@ import 'features/ventas/domain/venta.dart';
 import 'features/ventas/infrastructure/adapters/inbound/flutter/registrar_venta_page.dart';
 import 'features/ventas/infrastructure/adapters/inbound/flutter/ventas_widgets.dart';
 import 'features/ventas/infrastructure/adapters/outbound/http/http_ventas_gateway.dart';
+import 'features/reportes/application/services/gestion_reportes.dart';
+import 'features/reportes/infrastructure/adapters/inbound/flutter/datos_contables_page.dart';
+import 'features/reportes/infrastructure/adapters/outbound/files/exportador_xlsx.dart';
+import 'features/reportes/infrastructure/adapters/outbound/http/http_reportes_gateway.dart';
 
 import 'features/empleados/domain/sucursal_asignada.dart';
 import 'features/empleados/infrastructure/adapters/inbound/flutter/empleado_inicio_page.dart';
@@ -207,8 +211,28 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onProductos: (negocio) => _abrirProductosNegocio(context, negocio),
         onDescuentos: (negocio) => _abrirDescuentosNegocio(context, negocio),
         onEmpleados: (negocio) => _abrirEmpleadosNegocio(context, negocio),
+        onDatosContables: (negocio) => _abrirDatosContables(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
+      ),
+    ),
+  );
+
+  Future<void> _abrirDatosContables(
+    BuildContext context,
+    NegocioSucursal negocio, {
+    int? sucursalInicialId,
+  }) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (reportesContext) => DatosContablesPage(
+        negocio: negocio,
+        sucursalInicialId: sucursalInicialId,
+        sucursales: GestionSucursales(HttpSucursalGateway(_api)),
+        reportes: GestionReportes(
+          HttpReportesGateway(_api),
+          const ExportadorXlsx(),
+        ),
+        onSesionExpirada: () => _cerrarSesion(reportesContext),
       ),
     ),
   );
@@ -246,6 +270,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             _abrirEmpleados(administrarContext, negocio, sucursal),
         onCorteCaja: () =>
             _abrirCorteCaja(administrarContext, negocio, sucursal),
+        onDatosContables: () => _abrirDatosContables(
+          administrarContext,
+          negocio,
+          sucursalInicialId: sucursal.id,
+        ),
       ),
     ),
   );

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -185,6 +186,22 @@ class ApiClient {
   Future<Map<String, dynamic>> getJson(String path) async =>
       _object(await requestJson('GET', path));
 
+  Future<Uint8List> getBytes(String path, {required String contentType}) =>
+      _send(
+        () => http.Request('GET', _resolve(path)),
+        path,
+        accept: contentType,
+        requestTimeout: const Duration(seconds: 30),
+        decode: (response) {
+          final tipo = response.headers['content-type']?.split(';').first;
+          if (tipo?.trim().toLowerCase() != contentType.toLowerCase() ||
+              response.bodyBytes.isEmpty) {
+            throw const ApiException('La API no devolvió el archivo esperado.');
+          }
+          return response.bodyBytes;
+        },
+      );
+
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body, {
@@ -220,6 +237,7 @@ class ApiClient {
       },
       path,
       authenticated: authenticated,
+      decode: _decodeJson,
     );
   }
 
@@ -237,6 +255,7 @@ class ApiClient {
         ..files.addAll(files),
       path,
       reintentable: false,
+      decode: _decodeJson,
     );
   }
 
@@ -245,11 +264,19 @@ class ApiClient {
     statusCode: 401,
   );
 
-  Future<Object?> _send(
+  static Object? _decodeJson(http.Response response) =>
+      response.statusCode == 204
+      ? null
+      : jsonDecode(utf8.decode(response.bodyBytes));
+
+  Future<T> _send<T>(
     http.BaseRequest Function() build,
     String path, {
+    required T Function(http.Response) decode,
     bool authenticated = true,
     bool reintentable = true,
+    String accept = 'application/json',
+    Duration requestTimeout = timeout,
   }) async {
     try {
       // Renovación preventiva: evita mandar un token a punto de vencer.
@@ -260,14 +287,14 @@ class ApiClient {
       late http.Response response;
       while (true) {
         final request = build();
-        request.headers['Accept'] = 'application/json';
+        request.headers['Accept'] = accept;
         if (authenticated && bearerToken != null) {
           request.headers['Authorization'] = 'Bearer $bearerToken';
         }
         response = await (() async {
           final stream = await _client.send(request);
           return http.Response.fromStream(stream);
-        })().timeout(timeout);
+        })().timeout(requestTimeout);
         // 401 con sesión renovable: el acceso venció (p. ej. reloj desfasado).
         if (response.statusCode == 401 &&
             authenticated &&
@@ -374,8 +401,7 @@ class ApiClient {
           detail: detail,
         );
       }
-      if (response.statusCode == 204) return null;
-      return jsonDecode(utf8.decode(response.bodyBytes));
+      return decode(response);
     } on TimeoutException {
       throw const ApiException('El servidor tardó demasiado en responder.');
     } on http.ClientException {
