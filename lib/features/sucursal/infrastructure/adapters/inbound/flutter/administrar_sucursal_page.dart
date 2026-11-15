@@ -13,6 +13,7 @@ class AdministrarSucursalPage extends StatelessWidget {
     this.onInventario,
     this.onPedidos,
     this.onCorteCaja,
+    this.onDatosContables,
     super.key,
   });
   final Sucursal sucursal;
@@ -21,6 +22,34 @@ class AdministrarSucursalPage extends StatelessWidget {
   final VoidCallback? onInventario;
   final VoidCallback? onPedidos;
   final VoidCallback? onCorteCaja;
+  final VoidCallback? onDatosContables;
+
+  Future<void> _abrirMas(
+    BuildContext context,
+    VoidCallback abrirReporte,
+  ) async {
+    final elegido = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 480),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: ListTile(
+            leading: const Icon(
+              Icons.bar_chart_rounded,
+              color: BarroTheme.primary,
+            ),
+            title: const Text('Datos contables'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(sheetContext).pop(true),
+          ),
+        ),
+      ),
+    );
+    if (context.mounted && elegido == true) abrirReporte();
+  }
 
   void _noDisponible(BuildContext context, String modulo) =>
       ScaffoldMessenger.of(context).showSnackBar(
@@ -101,6 +130,9 @@ class AdministrarSucursalPage extends StatelessWidget {
       onInventario: onInventario,
       onPedidos: onPedidos,
       onCaja: onCorteCaja,
+      onMas: onDatosContables == null
+          ? null
+          : () => _abrirMas(context, onDatosContables!),
     ),
     body: SafeArea(
       bottom: false,

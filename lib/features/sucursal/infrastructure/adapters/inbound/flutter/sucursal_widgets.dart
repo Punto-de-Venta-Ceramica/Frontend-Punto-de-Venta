@@ -149,6 +149,7 @@ class SucursalNavegacion extends StatelessWidget {
     this.onPedidos,
     this.onInicio,
     this.onCaja,
+    this.onMas,
     this.esEmpleado = false,
     this.seleccionada = 'Inicio',
     super.key,
@@ -157,6 +158,7 @@ class SucursalNavegacion extends StatelessWidget {
   final VoidCallback? onPedidos;
   final VoidCallback? onInicio;
   final VoidCallback? onCaja;
+  final VoidCallback? onMas;
 
   /// El empleado solo ve Pedidos, Caja e Inventario.
   final bool esEmpleado;
@@ -234,6 +236,10 @@ class SucursalNavegacion extends StatelessWidget {
                       }
                       if (item.$2 == 'Caja' && onCaja != null) {
                         onCaja!();
+                        return;
+                      }
+                      if (item.$2 == 'Más' && onMas != null) {
+                        onMas!();
                         return;
                       }
                       ScaffoldMessenger.of(context).showSnackBar(
