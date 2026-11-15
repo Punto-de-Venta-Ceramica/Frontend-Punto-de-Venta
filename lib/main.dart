@@ -514,7 +514,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ),
     ),
     // Mismo listado y detalle que el propietario, en solo lectura: el
-    // empleado ajusta existencias de su sucursal y puede registrar productos.
+    // empleado consulta existencias de su sucursal y puede registrar productos
+    // (ajustarlas es solo del propietario, HU-05).
     construirInventario: (s) => ValueListenableBuilder<int>(
       valueListenable: _revisionInventarioEmpleado,
       builder: (_, revision, _) {
