@@ -210,6 +210,22 @@ class ApiClient {
     await requestJson('POST', path, body: body, authenticated: authenticated),
   );
 
+  Future<Map<String, dynamic>> putJson(
+    String path,
+    Map<String, dynamic> body, {
+    bool authenticated = true,
+  }) async => _object(
+    await requestJson('PUT', path, body: body, authenticated: authenticated),
+  );
+
+  Future<void> patchJson(
+    String path,
+    Map<String, dynamic> body, {
+    bool authenticated = true,
+  }) async {
+    await requestJson('PATCH', path, body: body, authenticated: authenticated);
+  }
+
   Map<String, dynamic> _object(Object? data) {
     if (data is! Map<String, dynamic>) {
       throw const ApiException('La API no devolvió un objeto JSON válido.');
@@ -265,7 +281,7 @@ class ApiClient {
   );
 
   static Object? _decodeJson(http.Response response) =>
-      response.statusCode == 204
+      response.statusCode == 204 || response.bodyBytes.isEmpty
       ? null
       : jsonDecode(utf8.decode(response.bodyBytes));
 
@@ -329,6 +345,7 @@ class ApiClient {
         String? code;
         String? detail;
         if (response.statusCode == 400 ||
+            response.statusCode == 401 ||
             response.statusCode == 404 ||
             response.statusCode == 409) {
           try {

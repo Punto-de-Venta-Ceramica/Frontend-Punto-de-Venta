@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/areas_categorias/infrastructure/adapters/inbound/flutter/widgets/acceso_areas_categorias.dart';
 import '../../../../application/ports/inbound/gestion_sucursales_use_case.dart';
@@ -132,16 +133,20 @@ class _SucursalesPageState extends State<SucursalesPage> {
     setState(() {
       if (resultado.eliminada) {
         _sucursales = _sucursales.where((s) => s.id != sucursal!.id).toList();
-        _mensaje = 'Sucursal eliminada correctamente.';
+        _mensaje = null;
+        AlertaServicio.eliminacion(context, 'Sucursal');
       } else {
         final guardada = resultado.sucursal!;
         _sucursales = [
           ..._sucursales.where((s) => s.id != guardada.id),
           guardada,
         ]..sort((a, b) => a.id.compareTo(b.id));
-        _mensaje = sucursal == null
-            ? 'Sucursal registrada correctamente.'
-            : 'Cambios guardados correctamente.';
+        _mensaje = null;
+        if (sucursal == null) {
+          AlertaServicio.registro(context, 'Sucursal');
+        } else {
+          AlertaServicio.actualizacion(context, 'Sucursal');
+        }
       }
     });
   }

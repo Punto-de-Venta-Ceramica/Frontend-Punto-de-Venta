@@ -298,6 +298,40 @@ void main() {
       },
     );
 
+    testWidgets('el empleado registra ventas desde su caja (HU-05)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var abiertas = 0;
+      final fake = FakeCorteCajaGateway()..corteActivo = _crearCorteEjemplo();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CorteCajaPage(
+            gestion: GestionCorteCaja(fake),
+            sucursalId: 1,
+            sucursalNombre: 'Centro',
+            esPropietario: false,
+            onRegistrarVenta: (_) async {
+              abiertas++;
+              return false;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final boton = find.text('Registrar venta');
+      expect(boton, findsOneWidget);
+      await tester.ensureVisible(boton);
+      await tester.pumpAndSettle();
+      await tester.tap(boton);
+      await tester.pumpAndSettle();
+      expect(abiertas, 1);
+    });
+
     testWidgets('el historial de cortes solo lo ve el propietario', (
       tester,
     ) async {

@@ -141,11 +141,23 @@ class CotizacionVenta {
 }
 
 class VentaRegistrada {
-  const VentaRegistrada({required this.id, required this.total, this.cambio});
+  const VentaRegistrada({
+    required this.id,
+    required this.folio,
+    required this.total,
+    this.cambio,
+    this.negocioEslogan,
+  });
 
   final int id;
+
+  /// Folio que ve el cliente (VTA-000123); va en el ticket.
+  final String folio;
   final num total;
   final num? cambio;
+
+  /// Eslogan del negocio para el pie del ticket; null si no tiene.
+  final String? negocioEslogan;
 }
 
 class VentaFailure implements Exception {

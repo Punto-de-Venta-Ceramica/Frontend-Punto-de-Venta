@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/seccion_imprimir_ticket.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../application/services/gestion_ventas.dart';
+import '../../../../application/ticket_venta.dart';
 import '../../../../domain/venta.dart';
-import 'ticket_venta_dialog.dart';
 import 'ventas_widgets.dart';
 
 class ConfirmarVentaPage extends StatefulWidget {
@@ -14,6 +17,7 @@ class ConfirmarVentaPage extends StatefulWidget {
     required this.sucursalId,
     required this.productos,
     required this.onSesionExpirada,
+    this.impresion = impresionTicketsBluetooth,
     super.key,
   });
 
@@ -22,6 +26,7 @@ class ConfirmarVentaPage extends StatefulWidget {
   final int sucursalId;
   final List<SeleccionVenta> productos;
   final VoidCallback onSesionExpirada;
+  final ImpresionTickets impresion;
 
   @override
   State<ConfirmarVentaPage> createState() => _ConfirmarVentaPageState();
@@ -37,9 +42,15 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
   ({String clave, num? monto})? _intento;
   bool _cotizando = false;
   bool _guardando = false;
-  bool _ventaRegistrada = false;
   bool _consultandoSalida = false;
+  bool _imprimiendo = false;
 
+  /// Venta confirmada, con la cotización y la hora con que se registró; se
+  /// conserva para imprimir (o reimprimir) su ticket.
+  ({VentaRegistrada venta, CotizacionVenta cotizacion, DateTime fecha})?
+  _registro;
+
+  bool get _ventaRegistrada => _registro != null;
   bool get _resultadoIncierto => _intento != null && !_guardando;
 
   num? get _montoRecibido {
@@ -133,16 +144,13 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
       if (!mounted) return;
       setState(() {
         _guardando = false;
-        _ventaRegistrada = true;
         _intento = null;
+        _registro = (
+          venta: venta,
+          cotizacion: cotizacion,
+          fecha: DateTime.now(),
+        );
       });
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (_) => const TicketVentaDialog(),
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(venta);
     } on VentaFailure catch (error) {
       if (!mounted) return;
       if (error.sesionExpirada) {
@@ -193,10 +201,19 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
     Navigator.of(context).pop();
   }
 
+  /// Sale de la venta ya registrada y la devuelve a quien abrió el registro
+  /// (para refrescar inventario y avisar del cobro).
+  void _terminar() {
+    final registro = _registro;
+    if (registro == null || _imprimiendo) return;
+    Navigator.of(context).pop(registro.venta);
+  }
+
   @override
   Widget build(BuildContext context) {
     final metodo = _metodo;
     final cotizacion = _cotizacion;
+    final registro = _registro;
     final ocupado = _guardando || _ventaRegistrada;
     final bloqueado = ocupado || _resultadoIncierto;
     final monto = _montoRecibido;
@@ -208,19 +225,45 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
     return PopScope<VentaRegistrada>(
       canPop: !bloqueado,
       onPopInvokedWithResult: (salio, _) {
-        if (!salio && _resultadoIncierto) _cancelar();
+        if (salio) return;
+        if (_ventaRegistrada) {
+          _terminar();
+        } else if (_resultadoIncierto) {
+          _cancelar();
+        }
       },
       child: VentaScaffold(
         contexto: widget.contexto,
-        paso: '2 de 2 · Confirma los productos y el pago.',
-        accion: _resultadoIncierto
-            ? 'Reintentar confirmación'
-            : 'Registrar venta',
+        paso: registro == null
+            ? '2 de 2 · Confirma los productos y el pago.'
+            : 'Venta ${registro.venta.folio} registrada.',
+        accion: switch ((registro, _resultadoIncierto)) {
+          (_?, _) => 'Venta registrada',
+          (null, true) => 'Reintentar confirmación',
+          (null, false) => 'Registrar venta',
+        },
         procesando: _guardando,
         onAccion: cotizacion != null && metodo != null && !ocupado
             ? _confirmar
             : null,
-        onCancelar: ocupado ? null : _cancelar,
+        debajoAccion: registro == null
+            ? null
+            : SeccionImprimirTicket(
+                impresion: widget.impresion,
+                onImprimiendo: (valor) => setState(() => _imprimiendo = valor),
+                ticket: () => ticketDeVenta(
+                  registro.venta,
+                  registro.cotizacion,
+                  productos: widget.productos,
+                  negocio: widget.contexto.negocio,
+                  sucursal: widget.contexto.sucursal,
+                  fecha: registro.fecha,
+                ),
+              ),
+        textoCancelar: registro == null ? 'Cancelar' : 'Terminar',
+        onCancelar: registro != null
+            ? (_imprimiendo ? null : _terminar)
+            : (ocupado ? null : _cancelar),
         children: [
           _resumen(cotizacion),
           const SizedBox(height: 28),

@@ -126,7 +126,6 @@ class HttpPedidosGateway implements PedidosGateway {
         final String fecha => DateTime.tryParse(fecha)?.toLocal(),
         _ => null,
       },
-      negocioEslogan: j['negocioEslogan'] as String?,
     );
   }
 

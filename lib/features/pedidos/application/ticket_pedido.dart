@@ -16,11 +16,10 @@ Ticket ticketDePedido(
     );
   }
   return Ticket(
+    tipo: TipoTicket.pedido,
     negocio: negocio,
     sucursal: sucursal,
     folio: pedido.folio,
-    etiquetaFecha: 'Entrega:',
-    eslogan: pedido.negocioEslogan,
     fecha: entrega,
     total: pedido.total,
     lineas: [

@@ -3,6 +3,9 @@ import 'package:material_ui/material_ui.dart'
     as mui
     show DefaultMaterialLocalizations;
 import 'package:http/http.dart' as http;
+import 'package:toastification/toastification.dart';
+import 'core/infrastructure/widgets/barro_header.dart';
+import 'features/authentication/infrastructure/adapters/inbound/flutter/perfil_usuario_page.dart';
 import 'features/authentication/application/services/authentication_services.dart';
 import 'features/authentication/domain/auth_session.dart';
 import 'features/authentication/infrastructure/adapters/outbound/http/http_authentication_gateway.dart';
@@ -158,6 +161,13 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       HttpExistenciasGateway(_api),
     );
     _descuentos = CachedDescuentoGateway(HttpDescuentoGateway(_api));
+    BarroHeader.accionPerfilGlobal = (ctx) => Navigator.of(ctx).push(
+      PerfilUsuarioPage.route(
+        api: _api,
+        gateway: _authentication,
+        onCerrarSesion: () => _cerrarSesion(ctx),
+      ),
+    );
   }
 
   GestionProductos get _gestionProductos => GestionProductos(
@@ -178,6 +188,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   Widget _login(BuildContext context) => LoginPage(
     validateLogin: const ValidateLogin(),
     signIn: SignIn(_authentication),
+    gateway: _authentication,
     initialEmail: ModalRoute.of(context)?.settings.arguments is String
         ? ModalRoute.of(context)!.settings.arguments as String
         : '',
@@ -354,7 +365,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     if (context.mounted) {
       final cambio = venta.cambio;
       final mensaje =
-          'Venta #${venta.id} registrada por ${dineroVenta(venta.total)}.';
+          'Venta ${venta.folio} registrada por ${dineroVenta(venta.total)}.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -543,7 +554,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ),
     ),
     // Mismo listado y detalle que el propietario, en solo lectura: el
-    // empleado ajusta existencias de su sucursal y puede registrar productos.
+    // empleado consulta existencias de su sucursal y puede registrar productos
+    // (ajustarlas es solo del propietario, HU-05).
     construirInventario: (s) => ValueListenableBuilder<int>(
       valueListenable: _revisionInventarioEmpleado,
       builder: (_, revision, _) {
@@ -577,125 +589,94 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   );
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'BarroControl',
-    debugShowCheckedModeBanner: false,
-    // `dropdown_search` usa su propio material_ui: sus TextField piden las
-    // localizaciones de ese paquete (las de flutter/material.dart no sirven).
-    localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
-    theme: BarroTheme.data,
-    initialRoute: widget.initialRoute,
-    home: _RestaurarSesion(store: widget.sessionStore, login: _login),
-    routes: {
-      '/login': _login,
-      '/register': (_) => OwnerRegistrationPage(
-        validateRegistration: const ValidateOwnerRegistration(),
-        registerOwner: RegisterOwner(_authentication),
-      ),
-      '/session': (context) {
-        final session = ModalRoute.of(context)?.settings.arguments;
-        if (session is! AuthSession || session.isExpired) {
-          return _login(context);
-        }
-        // Este builder se ejecuta en cada reconstrucción: instalar la sesión solo una
-        // vez para no pisar los tokens ya renovados con los del inicio de sesión.
-        if (!identical(_sesionActual, session)) {
-          _sesionActual = session;
-          widget.sessionStore.guardar(session);
-          _api.iniciarSesion(
-            token: session.token,
-            expiresAt: session.expiresAt,
-            refreshToken: session.refreshToken,
-            refreshExpiresAt: session.refreshExpiresAt,
-          );
-        }
-        _rol = session.role;
-        _contador.iniciar(session.token);
-        return SessionPage(
-          session: session,
-          sessionExpired: _sesionExpirada,
-          refreshExpiresAt: () =>
-              _api.refreshExpiresAt ?? session.refreshExpiresAt,
-          clearSession: () {
-            widget.sessionStore.borrar();
-            _api.cerrarSesion();
-            _sesionActual = null;
-            _contador.cerrarSesion();
-            _productos.descartar();
-            _productosEmpleado.clear();
-          },
-          conteoNotificaciones: _contador,
-          openNotifications: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => NotificacionesPage(
-                gestion: GestionPedidos(HttpPedidosGateway(_api)),
-                contador: _contador,
+  @override
+  Widget build(BuildContext context) => ToastificationWrapper(
+    child: MaterialApp(
+      title: 'BarroControl',
+      debugShowCheckedModeBanner: false,
+      // `dropdown_search` usa su propio material_ui: sus TextField piden las
+      // localizaciones de ese paquete (las de flutter/material.dart no sirven).
+      localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
+      theme: BarroTheme.data,
+      initialRoute: widget.initialRoute,
+      home: Builder(builder: _login),
+      routes: {
+        '/login': _login,
+        '/register': (_) => OwnerRegistrationPage(
+          validateRegistration: const ValidateOwnerRegistration(),
+          registerOwner: RegisterOwner(_authentication),
+        ),
+        '/session': (context) {
+          final session = ModalRoute.of(context)?.settings.arguments;
+          if (session is! AuthSession || session.isExpired) {
+            return _login(context);
+          }
+          // Este builder se ejecuta en cada reconstrucción: instalar la sesión solo una
+          // vez para no pisar los tokens ya renovados con los del inicio de sesión.
+          if (!identical(_sesionActual, session)) {
+            _sesionActual = session;
+            widget.sessionStore.guardar(session);
+            _api.iniciarSesion(
+              token: session.token,
+              expiresAt: session.expiresAt,
+              refreshToken: session.refreshToken,
+              refreshExpiresAt: session.refreshExpiresAt,
+            );
+          }
+          _rol = session.role;
+          _contador.iniciar(session.token);
+          return SessionPage(
+            session: session,
+            sessionExpired: _sesionExpirada,
+            refreshExpiresAt: () =>
+                _api.refreshExpiresAt ?? session.refreshExpiresAt,
+            authGateway: _authentication,
+            clearSession: () {
+              widget.sessionStore.borrar();
+              _api.cerrarSesion();
+              _sesionActual = null;
+              _contador.cerrarSesion();
+              _productos.descartar();
+              _productosEmpleado.clear();
+            },
+            conteoNotificaciones: _contador,
+            openNotifications: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => NotificacionesPage(
+                  gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                  contador: _contador,
+                ),
               ),
             ),
-          ),
-          home: session.role == 'PROPIETARIO'
-              ? NegociosPage(
-                  gestion: GestionNegocios(HttpNegocioGateway(_api)),
-                  selectorLogo: const FileSelectorLogo(),
-                  onSesionExpirada: () => _cerrarSesion(context),
-                  onAdministrar: (negocio) =>
-                      _abrirSucursales(context, negocio),
-                  onNegocioCreado: (negocio) =>
-                      _abrirSucursales(context, negocio, registrar: true),
-                  onCerrarSesion: () => _cerrarSesion(context),
-                  conteoNotificaciones: _contador,
-                  onNotificaciones: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => NotificacionesPage(
-                        gestion: GestionPedidos(HttpPedidosGateway(_api)),
-                        contador: _contador,
+            home: session.role == 'PROPIETARIO'
+                ? NegociosPage(
+                    gestion: GestionNegocios(HttpNegocioGateway(_api)),
+                    selectorLogo: const FileSelectorLogo(),
+                    onSesionExpirada: () => _cerrarSesion(context),
+                    onAdministrar: (negocio) =>
+                        _abrirSucursales(context, negocio),
+                    onNegocioCreado: (negocio) =>
+                        _abrirSucursales(context, negocio, registrar: true),
+                    onCerrarSesion: () => _cerrarSesion(context),
+                    conteoNotificaciones: _contador,
+                    onNotificaciones: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => NotificacionesPage(
+                          gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                          contador: _contador,
+                        ),
                       ),
                     ),
-                  ),
-                )
-              : session.role == 'EMPLEADO'
-              ? _inicioEmpleado(context)
-              : null,
-        );
+                  )
+                : session.role == 'EMPLEADO'
+                ? _inicioEmpleado(context)
+                : null,
+          );
+        },
+        '/connection': (_) => const _ConnectionHome(),
       },
-      '/connection': (_) => const _ConnectionHome(),
-    },
+    ),
   );
-}
-
-/// Pantalla de arranque: si hay una sesión guardada y vigente entra directo a
-/// ella (el token de acceso vencido se renueva solo con el de renovación);
-/// si no, muestra el login.
-class _RestaurarSesion extends StatefulWidget {
-  const _RestaurarSesion({required this.store, required this.login});
-  final SessionStore store;
-  final WidgetBuilder login;
-  @override
-  State<_RestaurarSesion> createState() => _RestaurarSesionState();
-}
-
-class _RestaurarSesionState extends State<_RestaurarSesion> {
-  bool _sinSesion = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.store.leer().then((session) {
-      if (!mounted) return;
-      if (session == null) {
-        setState(() => _sinSesion = true);
-      } else {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/session', (_) => false, arguments: session);
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => _sinSesion
-      ? widget.login(context)
-      : const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 class _ConnectionHome extends StatefulWidget {

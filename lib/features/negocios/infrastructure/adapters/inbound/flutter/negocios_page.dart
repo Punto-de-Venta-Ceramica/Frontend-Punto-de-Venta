@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
 import '../../../../application/ports/inbound/gestion_negocios_use_case.dart';
 import '../../../../application/ports/outbound/selector_logo.dart';
 import '../../../../domain/negocio.dart';
@@ -92,7 +93,8 @@ class _NegociosPageState extends State<NegociosPage> {
       setState(() {
         if (resultado.eliminado) {
           _negocios = _negocios.where((n) => n.id != original!.id).toList();
-          _mensaje = 'Negocio eliminado correctamente.';
+          _mensaje = null;
+          AlertaServicio.eliminacion(context, 'Negocio');
         } else {
           final guardado = resultado.negocio!;
           _negocios = [..._negocios.where((n) => n.id != guardado.id), guardado]
@@ -102,9 +104,12 @@ class _NegociosPageState extends State<NegociosPage> {
               );
               return nombre == 0 ? a.id.compareTo(b.id) : nombre;
             });
-          _mensaje = original == null
-              ? 'Negocio registrado correctamente.'
-              : 'Cambios guardados correctamente.';
+          _mensaje = null;
+          if (original == null) {
+            AlertaServicio.registro(context, 'Negocio');
+          } else {
+            AlertaServicio.actualizacion(context, 'Negocio');
+          }
         }
       });
       if (original == null && !resultado.eliminado) {
