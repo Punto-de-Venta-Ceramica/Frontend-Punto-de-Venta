@@ -37,6 +37,9 @@ class EscPosTicket {
       _texto(b, linea);
     }
     _salto(b);
+    _negrita(b, true);
+    _texto(b, ticket.tipo.titulo);
+    _negrita(b, false);
 
     _alinear(b, 0);
     if (ticket.folio != null) {
@@ -44,7 +47,7 @@ class EscPosTicket {
         _texto(b, linea);
       }
     }
-    _texto(b, fila(ticket.etiquetaFecha, formatoFecha(ticket.fecha)));
+    _texto(b, fila(ticket.tipo.etiquetaFecha, formatoFecha(ticket.fecha)));
     _texto(b, _separador);
 
     for (final linea in ticket.lineas) {

@@ -4,10 +4,7 @@ import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
 import 'package:punto_de_venta/features/tickets/domain/ticket.dart';
 import 'package:punto_de_venta/features/tickets/infrastructure/adapters/outbound/escpos/escpos_ticket.dart';
 
-Pedido _pedido({
-  String estado = 'TERMINADO',
-  String? eslogan = 'Santo Barro la mejor calidad al mejor precio',
-}) => Pedido(
+Pedido _pedido({String estado = 'TERMINADO'}) => Pedido(
   id: 1,
   folio: 'PED-1',
   estado: estado,
@@ -19,7 +16,6 @@ Pedido _pedido({
   descripcion: '',
   tipoEntrega: 'LOCAL',
   fechaCreacion: DateTime(2026, 11, 10, 9, 5),
-  negocioEslogan: eslogan,
   productos: const [
     DetallePedido(
       nombre: 'Cazuela de barro grande con asas',
@@ -123,6 +119,7 @@ void main() {
     );
     expect(texto, contains('SANTO BARRO'));
     expect(texto, contains('Sucursal: Centro'));
+    expect(texto, contains('TICKET DE PEDIDO'));
     expect(texto, contains('Folio: PED-1'));
     expect(texto, isNot(contains('10/11/2026 09:05')));
     expect(texto, isNot(contains('Pedido:')));
@@ -134,25 +131,45 @@ void main() {
     expect(texto, contains('-\$120.00'));
     expect(texto, contains('2 x \$45.00'));
     expect(texto, contains('\$1,170.00'));
-    expect(texto, contains('Santo Barro la mejor calidad al'));
     for (final renglon in texto.split('\n')) {
       expect(renglon.length, lessThanOrEqualTo(32), reason: renglon);
     }
   });
 
-  test('sin eslogan del negocio no se imprime ninguno', () {
+  test('el ticket de pedido no lleva eslogan del negocio', () {
+    final ticket = ticketDePedido(
+      _pedido(),
+      negocio: 'Santo Barro',
+      sucursal: 'Centro',
+      entrega: entrega,
+    );
+    expect(ticket.eslogan, isNull);
+    expect(
+      _texto(encoder.codificar(ticket)),
+      contains('Gracias por su compra'),
+    );
+  });
+
+  test('el eslogan del ticket de venta se imprime al pie', () {
     final texto = _texto(
       encoder.codificar(
-        ticketDePedido(
-          _pedido(eslogan: null),
+        Ticket(
+          tipo: TipoTicket.venta,
           negocio: 'Santo Barro',
           sucursal: 'Centro',
-          entrega: entrega,
+          folio: 'VTA-000001',
+          fecha: entrega,
+          total: 10,
+          lineas: const [],
+          eslogan: 'Santo Barro la mejor calidad al mejor precio',
         ),
       ),
     );
-    expect(texto, isNot(contains('mejor calidad')));
-    expect(texto, contains('Gracias por su compra'));
+    expect(texto, contains('TICKET DE VENTA'));
+    expect(texto, contains('Santo Barro la mejor calidad al'));
+    for (final renglon in texto.split('\n')) {
+      expect(renglon.length, lessThanOrEqualTo(32), reason: renglon);
+    }
   });
 
   test('acentos en WPC1252 y lo que no existe se vuelve ?', () {

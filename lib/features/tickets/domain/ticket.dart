@@ -1,17 +1,34 @@
+/// De qué sale un ticket. Todos comparten formato; el tipo se imprime como
+/// título y el folio lleva su propio prefijo (VTA- o PED-), así que en un
+/// reclamo se distingue a simple vista si es de una venta o de un pedido.
+enum TipoTicket {
+  venta('TICKET DE VENTA', 'Fecha:'),
+  pedido('TICKET DE PEDIDO', 'Entrega:');
+
+  const TipoTicket(this.titulo, this.etiquetaFecha);
+
+  /// Título impreso bajo los datos del negocio.
+  final String titulo;
+
+  /// Etiqueta de [Ticket.fecha] (en pedidos, la fecha de entrega).
+  final String etiquetaFecha;
+}
+
 /// Ticket listo para imprimir, sin importar si sale de un pedido o de una
 /// venta: cada módulo arma el suyo y la impresora no sabe de dónde viene.
 class Ticket {
   const Ticket({
+    required this.tipo,
     required this.negocio,
     required this.sucursal,
     required this.lineas,
     required this.total,
     required this.fecha,
     this.folio,
-    this.etiquetaFecha = 'Fecha:',
     this.eslogan,
   });
 
+  final TipoTicket tipo;
   final String negocio, sucursal;
   final String? folio;
   final List<LineaTicket> lineas;
@@ -19,9 +36,6 @@ class Ticket {
 
   /// Fecha y hora de la venta (para un pedido: cuando se entrega).
   final DateTime fecha;
-
-  /// Etiqueta de [fecha] en el ticket (en pedidos: "Entrega:").
-  final String etiquetaFecha;
 
   /// Eslogan del negocio al pie del ticket; null o vacío = no se imprime.
   final String? eslogan;

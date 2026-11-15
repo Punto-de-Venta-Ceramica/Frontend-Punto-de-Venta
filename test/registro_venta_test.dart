@@ -10,47 +10,15 @@ import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
     show ProductoImagen;
+import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
+import 'package:punto_de_venta/features/tickets/domain/ticket.dart';
 import 'package:punto_de_venta/features/ventas/application/services/gestion_ventas.dart';
 import 'package:punto_de_venta/features/ventas/domain/venta.dart';
 import 'package:punto_de_venta/features/ventas/infrastructure/adapters/inbound/flutter/registrar_venta_page.dart';
-import 'package:punto_de_venta/features/ventas/infrastructure/adapters/inbound/flutter/ticket_venta_dialog.dart';
 import 'package:punto_de_venta/features/ventas/infrastructure/adapters/inbound/flutter/ventas_widgets.dart';
 import 'package:punto_de_venta/features/ventas/infrastructure/adapters/outbound/http/http_ventas_gateway.dart';
 
 void main() {
-  testWidgets('Cancelar cierra el modal de ticket', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const TicketVentaDialog(),
-            ),
-            child: const Text('Abrir venta'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('Abrir venta'));
-    await tester.pumpAndSettle();
-    final dialogo = tester.widget<AlertDialog>(find.byType(AlertDialog));
-    expect(dialogo.titleTextStyle?.fontSize, 18);
-    expect(
-      tester
-          .getSize(find.widgetWithText(FilledButton, 'Imprimir ticket'))
-          .height,
-      greaterThanOrEqualTo(52),
-    );
-    expect(
-      tester.getSize(find.widgetWithText(OutlinedButton, 'Ver ticket')).height,
-      greaterThanOrEqualTo(52),
-    );
-    await tester.tap(find.text('Cancelar'));
-    await tester.pumpAndSettle();
-    expect(find.byType(TicketVentaDialog), findsNothing);
-  });
-
   testWidgets('la foto vertical aumenta de alto respetando su proporción', (
     tester,
   ) async {
@@ -172,6 +140,8 @@ void main() {
                   ? _json({}, estado: 503)
                   : _json({
                       'ventaId': 9,
+                      'folio': 'VTA-000009',
+                      'negocioEslogan': 'Hecho a mano',
                       'confirmada': true,
                       'total': 82,
                       'cambio': 18,
@@ -182,6 +152,7 @@ void main() {
         }),
       );
       addTearDown(api.close);
+      final impresora = _ImpresoraFalsa();
       VentaRegistrada? resultado;
       await tester.pumpWidget(
         MaterialApp(
@@ -201,6 +172,10 @@ void main() {
                         gestion: GestionVentas(HttpVentasGateway(api)),
                         sucursalId: 6,
                         onSesionExpirada: () => fail('Sesión expirada'),
+                        impresion: ImpresionTickets(
+                          impresora,
+                          _PreferidaFalsa(),
+                        ),
                       ),
                     ),
                   );
@@ -347,33 +322,39 @@ void main() {
       await tester.tap(find.text('Reintentar confirmación'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ticket'), findsOneWidget);
+      // Sin modal: el ticket se imprime desde debajo de "Registrar venta".
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Ver ticket'), findsNothing);
+      expect(find.text('Venta VTA-000009 registrada.'), findsOneWidget);
+      final registrar = find.widgetWithText(FilledButton, 'Venta registrada');
+      final imprimir = find.widgetWithText(FilledButton, 'Imprimir ticket');
+      expect(tester.widget<FilledButton>(registrar).onPressed, isNull);
       expect(
-        tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Imprimir ticket'),
-            )
-            .onPressed,
-        isNull,
+        tester.getTopLeft(imprimir).dy,
+        greaterThan(tester.getBottomLeft(registrar).dy),
       );
-      expect(
-        tester
-            .widget<OutlinedButton>(
-              find.widgetWithText(OutlinedButton, 'Ver ticket'),
-            )
-            .onPressed,
-        isNull,
-      );
-      expect(
-        find.descendant(
-          of: find.byType(TicketVentaDialog),
-          matching: find.text('Cancelar'),
-        ),
-        findsOneWidget,
-      );
-      await tester.tapAt(const Offset(4, 4));
+      await tester.tap(imprimir);
       await tester.pumpAndSettle();
-      expect(find.byType(TicketVentaDialog), findsNothing);
+      await tester.tap(find.text('POS-58'));
+      await tester.pumpAndSettle();
+      final ticket = impresora.impresos.single;
+      expect(ticket.negocio, 'Cerámica');
+      expect(ticket.sucursal, 'Centro');
+      expect(ticket.tipo, TipoTicket.venta);
+      expect(ticket.folio, 'VTA-000009');
+      expect(ticket.eslogan, 'Hecho a mano');
+      expect(ticket.total, 82);
+      expect(ticket.lineas.map((l) => l.nombre), ['Taza', 'Plato & barro']);
+      expect(ticket.lineas.first.descuento, 8);
+      expect(ticket.lineas.first.porcentajeDescuento, 10);
+      expect(find.text('Ticket impreso en POS-58.'), findsOneWidget);
+      expect(resultado, isNull);
+      // El aviso flotante tapa el pie unos segundos; se espera a que se vaya.
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Terminar'));
+      await tester.pumpAndSettle();
 
       expect(confirmaciones, hasLength(2));
       final clave = confirmaciones.first.headers['idempotency-key'];
@@ -399,3 +380,28 @@ http.Response _json(Object data, {int estado = 200}) => http.Response(
   estado,
   headers: {'content-type': 'application/json; charset=utf-8'},
 );
+
+class _ImpresoraFalsa implements ImpresoraTicketsPort {
+  final impresos = <Ticket>[];
+
+  @override
+  Future<List<ImpresoraTicket>> vinculadas() async => [
+    // Lista modificable: la hoja de selección la ordena.
+    ImpresoraTicket(nombre: 'POS-58', direccion: '00:11:22:33:44:55'),
+  ];
+
+  @override
+  Future<void> imprimir(ImpresoraTicket impresora, Ticket ticket) async =>
+      impresos.add(ticket);
+}
+
+class _PreferidaFalsa implements ImpresoraPreferidaPort {
+  ImpresoraTicket? _guardada;
+
+  @override
+  Future<ImpresoraTicket?> leer() async => _guardada;
+
+  @override
+  Future<void> guardar(ImpresoraTicket impresora) async =>
+      _guardada = impresora;
+}

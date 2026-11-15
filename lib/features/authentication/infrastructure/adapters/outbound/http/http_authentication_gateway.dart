@@ -138,16 +138,12 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
     required String confirmarPassword,
   }) async {
     try {
-      await _api.patchJson(
-        'api/auth/forgot/password',
-        {
-          'correo': correo.trim(),
-          'codigo': codigo.trim(),
-          'nuevaPassword': nuevaPassword,
-          'confirmarPassword': confirmarPassword,
-        },
-        authenticated: false,
-      );
+      await _api.patchJson('api/auth/forgot/password', {
+        'correo': correo.trim(),
+        'codigo': codigo.trim(),
+        'nuevaPassword': nuevaPassword,
+        'confirmarPassword': confirmarPassword,
+      }, authenticated: false);
     } on ApiException catch (error) {
       throw AuthenticationFailure(error.detail ?? error.message);
     }

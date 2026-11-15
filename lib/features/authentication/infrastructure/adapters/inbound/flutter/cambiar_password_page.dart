@@ -21,14 +21,13 @@ class CambiarPasswordPage extends StatefulWidget {
     required AuthenticationGateway gateway,
     bool obligatorio = false,
     VoidCallback? onExito,
-  }) =>
-      MaterialPageRoute<void>(
-        builder: (_) => CambiarPasswordPage(
-          gateway: gateway,
-          obligatorio: obligatorio,
-          onExito: onExito,
-        ),
-      );
+  }) => MaterialPageRoute<void>(
+    builder: (_) => CambiarPasswordPage(
+      gateway: gateway,
+      obligatorio: obligatorio,
+      onExito: onExito,
+    ),
+  );
 
   @override
   State<CambiarPasswordPage> createState() => _CambiarPasswordPageState();
@@ -69,11 +68,15 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
       return;
     }
     if (nueva.length < 8) {
-      setState(() => _error = 'La nueva contraseña debe tener al menos 8 caracteres.');
+      setState(
+        () => _error = 'La nueva contraseña debe tener al menos 8 caracteres.',
+      );
       return;
     }
     if (nueva != confirmar) {
-      setState(() => _error = 'La nueva contraseña y su confirmación no coinciden.');
+      setState(
+        () => _error = 'La nueva contraseña y su confirmación no coinciden.',
+      );
       return;
     }
 
@@ -102,7 +105,8 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Error inesperado al cambiar contraseña.');
+      if (mounted)
+        setState(() => _error = 'Error inesperado al cambiar contraseña.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -123,21 +127,32 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
       children: [
         Text(
           label,
-          style: BarroTheme.type(13, 18, weight: FontWeight.w600, color: BarroTheme.text),
+          style: BarroTheme.type(
+            13,
+            18,
+            weight: FontWeight.w600,
+            color: BarroTheme.text,
+          ),
         ),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: focusNode.hasFocus ? BarroTheme.primary : BarroTheme.border,
+              color: focusNode.hasFocus
+                  ? BarroTheme.primary
+                  : BarroTheme.border,
             ),
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(
             children: [
-              const Icon(Icons.lock_outline_rounded, color: BarroTheme.secondary, size: 20),
+              const Icon(
+                Icons.lock_outline_rounded,
+                color: BarroTheme.secondary,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: TextField(
@@ -148,7 +163,11 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                   onSubmitted: (_) => onSubmitted?.call(),
                   decoration: InputDecoration(
                     hintText: hint,
-                    hintStyle: BarroTheme.type(13, 18, color: BarroTheme.placeholder),
+                    hintStyle: BarroTheme.type(
+                      13,
+                      18,
+                      color: BarroTheme.placeholder,
+                    ),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -157,7 +176,9 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
               ),
               IconButton(
                 icon: Icon(
-                  ocultar ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  ocultar
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   size: 20,
                   color: BarroTheme.secondary,
                 ),
@@ -181,7 +202,10 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
         leading: widget.obligatorio
             ? null
             : IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: BarroTheme.primary),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: BarroTheme.primary,
+                ),
                 onPressed: () => Navigator.of(context).pop(),
               ),
         title: Text(
@@ -204,9 +228,7 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                       color: Colors.white,
                       border: Border.all(color: BarroTheme.border),
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxStyle.shadow,
-                      ],
+                      boxShadow: [BoxStyle.shadow],
                     ),
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -235,14 +257,22 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                                     widget.obligatorio
                                         ? 'Cambio de contraseña requerido'
                                         : 'Actualizar contraseña',
-                                    style: BarroTheme.type(17, 22, weight: FontWeight.w700),
+                                    style: BarroTheme.type(
+                                      17,
+                                      22,
+                                      weight: FontWeight.w700,
+                                    ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     widget.obligatorio
                                         ? 'Por seguridad debes definir tu contraseña definitiva.'
                                         : 'Ingresa tu contraseña actual y la nueva que deseas usar.',
-                                    style: BarroTheme.type(12, 17, color: BarroTheme.secondary),
+                                    style: BarroTheme.type(
+                                      12,
+                                      17,
+                                      color: BarroTheme.secondary,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -257,16 +287,25 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFDE8E8),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: BarroTheme.error.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: BarroTheme.error.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, color: BarroTheme.error, size: 20),
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: BarroTheme.error,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _error!,
-                                    style: const TextStyle(color: BarroTheme.error, fontSize: 13),
+                                    style: const TextStyle(
+                                      color: BarroTheme.error,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -278,7 +317,8 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                           controller: _actualCtrl,
                           focusNode: _actualFocus,
                           ocultar: _ocultarActual,
-                          onToggle: () => setState(() => _ocultarActual = !_ocultarActual),
+                          onToggle: () =>
+                              setState(() => _ocultarActual = !_ocultarActual),
                         ),
                         const SizedBox(height: 16),
                         _campo(
@@ -287,7 +327,8 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                           controller: _nuevaCtrl,
                           focusNode: _nuevaFocus,
                           ocultar: _ocultarNueva,
-                          onToggle: () => setState(() => _ocultarNueva = !_ocultarNueva),
+                          onToggle: () =>
+                              setState(() => _ocultarNueva = !_ocultarNueva),
                         ),
                         const SizedBox(height: 16),
                         _campo(
@@ -298,7 +339,9 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                           ocultar: _ocultarConfirmar,
                           action: TextInputAction.done,
                           onSubmitted: _submit,
-                          onToggle: () => setState(() => _ocultarConfirmar = !_ocultarConfirmar),
+                          onToggle: () => setState(
+                            () => _ocultarConfirmar = !_ocultarConfirmar,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         FilledButton(
@@ -322,7 +365,12 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                                 )
                               : Text(
                                   'Guardar contraseña',
-                                  style: BarroTheme.type(15, 20, weight: FontWeight.w600, color: Colors.white),
+                                  style: BarroTheme.type(
+                                    15,
+                                    20,
+                                    weight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
                                 ),
                         ),
                         if (!widget.obligatorio) ...[
@@ -331,7 +379,11 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                             onPressed: () => Navigator.of(context).pop(),
                             child: Text(
                               'Cancelar',
-                              style: BarroTheme.type(14, 18, color: BarroTheme.secondary),
+                              style: BarroTheme.type(
+                                14,
+                                18,
+                                color: BarroTheme.secondary,
+                              ),
                             ),
                           ),
                         ],

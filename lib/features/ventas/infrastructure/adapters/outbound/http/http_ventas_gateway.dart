@@ -100,8 +100,10 @@ class HttpVentasGateway implements VentasGateway {
     if (respuesta['confirmada'] != true) throw const FormatException();
     return VentaRegistrada(
       id: respuesta['ventaId'] as int,
+      folio: respuesta['folio'] as String,
       total: respuesta['total'] as num,
       cambio: respuesta['cambio'] as num?,
+      negocioEslogan: respuesta['negocioEslogan'] as String?,
     );
   });
 

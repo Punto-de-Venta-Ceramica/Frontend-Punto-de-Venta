@@ -5,11 +5,8 @@ import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
-import 'package:punto_de_venta/features/tickets/domain/ticket.dart';
-import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/imprimir_ticket_widgets.dart';
-import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/seleccionar_impresora_dialog.dart';
-import 'package:punto_de_venta/features/tickets/infrastructure/adapters/outbound/bluetooth_impresora_tickets.dart';
-import 'package:punto_de_venta/features/tickets/infrastructure/adapters/outbound/secure_impresora_preferida.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/seccion_imprimir_ticket.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../application/ticket_pedido.dart';
 import '../../../domain/pedido.dart';
@@ -31,10 +28,7 @@ class PedidoDetallePage extends StatefulWidget {
     required this.esPropietario,
     required this.negocio,
     this.sucursalNombre,
-    this.impresion = const ImpresionTickets(
-      BluetoothImpresoraTickets(),
-      SecureImpresoraPreferida(),
-    ),
+    this.impresion = impresionTicketsBluetooth,
     super.key,
   });
   final GestionPedidos gestion;
@@ -57,16 +51,11 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
   // Sin turno de caja abierto no se cobran pagos ni se devuelve lo pagado.
   bool _cajaAbierta = true;
   bool _imprimiendo = false;
-  // Última impresora usada en este dispositivo; null = preguntar.
-  ImpresoraTicket? _impresora;
 
   @override
   void initState() {
     super.initState();
     _cargar();
-    widget.impresion.preferida().then((impresora) {
-      if (mounted && impresora != null) setState(() => _impresora = impresora);
-    });
   }
 
   Future<void> _cargar() async {
@@ -395,11 +384,20 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
               const SizedBox(height: 24),
               _titulo('Ticket'),
               const SizedBox(height: 12),
-              TarjetaImprimirTicket(
-                impresora: _impresora,
-                imprimiendo: _imprimiendo,
-                onImprimir: _busy ? null : () => _imprimirTicket(pedido),
-                onCambiarImpresora: _busy ? null : _elegirImpresora,
+              SeccionImprimirTicket(
+                impresion: widget.impresion,
+                habilitado: !_busy || _imprimiendo,
+                onImprimiendo: (imprimiendo) => setState(() {
+                  _busy = imprimiendo;
+                  _imprimiendo = imprimiendo;
+                }),
+                ticket: () => ticketDePedido(
+                  pedido,
+                  negocio: widget.negocio.nombre,
+                  sucursal:
+                      widget.sucursalNombre ?? 'Sucursal ${widget.sucursalId}',
+                  entrega: DateTime.now(),
+                ),
               ),
             ],
           ],
@@ -407,57 +405,6 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
       ),
     );
   }
-
-  /// Imprime en la impresora guardada; la primera vez pide elegirla.
-  Future<void> _imprimirTicket(Pedido pedido) async {
-    final impresora = _impresora ?? await _elegirImpresora();
-    if (impresora == null || !mounted) return;
-    setState(() {
-      _busy = true;
-      _imprimiendo = true;
-    });
-    try {
-      final ticket = ticketDePedido(
-        pedido,
-        negocio: widget.negocio.nombre,
-        sucursal: widget.sucursalNombre ?? 'Sucursal ${widget.sucursalId}',
-        entrega: DateTime.now(),
-      );
-      await widget.impresion.imprimir(impresora, ticket);
-      if (mounted) {
-        setState(() => _impresora = impresora);
-        avisoImpresion(context, 'Ticket impreso en ${impresora.nombre}.');
-      }
-    } on ImpresionException catch (e) {
-      if (mounted) _falloImpresion(pedido, e.message);
-    } catch (_) {
-      if (mounted) _falloImpresion(pedido, 'No se pudo imprimir el ticket.');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _imprimiendo = false;
-        });
-      }
-    }
-  }
-
-  Future<ImpresoraTicket?> _elegirImpresora() async {
-    final elegida = await seleccionarImpresora(
-      context,
-      widget.impresion,
-      actual: _impresora,
-    );
-    if (elegida != null && mounted) setState(() => _impresora = elegida);
-    return elegida;
-  }
-
-  void _falloImpresion(Pedido pedido, String mensaje) => avisoImpresion(
-    context,
-    mensaje,
-    error: true,
-    onReintentar: () => _imprimirTicket(pedido),
-  );
 
   Widget _titulo(String texto) =>
       Text(texto, style: BarroTheme.type(18, 26, weight: FontWeight.w700));
@@ -473,22 +420,24 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Text(
-                pedido.cliente,
-                style: BarroTheme.type(22, 30, weight: FontWeight.w700),
+              child: _Dato(
+                icono: Icons.person_outline,
+                etiqueta: 'Nombre del cliente',
+                texto: pedido.cliente,
               ),
             ),
             const SizedBox(width: 12),
             PedidoEstadoChip(pedido.estado),
           ],
         ),
-        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: Text(
-                'Folio: ${pedido.folio}',
-                style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+              child: _Dato(
+                icono: Icons.tag,
+                etiqueta: 'Folio',
+                texto: pedido.folio,
+                abajo: 0,
               ),
             ),
             IconButton(
@@ -504,17 +453,38 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
           ],
         ),
         const Divider(height: 24, color: BarroTheme.border),
-        _Dato(icono: Icons.phone_outlined, texto: pedido.telefono),
+        _Dato(
+          icono: Icons.phone_outlined,
+          etiqueta: 'Teléfono del cliente',
+          texto: pedido.telefono,
+        ),
         if (direccion.isNotEmpty)
-          _Dato(icono: Icons.place_outlined, texto: direccion),
+          _Dato(
+            icono: Icons.place_outlined,
+            etiqueta: 'Dirección de entrega',
+            texto: direccion,
+          ),
+        if (pedido.descripcionEnvio.isNotEmpty)
+          _Dato(
+            icono: Icons.notes_outlined,
+            etiqueta: 'Indicaciones de entrega',
+            texto: pedido.descripcionEnvio,
+          ),
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: PedidoTipoEntrega(pedido.tipoEntrega, tamano: 14),
+          child: PedidoTipoEntrega(
+            pedido.tipoEntrega,
+            tamano: 14,
+            destacarEtiqueta: true,
+          ),
         ),
-        if (pedido.descripcionEnvio.isNotEmpty)
-          _Dato(icono: Icons.notes_outlined, texto: pedido.descripcionEnvio),
         if (pedido.descripcion.isNotEmpty) ...[
           const SizedBox(height: 8),
+          Text(
+            'Descripción del pedido',
+            style: BarroTheme.type(14, 21, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -680,18 +650,43 @@ class _Tarjeta extends StatelessWidget {
 }
 
 class _Dato extends StatelessWidget {
-  const _Dato({required this.icono, required this.texto});
+  const _Dato({
+    required this.icono,
+    required this.etiqueta,
+    required this.texto,
+    this.abajo = 8,
+  });
   final IconData icono;
+
+  /// Breve descripción del dato (p. ej. "Teléfono del cliente"), en negritas;
+  /// el valor va en texto normal.
+  final String etiqueta;
   final String texto;
+  final double abajo;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
+    padding: EdgeInsets.only(bottom: abajo),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icono, size: 18, color: BarroTheme.primary),
         const SizedBox(width: 10),
-        Expanded(child: Text(texto, style: BarroTheme.type(14, 21))),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '$etiqueta: ',
+                  style: BarroTheme.type(14, 21, weight: FontWeight.w700),
+                ),
+                TextSpan(
+                  text: texto,
+                  style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     ),
   );

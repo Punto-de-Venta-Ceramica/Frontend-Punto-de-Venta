@@ -144,7 +144,11 @@ class AlertaServicio {
       alignment: Alignment.topRight,
       direction: TextDirection.ltr,
       animationDuration: const Duration(milliseconds: 300),
-      icon: const Icon(Icons.error_outline_rounded, color: BarroTheme.error, size: 22),
+      icon: const Icon(
+        Icons.error_outline_rounded,
+        color: BarroTheme.error,
+        size: 22,
+      ),
       primaryColor: BarroTheme.error,
       backgroundColor: const Color(0xFFFFF0EE),
       foregroundColor: BarroTheme.error,
@@ -159,4 +163,3 @@ class AlertaServicio {
     );
   }
 }
-

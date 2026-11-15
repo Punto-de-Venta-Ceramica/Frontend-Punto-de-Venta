@@ -72,7 +72,8 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
+      if (mounted)
+        setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -89,7 +90,9 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
       return;
     }
     if (nueva.length < 8) {
-      setState(() => _error = 'La nueva contraseña debe tener al menos 8 caracteres.');
+      setState(
+        () => _error = 'La nueva contraseña debe tener al menos 8 caracteres.',
+      );
       return;
     }
     if (nueva != confirmar) {
@@ -121,7 +124,8 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
+      if (mounted)
+        setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -168,7 +172,10 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
                       ),
                       child: Text(
                         _mensajeExito!,
-                        style: const TextStyle(color: Color(0xFF388E3C), fontSize: 13),
+                        style: const TextStyle(
+                          color: Color(0xFF388E3C),
+                          fontSize: 13,
+                        ),
                       ),
                     ),
 
@@ -178,7 +185,10 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(
                         _error!,
-                        style: const TextStyle(color: BarroTheme.error, fontSize: 13),
+                        style: const TextStyle(
+                          color: BarroTheme.error,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
 
@@ -208,11 +218,13 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
                               ),
                             )
                           : Text(
-                              _paso2
-                                  ? 'Cambiar contraseña'
-                                  : 'Enviar código',
-                              style: BarroTheme.type(14, 20,
-                                  weight: FontWeight.w600, color: Colors.white),
+                              _paso2 ? 'Cambiar contraseña' : 'Enviar código',
+                              style: BarroTheme.type(
+                                14,
+                                20,
+                                weight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
                     ),
                   ),
@@ -226,18 +238,21 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
                           onPressed: _busy
                               ? null
                               : () => setState(() {
-                                    _paso2 = false;
-                                    _error = null;
-                                    _mensajeExito = null;
-                                    _codigoCtrl.clear();
-                                    _nuevaCtrl.clear();
-                                    _confirmarCtrl.clear();
-                                  }),
+                                  _paso2 = false;
+                                  _error = null;
+                                  _mensajeExito = null;
+                                  _codigoCtrl.clear();
+                                  _nuevaCtrl.clear();
+                                  _confirmarCtrl.clear();
+                                }),
                           child: Text(
                             '¿No recibiste el código? Volver a enviar',
-                            style: BarroTheme.type(13, 18,
-                                color: BarroTheme.primary,
-                                weight: FontWeight.w600),
+                            style: BarroTheme.type(
+                              13,
+                              18,
+                              color: BarroTheme.primary,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -252,127 +267,132 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
   }
 
   Widget _indicadorPasos() => Row(
-        children: [
-          _paso(1, 'Correo', activo: true),
-          Expanded(
-            child: Container(
-              height: 2,
-              color: _paso2 ? BarroTheme.primary : BarroTheme.border,
-            ),
-          ),
-          _paso(2, 'Código y contraseña', activo: _paso2),
-        ],
-      );
+    children: [
+      _paso(1, 'Correo', activo: true),
+      Expanded(
+        child: Container(
+          height: 2,
+          color: _paso2 ? BarroTheme.primary : BarroTheme.border,
+        ),
+      ),
+      _paso(2, 'Código y contraseña', activo: _paso2),
+    ],
+  );
 
   Widget _paso(int numero, String label, {required bool activo}) => Column(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: activo ? BarroTheme.primary : BarroTheme.border,
-            ),
-            child: Center(
-              child: Text(
-                '$numero',
-                style: TextStyle(
-                  color: activo ? Colors.white : BarroTheme.secondary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+    children: [
+      Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: activo ? BarroTheme.primary : BarroTheme.border,
+        ),
+        child: Center(
+          child: Text(
+            '$numero',
+            style: TextStyle(
+              color: activo ? Colors.white : BarroTheme.secondary,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: BarroTheme.type(11, 16,
-                color: activo ? BarroTheme.primary : BarroTheme.secondary),
-          ),
-        ],
-      );
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        label,
+        style: BarroTheme.type(
+          11,
+          16,
+          color: activo ? BarroTheme.primary : BarroTheme.secondary,
+        ),
+      ),
+    ],
+  );
 
   List<Widget> _paso1() => [
-        Text(
-          'Ingresa tu correo',
-          style: BarroTheme.type(24, 32, weight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Te enviaremos un código de 6 dígitos para restablecer tu contraseña.',
-          style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
-        ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _correoCtrl,
-          focusNode: _correoFocus,
-          keyboardType: TextInputType.emailAddress,
-          onSubmitted: (_) => _busy ? null : _solicitarCodigo(),
-          decoration: const InputDecoration(
-            labelText: 'Correo electrónico',
-            hintText: 'correo@ejemplo.com',
-            prefixIcon: Icon(Icons.email_outlined),
-            border: OutlineInputBorder(),
-          ),
-        ),
-      ];
+    Text(
+      'Ingresa tu correo',
+      style: BarroTheme.type(24, 32, weight: FontWeight.w700),
+    ),
+    const SizedBox(height: 8),
+    Text(
+      'Te enviaremos un código de 6 dígitos para restablecer tu contraseña.',
+      style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+    ),
+    const SizedBox(height: 24),
+    TextField(
+      controller: _correoCtrl,
+      focusNode: _correoFocus,
+      keyboardType: TextInputType.emailAddress,
+      onSubmitted: (_) => _busy ? null : _solicitarCodigo(),
+      decoration: const InputDecoration(
+        labelText: 'Correo electrónico',
+        hintText: 'correo@ejemplo.com',
+        prefixIcon: Icon(Icons.email_outlined),
+        border: OutlineInputBorder(),
+      ),
+    ),
+  ];
 
   List<Widget> _paso2Widgets() => [
-        Text(
-          'Revisa tu correo',
-          style: BarroTheme.type(24, 32, weight: FontWeight.w700),
+    Text(
+      'Revisa tu correo',
+      style: BarroTheme.type(24, 32, weight: FontWeight.w700),
+    ),
+    const SizedBox(height: 8),
+    Text(
+      'Ingresa el código de 6 dígitos que enviamos a ${_correoCtrl.text.trim()} y tu nueva contraseña.',
+      style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+    ),
+    const SizedBox(height: 24),
+    TextField(
+      controller: _codigoCtrl,
+      focusNode: _codigoFocus,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      onSubmitted: (_) => _nuevaFocus.requestFocus(),
+      decoration: const InputDecoration(
+        labelText: 'Código de verificación',
+        hintText: '000000',
+        prefixIcon: Icon(Icons.lock_clock_outlined),
+        border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 12),
+    TextField(
+      controller: _nuevaCtrl,
+      focusNode: _nuevaFocus,
+      obscureText: _ocultarNueva,
+      onSubmitted: (_) => _confirmarFocus.requestFocus(),
+      decoration: InputDecoration(
+        labelText: 'Nueva contraseña',
+        prefixIcon: const Icon(Icons.lock_outline),
+        border: const OutlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: Icon(_ocultarNueva ? Icons.visibility_off : Icons.visibility),
+          onPressed: () => setState(() => _ocultarNueva = !_ocultarNueva),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Ingresa el código de 6 dígitos que enviamos a ${_correoCtrl.text.trim()} y tu nueva contraseña.',
-          style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
-        ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _codigoCtrl,
-          focusNode: _codigoFocus,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          onSubmitted: (_) => _nuevaFocus.requestFocus(),
-          decoration: const InputDecoration(
-            labelText: 'Código de verificación',
-            hintText: '000000',
-            prefixIcon: Icon(Icons.lock_clock_outlined),
-            border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 12),
+    TextField(
+      controller: _confirmarCtrl,
+      focusNode: _confirmarFocus,
+      obscureText: _ocultarConfirmar,
+      onSubmitted: (_) => _busy ? null : _restablecerPassword(),
+      decoration: InputDecoration(
+        labelText: 'Confirmar contraseña',
+        prefixIcon: const Icon(Icons.lock_outline),
+        border: const OutlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _ocultarConfirmar ? Icons.visibility_off : Icons.visibility,
           ),
+          onPressed: () =>
+              setState(() => _ocultarConfirmar = !_ocultarConfirmar),
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _nuevaCtrl,
-          focusNode: _nuevaFocus,
-          obscureText: _ocultarNueva,
-          onSubmitted: (_) => _confirmarFocus.requestFocus(),
-          decoration: InputDecoration(
-            labelText: 'Nueva contraseña',
-            prefixIcon: const Icon(Icons.lock_outline),
-            border: const OutlineInputBorder(),
-            suffixIcon: IconButton(
-              icon: Icon(_ocultarNueva ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => _ocultarNueva = !_ocultarNueva),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _confirmarCtrl,
-          focusNode: _confirmarFocus,
-          obscureText: _ocultarConfirmar,
-          onSubmitted: (_) => _busy ? null : _restablecerPassword(),
-          decoration: InputDecoration(
-            labelText: 'Confirmar contraseña',
-            prefixIcon: const Icon(Icons.lock_outline),
-            border: const OutlineInputBorder(),
-            suffixIcon: IconButton(
-              icon: Icon(_ocultarConfirmar ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => _ocultarConfirmar = !_ocultarConfirmar),
-            ),
-          ),
-        ),
-      ];
+      ),
+    ),
+  ];
 }
-

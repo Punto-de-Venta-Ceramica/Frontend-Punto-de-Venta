@@ -5,9 +5,18 @@ import '../../../domain/pedido.dart';
 
 /// "Tipo de entrega:" con el ícono y el nombre. Misma en listado y detalle.
 class PedidoTipoEntrega extends StatelessWidget {
-  const PedidoTipoEntrega(this.tipo, {this.tamano = 13, super.key});
+  const PedidoTipoEntrega(
+    this.tipo, {
+    this.tamano = 13,
+    this.destacarEtiqueta = false,
+    super.key,
+  });
   final String tipo;
   final double tamano;
+
+  /// true (detalle) = etiqueta en negritas y valor normal; false (listado) =
+  /// etiqueta tenue y valor en negritas.
+  final bool destacarEtiqueta;
 
   static String nombre(String tipo) => switch (tipo) {
     'DOMICILIO' => 'A domicilio',
@@ -24,7 +33,9 @@ class PedidoTipoEntrega extends StatelessWidget {
       children: [
         Text(
           'Tipo de entrega:',
-          style: BarroTheme.type(tamano, alto, color: BarroTheme.secondary),
+          style: destacarEtiqueta
+              ? BarroTheme.type(tamano, alto, weight: FontWeight.w700)
+              : BarroTheme.type(tamano, alto, color: BarroTheme.secondary),
         ),
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -39,7 +50,9 @@ class PedidoTipoEntrega extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               nombre(tipo),
-              style: BarroTheme.type(tamano, alto, weight: FontWeight.w600),
+              style: destacarEtiqueta
+                  ? BarroTheme.type(tamano, alto, color: BarroTheme.secondary)
+                  : BarroTheme.type(tamano, alto, weight: FontWeight.w600),
             ),
           ],
         ),

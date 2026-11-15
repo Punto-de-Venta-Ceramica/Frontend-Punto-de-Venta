@@ -22,14 +22,13 @@ class PerfilUsuarioPage extends StatefulWidget {
     required ApiClient api,
     required AuthenticationGateway gateway,
     VoidCallback? onCerrarSesion,
-  }) =>
-      MaterialPageRoute<void>(
-        builder: (_) => PerfilUsuarioPage(
-          api: api,
-          gateway: gateway,
-          onCerrarSesion: onCerrarSesion,
-        ),
-      );
+  }) => MaterialPageRoute<void>(
+    builder: (_) => PerfilUsuarioPage(
+      api: api,
+      gateway: gateway,
+      onCerrarSesion: onCerrarSesion,
+    ),
+  );
 
   @override
   State<PerfilUsuarioPage> createState() => _PerfilUsuarioPageState();
@@ -139,11 +138,9 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   }
 
   void _abrirCambiarPassword() {
-    Navigator.of(context).push(
-      CambiarPasswordPage.route(
-        gateway: widget.gateway,
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(CambiarPasswordPage.route(gateway: widget.gateway));
   }
 
   Widget _campo({
@@ -160,14 +157,21 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       children: [
         Text(
           label,
-          style: BarroTheme.type(13, 18, weight: FontWeight.w600, color: BarroTheme.text),
+          style: BarroTheme.type(
+            13,
+            18,
+            weight: FontWeight.w600,
+            color: BarroTheme.text,
+          ),
         ),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
             color: readOnly ? const Color(0xFFF7F4F2) : Colors.white,
             border: Border.all(
-              color: focusNode.hasFocus ? BarroTheme.primary : BarroTheme.border,
+              color: focusNode.hasFocus
+                  ? BarroTheme.primary
+                  : BarroTheme.border,
             ),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -188,7 +192,11 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                   keyboardType: keyboardType,
                   decoration: InputDecoration(
                     hintText: hint,
-                    hintStyle: BarroTheme.type(13, 18, color: BarroTheme.placeholder),
+                    hintStyle: BarroTheme.type(
+                      13,
+                      18,
+                      color: BarroTheme.placeholder,
+                    ),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -228,7 +236,10 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                     child: CircularProgressIndicator(color: BarroTheme.primary),
                   )
                 : SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -244,7 +255,9 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                   color: const Color(0xFFF8E7DF),
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: BarroTheme.primary.withValues(alpha: 0.2),
+                                    color: BarroTheme.primary.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     width: 2,
                                   ),
                                 ),
@@ -256,13 +269,18 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                               ),
                               if (_rol.isNotEmpty)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: BarroTheme.primary,
                                     borderRadius: BorderRadius.circular(12),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.1),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       ),
@@ -285,9 +303,14 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                         Center(
                           child: Text(
                             _nombreCtrl.text.isNotEmpty
-                                ? '${_nombreCtrl.text} ${_paternoCtrl.text}'.trim()
+                                ? '${_nombreCtrl.text} ${_paternoCtrl.text}'
+                                      .trim()
                                 : 'Usuario',
-                            style: BarroTheme.type(20, 26, weight: FontWeight.w700),
+                            style: BarroTheme.type(
+                              20,
+                              26,
+                              weight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         if (_correo.isNotEmpty) ...[
@@ -295,7 +318,11 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                           Center(
                             child: Text(
                               _correo,
-                              style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
+                              style: BarroTheme.type(
+                                13,
+                                18,
+                                color: BarroTheme.secondary,
+                              ),
                             ),
                           ),
                         ],
@@ -308,16 +335,25 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFDE8E8),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: BarroTheme.error.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: BarroTheme.error.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, color: BarroTheme.error, size: 20),
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: BarroTheme.error,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _error!,
-                                    style: const TextStyle(color: BarroTheme.error, fontSize: 13),
+                                    style: const TextStyle(
+                                      color: BarroTheme.error,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -344,11 +380,19 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.badge_outlined, color: BarroTheme.primary, size: 20),
+                                  const Icon(
+                                    Icons.badge_outlined,
+                                    color: BarroTheme.primary,
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Datos Personales',
-                                    style: BarroTheme.type(16, 22, weight: FontWeight.w700),
+                                    style: BarroTheme.type(
+                                      16,
+                                      22,
+                                      weight: FontWeight.w700,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -357,7 +401,9 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                 label: 'Correo electrónico',
                                 hint: 'correo@ejemplo.com',
                                 icon: Icons.email_outlined,
-                                controller: TextEditingController(text: _correo),
+                                controller: TextEditingController(
+                                  text: _correo,
+                                ),
                                 focusNode: FocusNode(),
                                 readOnly: true,
                               ),
@@ -417,7 +463,12 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                     : const Icon(Icons.save_outlined),
                                 label: Text(
                                   'Actualizar datos',
-                                  style: BarroTheme.type(15, 20, weight: FontWeight.w600, color: Colors.white),
+                                  style: BarroTheme.type(
+                                    15,
+                                    20,
+                                    weight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ],
@@ -446,11 +497,19 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.security_rounded, color: BarroTheme.primary, size: 20),
+                                  const Icon(
+                                    Icons.security_rounded,
+                                    color: BarroTheme.primary,
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Seguridad de la cuenta',
-                                    style: BarroTheme.type(16, 22, weight: FontWeight.w700),
+                                    style: BarroTheme.type(
+                                      16,
+                                      22,
+                                      weight: FontWeight.w700,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -459,7 +518,9 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                 onPressed: _abrirCambiarPassword,
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: BarroTheme.primary,
-                                  side: const BorderSide(color: BarroTheme.primary),
+                                  side: const BorderSide(
+                                    color: BarroTheme.primary,
+                                  ),
                                   minimumSize: const Size.fromHeight(46),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -468,7 +529,12 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                 icon: const Icon(Icons.lock_reset_rounded),
                                 label: Text(
                                   'Cambiar contraseña',
-                                  style: BarroTheme.type(14, 18, weight: FontWeight.w600, color: BarroTheme.primary),
+                                  style: BarroTheme.type(
+                                    14,
+                                    18,
+                                    weight: FontWeight.w600,
+                                    color: BarroTheme.primary,
+                                  ),
                                 ),
                               ),
                               if (widget.onCerrarSesion != null) ...[
@@ -482,10 +548,18 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                     foregroundColor: BarroTheme.error,
                                     minimumSize: const Size.fromHeight(44),
                                   ),
-                                  icon: const Icon(Icons.logout_rounded, size: 18),
+                                  icon: const Icon(
+                                    Icons.logout_rounded,
+                                    size: 18,
+                                  ),
                                   label: Text(
                                     'Cerrar sesión',
-                                    style: BarroTheme.type(14, 18, weight: FontWeight.w600, color: BarroTheme.error),
+                                    style: BarroTheme.type(
+                                      14,
+                                      18,
+                                      weight: FontWeight.w600,
+                                      color: BarroTheme.error,
+                                    ),
                                   ),
                                 ),
                               ],
