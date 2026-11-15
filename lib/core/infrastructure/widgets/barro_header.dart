@@ -40,6 +40,9 @@ class BarroHeader extends StatelessWidget {
     super.key,
   });
 
+  /// Acción por defecto ejecutada al presionar el perfil si la instancia y el scope no definen una.
+  static void Function(BuildContext context)? accionPerfilGlobal;
+
   final VoidCallback? onPerfil;
   final VoidCallback? onNotificaciones;
 
@@ -49,7 +52,9 @@ class BarroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alcance = BarroHeaderScope.maybeOf(context);
-    final perfil = onPerfil ?? alcance?.onPerfil;
+    final perfil = onPerfil ??
+        alcance?.onPerfil ??
+        (accionPerfilGlobal != null ? () => accionPerfilGlobal!(context) : null);
     final notificaciones = onNotificaciones ?? alcance?.onNotificaciones;
     final conteo = conteoNotificaciones ?? alcance?.conteoNotificaciones;
     return SizedBox(height: 48, child: _fila(perfil, notificaciones, conteo));

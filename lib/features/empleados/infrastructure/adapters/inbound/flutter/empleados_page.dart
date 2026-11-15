@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
@@ -134,9 +135,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     );
 
     if (creado == true && mounted) {
-      setState(() {
-        _mensajeExito = 'Empleado registrado correctamente.';
-      });
+      AlertaServicio.registro(context, 'Empleado');
       await _cargarEmpleados();
     }
   }
@@ -176,9 +175,7 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
               if (!dialogCtx.mounted) return;
               Navigator.of(dialogCtx).pop();
               if (!mounted) return;
-              setState(() {
-                _mensajeExito = 'Empleado eliminado correctamente.';
-              });
+              AlertaServicio.eliminacion(context, 'Empleado');
               await _cargarEmpleados();
             } on EmpleadoFailure catch (e) {
               if (!dialogCtx.mounted) return;
