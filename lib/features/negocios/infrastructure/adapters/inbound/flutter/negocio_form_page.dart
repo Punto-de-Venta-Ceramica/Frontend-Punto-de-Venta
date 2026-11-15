@@ -10,6 +10,9 @@ class NegocioFormPage extends StatelessWidget {
     this.nombreInicial = '',
     this.inicialesLogo,
     this.errorNombre,
+    this.esloganInicial = '',
+    this.errorEslogan,
+    this.onEsloganChanged,
     this.mostrarEliminar = false,
     this.logo,
     this.contenidoLogo,
@@ -29,6 +32,9 @@ class NegocioFormPage extends StatelessWidget {
   final String nombreInicial;
   final String? inicialesLogo;
   final String? errorNombre;
+  final String esloganInicial;
+  final String? errorEslogan;
+  final ValueChanged<String>? onEsloganChanged;
   final bool mostrarEliminar;
   final String? logo;
   final Uint8List? contenidoLogo;
@@ -99,7 +105,7 @@ class NegocioFormPage extends StatelessWidget {
       const SizedBox(height: 8),
       Text(
         editando
-            ? 'Actualiza el nombre y el logo de tu negocio.'
+            ? 'Actualiza el nombre, el eslogan y el logo de tu negocio.'
             : 'Agrega un negocio a tu cuenta.',
         style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
       ),
@@ -161,6 +167,44 @@ class NegocioFormPage extends StatelessWidget {
           ],
         ),
       ],
+      const SizedBox(height: 20),
+      Text('Eslogan', style: BarroTheme.type(13, 18)),
+      const SizedBox(height: 6),
+      TextFormField(
+        key: ValueKey('eslogan-$esloganInicial'),
+        initialValue: esloganInicial,
+        readOnly: onEsloganChanged == null,
+        enabled: !ocupado,
+        onChanged: onEsloganChanged,
+        textInputAction: TextInputAction.done,
+        maxLength: 150,
+        style: BarroTheme.type(14, 20),
+        decoration: InputDecoration(
+          hintText: 'Ej. La mejor calidad al mejor precio',
+          helperText: 'Se imprime al pie de los tickets.',
+          helperStyle: BarroTheme.type(12, 17, color: BarroTheme.secondary),
+          hintStyle: BarroTheme.type(14, 20, color: BarroTheme.placeholder),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+          enabledBorder: _border(
+            errorEslogan == null ? BarroTheme.border : BarroTheme.error,
+          ),
+          focusedBorder: _border(
+            errorEslogan == null ? BarroTheme.primary : BarroTheme.error,
+          ),
+        ),
+      ),
+      if (errorEslogan != null) ...[
+        const SizedBox(height: 6),
+        Text(
+          errorEslogan!,
+          style: BarroTheme.type(12, 17, color: BarroTheme.error),
+        ),
+      ],
       const SizedBox(height: 24),
       NegocioLogoPicker(
         iniciales: inicialesLogo,
@@ -178,7 +222,7 @@ class NegocioFormPage extends StatelessWidget {
       ],
       const SizedBox(height: 24),
       Text(
-        '* Campo obligatorio. Puedes continuar sin logo.',
+        '* Campo obligatorio. Puedes continuar sin eslogan ni logo.',
         style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
       ),
     ],

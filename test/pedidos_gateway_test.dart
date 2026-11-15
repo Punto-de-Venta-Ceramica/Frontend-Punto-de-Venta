@@ -272,6 +272,7 @@ void main() {
             'total': 200,
             'totalPagado': 50,
             'saldoPendiente': 150,
+            'negocioEslogan': 'La mejor calidad',
           }),
           200,
         );
@@ -283,6 +284,7 @@ void main() {
     expect(pedido.saldo, 150);
     expect(pedido.productos.single.cantidad, 2);
     expect(pedido.productos.single.porcentajeDescuento, 10);
+    expect(pedido.negocioEslogan, 'La mejor calidad');
     client.close();
   });
 }

@@ -4,7 +4,14 @@ import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
+import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
+import 'package:punto_de_venta/features/tickets/domain/ticket.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/imprimir_ticket_widgets.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/seleccionar_impresora_dialog.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/adapters/outbound/bluetooth_impresora_tickets.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/adapters/outbound/secure_impresora_preferida.dart';
 import '../../../application/gestion_pedidos.dart';
+import '../../../application/ticket_pedido.dart';
 import '../../../domain/pedido.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import 'editar_pedido_page.dart';
@@ -24,6 +31,10 @@ class PedidoDetallePage extends StatefulWidget {
     required this.esPropietario,
     required this.negocio,
     this.sucursalNombre,
+    this.impresion = const ImpresionTickets(
+      BluetoothImpresoraTickets(),
+      SecureImpresoraPreferida(),
+    ),
     super.key,
   });
   final GestionPedidos gestion;
@@ -32,6 +43,7 @@ class PedidoDetallePage extends StatefulWidget {
   final bool esPropietario;
   final NegocioProducto negocio;
   final String? sucursalNombre;
+  final ImpresionTickets impresion;
   @override
   State<PedidoDetallePage> createState() => _PedidoDetallePageState();
 }
@@ -44,11 +56,17 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
   bool _busy = false;
   // Sin turno de caja abierto no se cobran pagos ni se devuelve lo pagado.
   bool _cajaAbierta = true;
+  bool _imprimiendo = false;
+  // Última impresora usada en este dispositivo; null = preguntar.
+  ImpresoraTicket? _impresora;
 
   @override
   void initState() {
     super.initState();
     _cargar();
+    widget.impresion.preferida().then((impresora) {
+      if (mounted && impresora != null) setState(() => _impresora = impresora);
+    });
   }
 
   Future<void> _cargar() async {
@@ -312,7 +330,10 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
             _titulo('Pagos'),
             const SizedBox(height: 12),
             _tarjetaPagos(pedido),
-            if (pedido.estado != 'CANCELADO') ...[
+            // Editar, cobrar y cancelar ya no aplican a un pedido cerrado:
+            // cancelado o terminado (entregado y pagado).
+            if (pedido.estado != 'CANCELADO' &&
+                pedido.estado != 'TERMINADO') ...[
               const SizedBox(height: 24),
               // Datos del pedido y del cliente: solo el propietario (HU-05).
               if (widget.esPropietario) ...[
@@ -353,7 +374,8 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
               if (pedido.saldo > 0)
                 ProductoBoton(
                   texto: 'Registrar pago',
-                  busy: _busy,
+                  // Solo gira con su propia acción, no al imprimir.
+                  busy: _busy && !_imprimiendo,
                   onPressed: _busy || !_cajaAbierta
                       ? null
                       : () => _pagar(pedido),
@@ -371,26 +393,13 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
             // Tickets: solo en pedidos terminados, al final del detalle.
             if (pedido.estado == 'TERMINADO') ...[
               const SizedBox(height: 24),
-              ProductoBoton(
-                texto: 'Imprimir ticket',
-                onPressed: _busy ? null : () => _imprimirTicket(pedido),
-              ),
+              _titulo('Ticket'),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _busy ? null : () => _verTicket(pedido),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: BarroTheme.primary,
-                    minimumSize: const Size.fromHeight(48),
-                    side: const BorderSide(color: BarroTheme.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: BarroTheme.type(14, 20, weight: FontWeight.w700),
-                  ),
-                  child: const Text('Ver ticket'),
-                ),
+              TarjetaImprimirTicket(
+                impresora: _impresora,
+                imprimiendo: _imprimiendo,
+                onImprimir: _busy ? null : () => _imprimirTicket(pedido),
+                onCambiarImpresora: _busy ? null : _elegirImpresora,
               ),
             ],
           ],
@@ -399,11 +408,56 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     );
   }
 
-  /// Pendiente: la funcionalidad de impresión la implementa otro integrante.
-  void _imprimirTicket(Pedido pedido) {}
+  /// Imprime en la impresora guardada; la primera vez pide elegirla.
+  Future<void> _imprimirTicket(Pedido pedido) async {
+    final impresora = _impresora ?? await _elegirImpresora();
+    if (impresora == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _imprimiendo = true;
+    });
+    try {
+      final ticket = ticketDePedido(
+        pedido,
+        negocio: widget.negocio.nombre,
+        sucursal: widget.sucursalNombre ?? 'Sucursal ${widget.sucursalId}',
+        entrega: DateTime.now(),
+      );
+      await widget.impresion.imprimir(impresora, ticket);
+      if (mounted) {
+        setState(() => _impresora = impresora);
+        avisoImpresion(context, 'Ticket impreso en ${impresora.nombre}.');
+      }
+    } on ImpresionException catch (e) {
+      if (mounted) _falloImpresion(pedido, e.message);
+    } catch (_) {
+      if (mounted) _falloImpresion(pedido, 'No se pudo imprimir el ticket.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _imprimiendo = false;
+        });
+      }
+    }
+  }
 
-  /// Pendiente: la vista del ticket la implementa otro integrante.
-  void _verTicket(Pedido pedido) {}
+  Future<ImpresoraTicket?> _elegirImpresora() async {
+    final elegida = await seleccionarImpresora(
+      context,
+      widget.impresion,
+      actual: _impresora,
+    );
+    if (elegida != null && mounted) setState(() => _impresora = elegida);
+    return elegida;
+  }
+
+  void _falloImpresion(Pedido pedido, String mensaje) => avisoImpresion(
+    context,
+    mensaje,
+    error: true,
+    onReintentar: () => _imprimirTicket(pedido),
+  );
 
   Widget _titulo(String texto) =>
       Text(texto, style: BarroTheme.type(18, 26, weight: FontWeight.w700));

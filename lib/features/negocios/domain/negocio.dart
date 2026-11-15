@@ -1,10 +1,18 @@
 import 'dart:typed_data';
 
 class Negocio {
-  const Negocio({required this.id, required this.nombre, this.logo});
+  const Negocio({
+    required this.id,
+    required this.nombre,
+    this.logo,
+    this.eslogan,
+  });
   final int id;
   final String nombre;
   final String? logo;
+
+  /// Frase al pie de los tickets; null si no tiene.
+  final String? eslogan;
 
   String get iniciales {
     final palabras = nombre
@@ -69,10 +77,15 @@ class DatosNegocio {
     required this.nombre,
     this.logo,
     this.eliminarLogo = false,
+    this.eslogan = '',
   });
   final String nombre;
   final LogoNegocio? logo;
   final bool eliminarLogo;
+
+  /// Vacío = sin eslogan.
+  final String eslogan;
+  static const maxEslogan = 150;
 
   Map<String, String> validar() {
     if (nombre.trim().isEmpty) {
@@ -84,6 +97,14 @@ class DatosNegocio {
     if (RegExp(r'[\x00-\x1F\x7F-\x9F]').hasMatch(nombre)) {
       return {
         'nombre': 'No se permiten saltos de línea ni caracteres de control.',
+      };
+    }
+    if (eslogan.trim().length > maxEslogan) {
+      return {'eslogan': 'El eslogan no debe superar $maxEslogan caracteres.'};
+    }
+    if (RegExp(r'[\x00-\x1F\x7F-\x9F]').hasMatch(eslogan)) {
+      return {
+        'eslogan': 'No se permiten saltos de línea ni caracteres de control.',
       };
     }
     if (logo != null && eliminarLogo) {

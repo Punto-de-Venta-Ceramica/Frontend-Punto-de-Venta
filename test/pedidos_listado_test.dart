@@ -215,21 +215,24 @@ void main() {
     expect(cancelar.onPressed, isNull);
   });
 
-  testWidgets(
-    'el detalle de un pedido terminado muestra los botones de ticket',
-    (tester) async {
-      _pantallaAlta(tester);
-      final gateway = _Pedidos(estadoPedidos: 'TERMINADO');
-      await tester.pumpWidget(_app(gateway));
-      await tester.pumpAndSettle();
+  testWidgets('un pedido terminado solo ofrece imprimir el ticket', (
+    tester,
+  ) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos(estadoPedidos: 'TERMINADO');
+    // El propietario es quien vería editar, cobrar y cancelar.
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Ver detalle').first);
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Ver detalle').first);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Imprimir ticket'), findsOneWidget);
-      expect(find.text('Ver ticket'), findsOneWidget);
-    },
-  );
+    expect(find.text('Imprimir ticket'), findsOneWidget);
+    expect(find.text('Ver ticket'), findsNothing);
+    expect(find.text('Editar datos del pedido'), findsNothing);
+    expect(find.text('Registrar pago'), findsNothing);
+    expect(find.text('Cancelar pedido'), findsNothing);
+  });
 
   testWidgets('el propietario abre en entregado y termina con confirmación', (
     tester,
