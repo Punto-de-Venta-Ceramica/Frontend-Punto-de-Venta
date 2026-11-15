@@ -123,9 +123,6 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   }
 
   String _resumenErrores(Map<String, String> errores) {
-    if (errores.containsKey('pagoInicial.corteCajaId')) {
-      return 'El backend activo aún solicita un corte de caja. Reinicia el backend actualizado y vuelve a intentarlo.';
-    }
     String etiqueta(String campo) {
       final producto = RegExp(
         r'^productos\[(\d+)\](?:\.(\w+))?$',
