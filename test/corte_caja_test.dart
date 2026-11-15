@@ -281,6 +281,44 @@ void main() {
       },
     );
 
+    testWidgets('el historial de cortes solo lo ve el propietario', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      Future<void> abrir({required bool propietario, CorteCaja? corte}) async {
+        final fake = FakeCorteCajaGateway()..corteActivo = corte;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CorteCajaPage(
+              key: UniqueKey(),
+              gestion: GestionCorteCaja(fake),
+              sucursalId: 1,
+              sucursalNombre: 'Centro',
+              esPropietario: propietario,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      // Caja cerrada: ni el ícono ni el botón de historial para el empleado.
+      await abrir(propietario: false);
+      expect(find.byIcon(Icons.history), findsNothing);
+      expect(find.text('Ver historial de cortes anteriores'), findsNothing);
+      // Con turno abierto, el empleado sigue pudiendo hacer el corte.
+      await abrir(propietario: false, corte: _crearCorteEjemplo());
+      expect(find.byIcon(Icons.history), findsNothing);
+      expect(find.text('Realizar corte'), findsOneWidget);
+
+      await abrir(propietario: true);
+      expect(find.byIcon(Icons.history), findsOneWidget);
+      expect(find.text('Ver historial de cortes anteriores'), findsOneWidget);
+    });
+
     testWidgets(
       'DetalleMovimientosPage muestra productos y alerta de cancelación',
       (tester) async {

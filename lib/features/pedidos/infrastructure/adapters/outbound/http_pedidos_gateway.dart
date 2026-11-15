@@ -105,6 +105,7 @@ class HttpPedidosGateway implements PedidosGateway {
       colonia: cliente['colonia'] as String? ?? '',
       calle: cliente['calle'] as String? ?? '',
       descripcion: j['descripcion'] as String? ?? '',
+      descripcionEnvio: j['descripcionEnvio'] as String? ?? '',
       tipoEntrega: j['tipoEntrega'] as String,
       productos: _lista(j['productos'])
           .map(
@@ -204,4 +205,23 @@ class HttpPedidosGateway implements PedidosGateway {
   @override
   Future<void> cancelar(int id) async =>
       _api.requestJson('POST', 'api/pedidos/$id/cancelar');
+
+  @override
+  Future<void> editarDatos(int id, DatosEdicionPedido d) async =>
+      _api.requestJson(
+        'PUT',
+        'api/pedidos/$id/datos',
+        body: {
+          'descripcion': d.descripcion.trim(),
+          'tipoEntrega': d.tipoEntrega,
+          'descripcionEnvio': d.descripcionEnvio.trim(),
+          'cliente': {
+            'nombre': d.cliente.trim(),
+            'telefono': d.telefono.trim(),
+            if (d.ciudad.trim().isNotEmpty) 'ciudad': d.ciudad.trim(),
+            if (d.colonia.trim().isNotEmpty) 'colonia': d.colonia.trim(),
+            if (d.calle.trim().isNotEmpty) 'calle': d.calle.trim(),
+          },
+        },
+      );
 }

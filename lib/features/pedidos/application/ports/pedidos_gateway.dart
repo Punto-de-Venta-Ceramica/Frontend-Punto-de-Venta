@@ -18,6 +18,9 @@ abstract interface class PedidosGateway {
   Future<void> pagar(int pedidoId, double monto, String metodo);
   Future<void> cambiarEstado(int pedidoId, String estado);
   Future<void> cancelar(int pedidoId);
+
+  /// Descripción, entrega y datos del cliente. Solo el propietario.
+  Future<void> editarDatos(int pedidoId, DatosEdicionPedido datos);
   Future<List<AvisoPedido>> notificaciones();
   Future<void> marcarLeida(int id);
 }

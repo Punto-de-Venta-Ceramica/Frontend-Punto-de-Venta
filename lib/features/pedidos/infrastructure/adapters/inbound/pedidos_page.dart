@@ -10,8 +10,8 @@ import 'registrar_pedido_page.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'notificaciones_page.dart';
 import 'pedido_widgets.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
-import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
 
 class PedidosPage extends StatefulWidget {
   const PedidosPage({
@@ -130,19 +130,41 @@ class _PedidosPageState extends State<PedidosPage> {
     _cargar();
   }
 
+  void _abrirNotificaciones() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => NotificacionesPage(
+        gestion: widget.gestion,
+        contador: widget.contador,
+      ),
+    ),
+  );
+
+  /// La campana de la cabecera común (BarroHeader) toma su acción del
+  /// BarroHeaderScope más cercano. Pedidos y las pantallas que abre son rutas
+  /// nuevas, fuera del scope de la pantalla de inicio, así que se lo damos
+  /// aquí: abre las notificaciones y muestra el punto si hay sin leer.
+  Widget _conCampana(Widget pantalla) => BarroHeaderScope(
+    onPerfil: BarroHeaderScope.maybeOf(context)?.onPerfil,
+    onNotificaciones: _abrirNotificaciones,
+    conteoNotificaciones: widget.contador,
+    child: pantalla,
+  );
+
   Future<void> _nuevo() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => RegistrarPedidoPage(
-          gestion: widget.gestion,
-          sucursalId: widget.sucursalId,
-          negocio: widget.negocio,
-          esPropietario: widget.esPropietario,
-          sucursalNombre: widget.sucursalNombre,
-          // Se llaman ya cerrado el registro: mismos destinos que esta barra.
-          onInicio: () => Navigator.of(context).maybePop(),
-          onCaja: widget.onCaja,
-          onInventario: widget.onInventario,
+        builder: (_) => _conCampana(
+          RegistrarPedidoPage(
+            gestion: widget.gestion,
+            sucursalId: widget.sucursalId,
+            negocio: widget.negocio,
+            esPropietario: widget.esPropietario,
+            sucursalNombre: widget.sucursalNombre,
+            // Se llaman ya cerrado el registro: mismos destinos que esta barra.
+            onInicio: () => Navigator.of(context).maybePop(),
+            onCaja: widget.onCaja,
+            onInventario: widget.onInventario,
+          ),
         ),
       ),
     );
@@ -152,13 +174,15 @@ class _PedidosPageState extends State<PedidosPage> {
   Future<void> _detalle(ResumenPedido pedido) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PedidoDetallePage(
-          gestion: widget.gestion,
-          pedidoId: pedido.id,
-          sucursalId: widget.sucursalId,
-          esPropietario: widget.esPropietario,
-          negocio: widget.negocio,
-          sucursalNombre: widget.sucursalNombre,
+        builder: (_) => _conCampana(
+          PedidoDetallePage(
+            gestion: widget.gestion,
+            pedidoId: pedido.id,
+            sucursalId: widget.sucursalId,
+            esPropietario: widget.esPropietario,
+            negocio: widget.negocio,
+            sucursalNombre: widget.sucursalNombre,
+          ),
         ),
       ),
     );
@@ -204,9 +228,6 @@ class _PedidosPageState extends State<PedidosPage> {
   Widget _tarjeta(ResumenPedido p) {
     final (_, colorEstado, _) = PedidoEstadoChip.colores(p.estado);
     final extra = p.productos.length - _productosVisibles;
-    final inicial = p.cliente.trim().isEmpty
-        ? '?'
-        : p.cliente.trim().characters.first.toUpperCase();
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -226,64 +247,22 @@ class _PedidosPageState extends State<PedidosPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: productoSuave,
-                      child: Text(
-                        inicial,
-                        style: BarroTheme.type(
-                          16,
-                          22,
-                          weight: FontWeight.w700,
-                          color: BarroTheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            p.cliente,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: BarroTheme.type(
-                              17,
-                              24,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              Icon(
-                                p.tipoEntrega == 'DOMICILIO'
-                                    ? Icons.local_shipping_outlined
-                                    : Icons.storefront_outlined,
-                                size: 14,
-                                color: BarroTheme.secondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                p.tipoEntrega == 'DOMICILIO'
-                                    ? 'A domicilio'
-                                    : 'En sucursal',
-                                style: BarroTheme.type(
-                                  12,
-                                  18,
-                                  color: BarroTheme.secondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      child: Text(
+                        p.cliente,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BarroTheme.type(17, 24, weight: FontWeight.w700),
                       ),
                     ),
                     const SizedBox(width: 8),
                     PedidoEstadoChip(p.estado),
                   ],
                 ),
+                const SizedBox(height: 4),
+                PedidoTipoEntrega(p.tipoEntrega),
                 const SizedBox(height: 12),
                 for (final d in p.productos.take(_productosVisibles))
                   Padding(
@@ -328,8 +307,6 @@ class _PedidosPageState extends State<PedidosPage> {
                   ),
                 const SizedBox(height: 10),
                 _importes(p),
-                const SizedBox(height: 14),
-                _estadoPedido(p),
                 const SizedBox(height: 10),
                 // Wrap: en pantallas angostas el botón de terminar baja de renglón.
                 Wrap(
@@ -425,53 +402,6 @@ class _PedidosPageState extends State<PedidosPage> {
     );
   }
 
-  /// Selector de estado: muestra el actual y solo habilita el siguiente paso
-  /// permitido para el rol. Terminado y cancelado no se editan aquí.
-  Widget _estadoPedido(ResumenPedido p) {
-    // Terminado y cancelado ya se ven en la etiqueta de arriba.
-    if (!EstadosPedido.progreso.contains(p.estado)) {
-      return const SizedBox.shrink();
-    }
-    bool habilitado(String destino) => EstadosPedido.puedeCambiar(
-      p.estado,
-      destino,
-      esPropietario: widget.esPropietario,
-    );
-    final editable = EstadosPedido.progreso.any(habilitado);
-    return DropdownButtonFormField<String>(
-      key: ValueKey('estado-${p.id}-${p.estado}'),
-      initialValue: p.estado,
-      decoration: productoDecoracion().copyWith(
-        labelText: 'Estado del pedido',
-        helperText: !widget.esPropietario
-            ? 'Solo el propietario puede cambiar a producción o entregado.'
-            : p.estado == 'ENCARGADO'
-            ? 'Debe pasar por producción antes de entregarse.'
-            : null,
-        helperMaxLines: 2,
-      ),
-      items: [
-        for (final estado in EstadosPedido.progreso)
-          DropdownMenuItem(
-            value: estado,
-            enabled: estado == p.estado || habilitado(estado),
-            child: Text(
-              EstadosPedido.etiqueta(estado),
-              style: estado == p.estado || habilitado(estado)
-                  ? null
-                  : BarroTheme.type(14, 21, color: BarroTheme.placeholder),
-            ),
-          ),
-      ],
-      onChanged: editable
-          ? (estado) {
-              if (estado == null || estado == p.estado) return;
-              _accion(() => widget.gestion.cambiarEstado(p.id, estado));
-            }
-          : null,
-    );
-  }
-
   Future<void> _terminar(ResumenPedido p) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -505,6 +435,10 @@ class _PedidosPageState extends State<PedidosPage> {
     final visibles = _pedidos
         .where((p) => p.cliente.toLowerCase().contains(busqueda))
         .toList();
+    return _conCampana(_pantalla(visibles, busqueda));
+  }
+
+  Widget _pantalla(List<ResumenPedido> visibles, String busqueda) {
     return ProductoScaffold(
       // El empleado navega con la barra de su pantalla de inicio.
       barraInferior: widget.esPropietario
@@ -525,26 +459,9 @@ class _PedidosPageState extends State<PedidosPage> {
           sucursal: widget.sucursalNombre,
         ),
         const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Pedidos',
-                style: BarroTheme.type(28, 36, weight: FontWeight.w700),
-              ),
-            ),
-            BotonNotificaciones(
-              conteo: widget.contador,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => NotificacionesPage(
-                    gestion: widget.gestion,
-                    contador: widget.contador,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        Text(
+          'Pedidos',
+          style: BarroTheme.type(28, 36, weight: FontWeight.w700),
         ),
         const SizedBox(height: 16),
         TextField(
