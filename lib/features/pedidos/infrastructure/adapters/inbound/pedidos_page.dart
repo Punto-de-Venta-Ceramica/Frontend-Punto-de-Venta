@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -63,6 +65,8 @@ class _PedidosPageState extends State<PedidosPage> {
 
   /// Carga la primera página del filtro actual.
   Future<void> _cargar() async {
+    // Registrar o cambiar un pedido genera avisos: no esperar al sondeo de 45 s.
+    unawaited(widget.contador.actualizar());
     final carga = ++_carga;
     setState(() {
       _cargando = true;
