@@ -105,6 +105,7 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
     TextEditingController controller, {
     required String campo,
     required String ayuda,
+    required IconData icono,
     String? hint,
     int? maxLength,
     TextInputType? teclado,
@@ -126,6 +127,7 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
           decoration: productoDecoracion(hint: hint, error: _errores[campo])
               .copyWith(
                 counterText: '',
+                prefixIcon: Icon(icono, size: 20, color: BarroTheme.secondary),
                 helperText: ayuda,
                 helperMaxLines: 3,
                 helperStyle: BarroTheme.type(
@@ -144,11 +146,14 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
     ),
   );
 
-  Widget _seccion(String titulo) => Padding(
+  Widget _seccion(String titulo, IconData icono) => Padding(
     padding: const EdgeInsets.only(top: 6, bottom: 10),
-    child: Text(
-      titulo,
-      style: BarroTheme.type(18, 26, weight: FontWeight.w700),
+    child: Row(
+      children: [
+        Icon(icono, size: 22, color: BarroTheme.primary),
+        const SizedBox(width: 8),
+        Text(titulo, style: BarroTheme.type(18, 26, weight: FontWeight.w700)),
+      ],
     ),
   );
 
@@ -192,11 +197,12 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _seccion('Pedido'),
+              _seccion('Pedido', Icons.inventory_2_outlined),
               _campo(
                 'Descripción del pedido',
                 _descripcion,
                 campo: 'descripcion',
+                icono: Icons.receipt_long_outlined,
                 hint: 'Ej. Personalizados con logotipo',
                 maxLength: 2000,
                 formatos: PedidoInputFormatters.texto,
@@ -223,17 +229,19 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
                 'Descripción de envío',
                 _envio,
                 campo: 'descripcionEnvio',
+                icono: Icons.notes_outlined,
                 hint: 'Ej. Entregar por la tarde, casa con portón azul',
                 maxLength: 2000,
                 formatos: PedidoInputFormatters.texto,
                 ayuda:
                     'Opcional. Indicaciones para la entrega, como horario o referencias.',
               ),
-              _seccion('Cliente'),
+              _seccion('Cliente', Icons.person_outline),
               _campo(
                 'Nombre del cliente *',
                 _nombre,
                 campo: 'cliente.nombre',
+                icono: Icons.badge_outlined,
                 maxLength: 150,
                 formatos: PedidoInputFormatters.nombre,
                 validar: PedidoInputFormatters.validarNombre,
@@ -243,6 +251,7 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
                 'Teléfono *',
                 _telefono,
                 campo: 'cliente.telefono',
+                icono: Icons.phone_outlined,
                 maxLength: 10,
                 teclado: TextInputType.phone,
                 formatos: PedidoInputFormatters.telefono,
@@ -253,6 +262,7 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
                 'Ciudad',
                 _ciudad,
                 campo: 'cliente.ciudad',
+                icono: Icons.location_city_outlined,
                 maxLength: 120,
                 formatos: PedidoInputFormatters.texto,
                 ayuda: 'Opcional.',
@@ -261,6 +271,7 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
                 'Colonia',
                 _colonia,
                 campo: 'cliente.colonia',
+                icono: Icons.map_outlined,
                 maxLength: 120,
                 formatos: PedidoInputFormatters.texto,
                 ayuda: 'Opcional.',
@@ -269,6 +280,7 @@ class _EditarPedidoPageState extends State<EditarPedidoPage> {
                 'Calle y número',
                 _calle,
                 campo: 'cliente.calle',
+                icono: Icons.home_outlined,
                 maxLength: 200,
                 formatos: PedidoInputFormatters.texto,
                 ayuda: 'Opcional. Necesaria si la entrega es a domicilio.',

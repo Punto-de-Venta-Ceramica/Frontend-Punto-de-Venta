@@ -588,10 +588,31 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     ),
   );
 
-  @override
+  final _navegador = GlobalKey<NavigatorState>();
+
+  /// Campana de la cabecera en todas las pantallas: el scope va sobre el
+  /// Navigator, así las rutas nuevas (sucursales, caja, áreas…) también lo ven.
+  void _abrirNotificacionesGlobal() {
+    if (_sesionActual == null) return;
+    _navegador.currentState?.push(
+      MaterialPageRoute<void>(
+        builder: (_) => NotificacionesPage(
+          gestion: GestionPedidos(HttpPedidosGateway(_api)),
+          contador: _contador,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ToastificationWrapper(
     child: MaterialApp(
+      navigatorKey: _navegador,
+      builder: (context, child) => BarroHeaderScope(
+        onNotificaciones: _abrirNotificacionesGlobal,
+        conteoNotificaciones: _contador,
+        child: child ?? const SizedBox.shrink(),
+      ),
       title: 'BarroControl',
       debugShowCheckedModeBanner: false,
       // `dropdown_search` usa su propio material_ui: sus TextField piden las
