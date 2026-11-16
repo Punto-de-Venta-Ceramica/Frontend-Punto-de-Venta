@@ -28,8 +28,12 @@ abstract interface class GestionProductosUseCase {
   /// Devuelve la existencia resultante.
   Future<int> ajustarExistencia(int inventarioId, int cantidad);
 
+  /// Agrega piezas (cantidad positiva) en una sucursal; nunca resta. Es el
+  /// único cambio de existencia que puede hacer el empleado.
+  Future<int> agregarExistencia(int inventarioId, int cantidad);
+
   /// Asigna un producto ya registrado a otra sucursal. Sin [existencia]
-  /// (null) empieza en 0, o conserva la que tenía si se había quitado de ahí.
+  /// (null) empieza en 0, también si se había quitado antes de ahí.
   Future<ExistenciaSucursal> asignarASucursal(
     int productoId,
     SucursalProducto sucursal,

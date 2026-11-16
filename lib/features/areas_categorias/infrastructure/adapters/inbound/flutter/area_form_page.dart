@@ -73,6 +73,9 @@ class AreaFormPage extends StatelessWidget {
       onVolver: ocupado ? null : onCancelar,
       footer: ClasificacionPie(
         accion: accion ?? (editando ? 'Guardar cambios' : 'Continuar'),
+        iconoAccion: editando || paso == PasoArea.categorias
+            ? Icons.check_rounded
+            : Icons.arrow_forward_rounded,
         onContinuar: onContinuar,
         onCancelar: onCancelar,
         ocupado: ocupado,
@@ -81,9 +84,12 @@ class AreaFormPage extends StatelessWidget {
       children: [
         ClasificacionTitulo(
           editando ? 'Editar área' : 'Registrar área',
+          icono: editando ? Icons.edit_outlined : iconoArea,
           descripcion: editando
-              ? 'Actualiza los datos del área.'
-              : 'Agrega un área a tu negocio.',
+              ? 'Actualiza el nombre o la descripción del área.'
+              : paso == PasoArea.categorias
+              ? 'Agrega categorías ahora o hazlo más adelante.'
+              : 'Agrega un área para organizar tu catálogo.',
         ),
         if (pasos.length > 1) ...[
           const SizedBox(height: 16),
@@ -101,8 +107,11 @@ class AreaFormPage extends StatelessWidget {
         ...switch (paso) {
           PasoArea.datos => [
             ClasificacionCampo(
-              etiqueta: 'Nombre del área *',
+              etiqueta: 'Nombre del área',
+              obligatorio: true,
+              icono: iconoArea,
               hint: 'Ej. Cocina',
+              ayuda: 'Usa un nombre corto y fácil de reconocer.',
               valor: nombre,
               controller: nombreController,
               onChanged: onNombreChanged,
@@ -113,7 +122,8 @@ class AreaFormPage extends StatelessWidget {
             const SizedBox(height: 20),
             ClasificacionCampo(
               etiqueta: 'Descripción',
-              hint: 'Ej. Área enfocada en artículos de…',
+              opcional: true,
+              hint: 'Ej. Artículos para preparar y servir alimentos.',
               valor: descripcion,
               controller: descripcionController,
               onChanged: onDescripcionChanged,
@@ -146,22 +156,36 @@ class AreaFormPage extends StatelessWidget {
             ],
           ],
           PasoArea.categorias => [
+            ClasificacionContexto(
+              etiqueta: 'Área registrada',
+              valor: nombreController?.text ?? nombre,
+            ),
+            const SizedBox(height: 20),
+            ClasificacionSeccion(
+              'Categorías',
+              icono: iconoCategoria,
+              contador: categorias.length,
+            ),
+            const SizedBox(height: 12),
             if (categorias.isEmpty)
               ClasificacionEmptyState(
-                simbolo: 'C',
+                compacto: true,
+                icono: iconoCategoria,
                 titulo: 'Agrega tu primera categoría',
-                descripcion: 'Registra su nombre y descripción.',
+                descripcion: 'Por ejemplo Macetas o Vajilla. Es opcional.',
                 accion: 'Registrar mi primera categoría',
                 onAccion: ocupado ? null : onRegistrarCategoria,
               )
             else ...[
               ClasificacionBoton(
-                '+ Registrar categoría',
+                'Registrar categoría',
+                icono: Icons.add_rounded,
+                outlined: true,
                 onPressed: ocupado ? null : onRegistrarCategoria,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               for (var i = 0; i < categorias.length; i++) ...[
-                if (i > 0) const SizedBox(height: 16),
+                if (i > 0) const SizedBox(height: 12),
                 CategoriaCard(
                   categoria: categorias[i],
                   mostrarEliminar: mostrarEliminarCategorias,

@@ -224,8 +224,15 @@ class CachedExistenciasGateway implements ExistenciasGateway {
       );
 
   @override
-  Future<int> ajustar(int inventarioId, int cantidad) async {
-    final existencia = await _origen.ajustar(inventarioId, cantidad);
+  Future<int> ajustar(int inventarioId, int cantidad) async =>
+      _actualizar(inventarioId, await _origen.ajustar(inventarioId, cantidad));
+
+  @override
+  Future<int> agregar(int inventarioId, int cantidad) async =>
+      _actualizar(inventarioId, await _origen.agregar(inventarioId, cantidad));
+
+  /// Corrige la existencia guardada de esa sucursal y la devuelve.
+  int _actualizar(int inventarioId, int existencia) {
     _porProducto.updateAll(
       (_, filas) => [
         for (final e in filas)

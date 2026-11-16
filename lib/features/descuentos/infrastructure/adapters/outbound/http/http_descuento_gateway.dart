@@ -97,6 +97,27 @@ class HttpDescuentoGateway implements DescuentoGateway {
     return value;
   }
 
+  /// Producto con su área y categoría, para filtrarlo en el selector.
+  ElementoCatalogo _producto(
+    Map<String, dynamic> json,
+    ElementoCatalogo? categoria,
+  ) {
+    final imagen = json['imagenUrl'];
+    return ElementoCatalogo(
+      id: _entero(json['id']),
+      nombre: _texto(json['nombre']),
+      contexto: [
+        categoria?.area,
+        categoria?.nombre,
+      ].whereType<String>().where((t) => t.isNotEmpty).join(' · '),
+      areaId: categoria?.areaId,
+      area: categoria?.area,
+      categoriaId: categoria?.id,
+      categoria: categoria?.nombre,
+      imagenUrl: imagen is String && imagen.trim().isNotEmpty ? imagen : null,
+    );
+  }
+
   @override
   Future<List<Descuento>> listar(int negocioId) => _seguro(() async {
     final data = await _api.requestJson('GET', _ruta(negocioId));
@@ -232,17 +253,15 @@ class HttpDescuentoGateway implements DescuentoGateway {
           id: _entero(_map(c)['id']),
           nombre: _texto(_map(c)['nombre']),
           contexto: nombreArea[_map(c)['areaId']] ?? '',
+          areaId: _map(c)['areaId'] as int?,
+          area: nombreArea[_map(c)['areaId']],
         ),
     ];
-    final nombreCategoria = {for (final c in categorias) c.id: c.nombre};
+    final categoriaPorId = {for (final c in categorias) c.id: c};
     return CatalogoDescuento(
       productos: [
-        for (final p in productosJson)
-          ElementoCatalogo(
-            id: _entero(_map(p)['id']),
-            nombre: _texto(_map(p)['nombre']),
-            contexto: nombreCategoria[_map(p)['categoriaId']] ?? '',
-          ),
+        for (final p in productosJson.map(_map))
+          _producto(p, categoriaPorId[p['categoriaId']]),
       ],
       categorias: categorias,
       areas: areas,

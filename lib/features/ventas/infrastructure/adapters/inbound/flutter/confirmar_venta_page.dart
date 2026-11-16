@@ -623,7 +623,9 @@ class _MontosRapidos extends StatelessWidget {
   final num total;
   final ValueChanged<num> onElegir;
 
-  static const _billetes = [20, 50, 100, 200, 500, 1000];
+  /// Billetes con los que suelen pagar los clientes, siempre en este orden.
+  /// Los que no alcanzan a cubrir el total se muestran deshabilitados.
+  static const _billetes = [100, 200, 500];
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -635,10 +637,10 @@ class _MontosRapidos extends StatelessWidget {
         label: const Text('Exacto'),
         onPressed: () => onElegir(total),
       ),
-      for (final billete in _billetes.where((b) => b > total).take(3))
+      for (final billete in _billetes)
         ActionChip(
           label: Text('\$$billete'),
-          onPressed: () => onElegir(billete),
+          onPressed: billete >= total ? () => onElegir(billete) : null,
         ),
     ],
   );

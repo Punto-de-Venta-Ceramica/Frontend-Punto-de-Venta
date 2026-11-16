@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dropdown_search/dropdown_search.dart';
@@ -15,6 +16,17 @@ import '../../outbound/imagenes/cloudinary_url.dart';
 
 const productoSuave = Color(0xFFF7E7DF);
 const productoErrorSuave = Color(0xFFFFF0EE);
+
+/// Clave para ordenar y buscar sin distinguir mayúsculas ni acentos.
+String claveBusqueda(String texto) => texto
+    .trim()
+    .toLowerCase()
+    .replaceAll(RegExp('[áàäâ]'), 'a')
+    .replaceAll(RegExp('[éèëê]'), 'e')
+    .replaceAll(RegExp('[íìïî]'), 'i')
+    .replaceAll(RegExp('[óòöô]'), 'o')
+    .replaceAll(RegExp('[úùüû]'), 'u')
+    .replaceAll('ñ', 'n{');
 
 String formatoPrecio(double valor) => '\$${valor.toStringAsFixed(2)}';
 
@@ -176,6 +188,7 @@ class ProductoImagen extends StatelessWidget {
     this.url,
     this.bytes,
     this.conservarProporcion = false,
+    this.proporcion,
     super.key,
   });
 
@@ -188,6 +201,11 @@ class ProductoImagen extends StatelessWidget {
   /// Ajusta el ancho según la foto y el espacio disponible.
   final bool conservarProporcion;
 
+  /// Proporción (ancho / alto) fija del recuadro, que ocupa todo el ancho
+  /// disponible. La foto llena el recuadro si su forma se parece; si no, se
+  /// muestra completa sobre un fondo hecho con ella misma difuminada.
+  final double? proporcion;
+
   BoxFit get _ajuste => conservarProporcion ? BoxFit.contain : BoxFit.cover;
   Alignment get _alineacion =>
       conservarProporcion ? Alignment.topLeft : Alignment.center;
@@ -195,6 +213,21 @@ class ProductoImagen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radio = BorderRadius.circular(14);
+    final relacion = proporcion;
+    if (relacion != null) {
+      return AspectRatio(
+        aspectRatio: relacion,
+        child: Container(
+          decoration: BoxDecoration(
+            color: productoSuave,
+            borderRadius: radio,
+            border: Border.all(color: BarroTheme.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _contenidoAjustado(relacion),
+        ),
+      );
+    }
     if (conservarProporcion) {
       return ClipRRect(
         borderRadius: radio,
@@ -247,6 +280,39 @@ class ProductoImagen extends StatelessWidget {
     );
   }
 
+  Widget _contenidoAjustado(double relacion) => LayoutBuilder(
+    builder: (context, restricciones) {
+      final ancho = restricciones.maxWidth.isFinite
+          ? restricciones.maxWidth
+          : size * relacion;
+      final seleccionada = bytes;
+      final ImageProvider proveedor;
+      if (seleccionada != null) {
+        proveedor = ResizeImage.resizeIfNeeded(
+          tamaniosImagenCloudinary.last,
+          null,
+          MemoryImage(seleccionada),
+        );
+      } else {
+        final direccion = url?.trim();
+        if (direccion == null || direccion.isEmpty) return _placeholder();
+        // Se pide a Cloudinary el lado mayor que ocupa el recuadro.
+        final ladoPx =
+            math.max(ancho, ancho / relacion) *
+            MediaQuery.devicePixelRatioOf(context);
+        proveedor = CachedNetworkImageProvider(
+          urlImagenCloudinary(direccion, ladoPx),
+        );
+      }
+      return _ImagenAjustada(
+        proveedor: proveedor,
+        proporcionRecuadro: relacion,
+        cargando: _placeholder(cargando: true),
+        error: _placeholder(error: true),
+      );
+    },
+  );
+
   Widget _placeholder({bool cargando = false, bool error = false}) => Container(
     width: conservarProporcion ? size : null,
     color: productoSuave,
@@ -262,6 +328,200 @@ class ProductoImagen extends StatelessWidget {
             color: BarroTheme.secondary,
             size: size * 0.38,
           ),
+  );
+}
+
+/// Pinta la foto según cuánto se parece su forma a la del recuadro.
+///
+/// * Forma parecida (±[_ImagenAjustadaState._tolerancia]): llena el recuadro
+///   (`cover`), recortando muy poco.
+/// * Forma distinta (muy vertical o muy horizontal): se ve completa
+///   (`contain`) y los huecos se rellenan con la misma foto ampliada y
+///   difuminada, sin descargarla otra vez.
+class _ImagenAjustada extends StatefulWidget {
+  const _ImagenAjustada({
+    required this.proveedor,
+    required this.proporcionRecuadro,
+    required this.cargando,
+    required this.error,
+  });
+
+  final ImageProvider proveedor;
+  final double proporcionRecuadro;
+  final Widget cargando;
+  final Widget error;
+
+  @override
+  State<_ImagenAjustada> createState() => _ImagenAjustadaState();
+}
+
+class _ImagenAjustadaState extends State<_ImagenAjustada> {
+  static const _tolerancia = 0.15;
+
+  ImageStream? _flujo;
+  ImageStreamListener? _oyente;
+  ImageInfo? _info;
+  bool _fallo = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolver();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImagenAjustada anterior) {
+    super.didUpdateWidget(anterior);
+    if (anterior.proveedor != widget.proveedor) _resolver();
+  }
+
+  void _resolver() {
+    final flujo = widget.proveedor.resolve(
+      createLocalImageConfiguration(context),
+    );
+    if (_flujo != null && flujo.key == _flujo!.key) return;
+    _dejarDeEscuchar();
+    final oyente = ImageStreamListener(
+      (info, _) {
+        if (!mounted) {
+          info.dispose();
+          return;
+        }
+        setState(() {
+          _info?.dispose();
+          _info = info;
+          _fallo = false;
+        });
+      },
+      onError: (_, _) {
+        if (mounted) setState(() => _fallo = true);
+      },
+    );
+    _oyente = oyente;
+    _flujo = flujo..addListener(oyente);
+  }
+
+  void _dejarDeEscuchar() {
+    final oyente = _oyente;
+    if (oyente != null) _flujo?.removeListener(oyente);
+    _oyente = null;
+  }
+
+  @override
+  void dispose() {
+    _dejarDeEscuchar();
+    _info?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_fallo) return widget.error;
+    final imagen = _info?.image;
+    if (imagen == null) return widget.cargando;
+    final relacion = (imagen.width / imagen.height) / widget.proporcionRecuadro;
+    final parecida =
+        relacion >= 1 - _tolerancia && relacion <= 1 / (1 - _tolerancia);
+    if (parecida) {
+      return RawImage(
+        image: imagen,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(
+            sigmaX: 22,
+            sigmaY: 22,
+            tileMode: TileMode.clamp,
+          ),
+          child: RawImage(
+            image: imagen,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.low,
+          ),
+        ),
+        // Aclara el fondo para que la foto principal resalte.
+        ColoredBox(color: Colors.white.withValues(alpha: 0.28)),
+        RawImage(image: imagen, fit: BoxFit.contain),
+      ],
+    );
+  }
+}
+
+/// Abre la foto del producto a pantalla completa, con zoom.
+Future<void> mostrarImagenProducto(BuildContext context, String url) =>
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (context, _, _) => _VisorImagenProducto(url: url),
+        transitionsBuilder: (_, animacion, _, hijo) =>
+            FadeTransition(opacity: animacion, child: hijo),
+      ),
+    );
+
+class _VisorImagenProducto extends StatelessWidget {
+  const _VisorImagenProducto({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.black,
+    body: Stack(
+      children: [
+        Positioned.fill(
+          child: InteractiveViewer(
+            minScale: 1,
+            maxScale: 5,
+            child: Center(
+              child: CachedNetworkImage(
+                imageUrl: urlImagenCloudinary(
+                  url,
+                  tamaniosImagenCloudinary.last.toDouble(),
+                ),
+                fit: BoxFit.contain,
+                placeholder: (_, _) => const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                errorWidget: (_, _, _) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white70,
+                  size: 48,
+                ),
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: IconButton(
+                tooltip: 'Cerrar',
+                onPressed: () => Navigator.of(context).pop(),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -387,6 +647,8 @@ class ProductoBoton extends StatelessWidget {
             ? const Color(0xFFB91F16)
             : BarroTheme.primary,
         foregroundColor: Colors.white,
+        disabledBackgroundColor: BarroTheme.primary.withValues(alpha: 0.4),
+        disabledForegroundColor: Colors.white,
         minimumSize: const Size.fromHeight(52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
         textStyle: BarroTheme.type(14, 20, weight: FontWeight.w700),
@@ -744,12 +1006,26 @@ class ProductoFiltroDesplegable extends StatelessWidget {
           return true;
         },
         onSelected: (o) => onChanged(o?.$1),
+        // Una sola línea con "…": en espacios angostos (dos filtros lado a
+        // lado) el nombre largo no debe partirse letra por letra.
+        dropdownBuilder: (context, item) => item == null
+            ? const SizedBox.shrink()
+            : Tooltip(
+                message: item.$2,
+                child: Text(
+                  item.$2,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
         decoratorProps: DropDownDecoratorProps(
           baseStyle: estilo.copyWith(fontWeight: FontWeight.w700),
           decoration: mui.InputDecoration(
             hintText: texto,
             hintStyle: estilo.copyWith(fontWeight: FontWeight.w700),
             prefixIcon: Icon(icono, size: 18, color: BarroTheme.primary),
+            prefixIconConstraints: const BoxConstraints(minWidth: 36),
             filled: true,
             fillColor: productoSuave,
             isDense: true,
@@ -761,9 +1037,15 @@ class ProductoFiltroDesplegable extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
+            // Con un filtro aplicado se marca el borde para que se note
+            // que la lista está filtrada.
             enabledBorder: mui.OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
+              borderSide: seleccionado == null
+                  ? BorderSide.none
+                  : BorderSide(
+                      color: BarroTheme.primary.withValues(alpha: 0.55),
+                    ),
             ),
             focusedBorder: mui.OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -776,9 +1058,12 @@ class ProductoFiltroDesplegable extends StatelessWidget {
             isVisible: true,
             icon: Icon(Icons.close, size: 16),
             padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(width: 28, height: 32),
             tooltip: 'Quitar filtro',
           ),
           dropdownButtonProps: DropdownButtonProps(
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(width: 28, height: 32),
             iconClosed: Icon(
               Icons.keyboard_arrow_down,
               size: 20,

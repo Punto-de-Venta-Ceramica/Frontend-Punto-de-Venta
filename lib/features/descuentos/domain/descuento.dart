@@ -79,16 +79,27 @@ enum DestinoDescuento {
 
 /// Producto, categoría o área del catálogo que puede recibir un descuento.
 /// [contexto] ayuda a distinguirlos: la categoría de un producto o el área de
-/// una categoría.
+/// una categoría. Los productos traen además su área, categoría e imagen para
+/// filtrarlos en el selector.
 class ElementoCatalogo {
   const ElementoCatalogo({
     required this.id,
     required this.nombre,
     this.contexto = '',
+    this.areaId,
+    this.area,
+    this.categoriaId,
+    this.categoria,
+    this.imagenUrl,
   });
   final int id;
   final String nombre;
   final String contexto;
+  final int? areaId;
+  final String? area;
+  final int? categoriaId;
+  final String? categoria;
+  final String? imagenUrl;
 }
 
 class CatalogoDescuento {
