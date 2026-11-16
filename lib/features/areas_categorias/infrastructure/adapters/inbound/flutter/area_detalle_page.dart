@@ -11,7 +11,6 @@ class AreaDetallePage extends StatelessWidget {
     required this.negocio,
     required this.area,
     this.categorias = const [],
-    this.mensaje,
     this.cargando = false,
     this.error,
     this.onVolver,
@@ -28,7 +27,6 @@ class AreaDetallePage extends StatelessWidget {
   final String negocio;
   final AreaVista area;
   final List<CategoriaVista> categorias;
-  final String? mensaje;
   final bool cargando;
   final String? error;
   final VoidCallback? onVolver;
@@ -74,10 +72,6 @@ class AreaDetallePage extends StatelessWidget {
           onReintentar: onReintentar,
         )
       else ...[
-        if (mensaje != null) ...[
-          ClasificacionAviso(mensaje!),
-          const SizedBox(height: 12),
-        ],
         AreaCard(area: area, mostrarAcceso: false),
         const SizedBox(height: 28),
         Text(

@@ -21,6 +21,154 @@ String formatoPrecio(double valor) => '\$${valor.toStringAsFixed(2)}';
 String formatoPiezas(int cantidad) =>
     '$cantidad ${cantidad == 1 ? 'pieza' : 'piezas'}';
 
+/// Nivel de existencia de un producto en una sucursal, para decidir de un
+/// vistazo si conviene reabastecerlo.
+enum NivelExistencia {
+  /// Más de [NivelExistencia.limiteModerado] piezas.
+  suficiente(
+    etiqueta: 'Existencia suficiente',
+    icono: Icons.check_circle_rounded,
+    color: BarroTheme.success,
+    fondo: Color(0xFFECF7F0),
+  ),
+
+  /// Entre [NivelExistencia.limiteBajo] + 1 y [NivelExistencia.limiteModerado].
+  moderado(
+    etiqueta: 'Existencia moderada',
+    icono: Icons.warning_amber_rounded,
+    color: Color(0xFF8A5A00),
+    fondo: Color(0xFFFFF3DC),
+  ),
+
+  /// [NivelExistencia.limiteBajo] piezas o menos: hay que reabastecer.
+  bajo(
+    etiqueta: 'Reabastecer pronto',
+    icono: Icons.production_quantity_limits_rounded,
+    color: BarroTheme.error,
+    fondo: productoErrorSuave,
+  ),
+
+  /// Sin piezas.
+  agotado(
+    etiqueta: 'Agotado',
+    icono: Icons.remove_shopping_cart_rounded,
+    color: BarroTheme.error,
+    fondo: productoErrorSuave,
+  );
+
+  const NivelExistencia({
+    required this.etiqueta,
+    required this.icono,
+    required this.color,
+    required this.fondo,
+  });
+
+  final String etiqueta;
+  final IconData icono;
+  final Color color;
+  final Color fondo;
+
+  static const limiteBajo = 10;
+  static const limiteModerado = 25;
+
+  static NivelExistencia de(int existencia) {
+    if (existencia <= 0) return agotado;
+    if (existencia <= limiteBajo) return bajo;
+    if (existencia <= limiteModerado) return moderado;
+    return suficiente;
+  }
+
+  /// Llenado de la barra: se considera llena a partir de 1.5 veces el límite
+  /// moderado, para que "suficiente" se distinga de "apenas suficiente".
+  static double llenado(int existencia) =>
+      (existencia / (limiteModerado * 1.5)).clamp(0, 1).toDouble();
+}
+
+/// Ícono del nivel de existencia dentro de un círculo de su color.
+class ExistenciaIcono extends StatelessWidget {
+  const ExistenciaIcono(this.existencia, {this.tamano = 36, super.key});
+  final int existencia;
+  final double tamano;
+
+  @override
+  Widget build(BuildContext context) {
+    final nivel = NivelExistencia.de(existencia);
+    return Tooltip(
+      message: nivel.etiqueta,
+      child: Container(
+        width: tamano,
+        height: tamano,
+        decoration: BoxDecoration(color: nivel.fondo, shape: BoxShape.circle),
+        child: Icon(nivel.icono, size: tamano * 0.56, color: nivel.color),
+      ),
+    );
+  }
+}
+
+/// Etiqueta compacta con ícono y texto del nivel ("Reabastecer pronto").
+class ExistenciaEtiqueta extends StatelessWidget {
+  const ExistenciaEtiqueta(this.existencia, {super.key});
+  final int existencia;
+
+  @override
+  Widget build(BuildContext context) {
+    final nivel = NivelExistencia.de(existencia);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: nivel.fondo,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(nivel.icono, size: 13, color: nivel.color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              nivel.etiqueta,
+              overflow: TextOverflow.ellipsis,
+              style: BarroTheme.type(
+                11,
+                16,
+                weight: FontWeight.w700,
+                color: nivel.color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barra delgada que muestra qué tan surtida está la sucursal.
+class ExistenciaBarra extends StatelessWidget {
+  const ExistenciaBarra(this.existencia, {super.key});
+  final int existencia;
+
+  @override
+  Widget build(BuildContext context) {
+    final nivel = NivelExistencia.de(existencia);
+    return ExcludeSemantics(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: NivelExistencia.llenado(existencia)),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          builder: (_, valor, _) => LinearProgressIndicator(
+            value: valor,
+            minHeight: 6,
+            color: nivel.color,
+            backgroundColor: nivel.fondo,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ProductoImagen extends StatelessWidget {
   const ProductoImagen({
     required this.size,

@@ -591,14 +591,31 @@ class _FilaExistencia extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              ExistenciaIcono(e.existencia),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(e.sucursalNombre, style: BarroTheme.type(14, 21)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      e.sucursalNombre,
+                      style: BarroTheme.type(14, 21, weight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    ExistenciaEtiqueta(e.existencia),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Text(
                 formatoPiezas(e.existencia),
-                style: BarroTheme.type(14, 21, weight: FontWeight.w700),
+                style: BarroTheme.type(
+                  15,
+                  21,
+                  weight: FontWeight.w700,
+                  color: NivelExistencia.de(e.existencia).color,
+                ),
               ),
               if (onQuitar != null)
                 PopupMenuButton<void>(
@@ -616,6 +633,8 @@ class _FilaExistencia extends StatelessWidget {
                 ),
             ],
           ),
+          const SizedBox(height: 10),
+          ExistenciaBarra(e.existencia),
           if (editable) ...[
             const SizedBox(height: 8),
             Row(
@@ -699,52 +718,315 @@ class _AjusteDialogState extends State<_AjusteDialog> {
     Navigator.pop(context, _agregar ? n : -n);
   }
 
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.existencia.sucursalNombre),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Existencia actual: ${formatoPiezas(widget.existencia.existencia)}',
-          style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
-        ),
-        const SizedBox(height: 12),
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: true, label: Text('Agregar')),
-            ButtonSegment(value: false, label: Text('Quitar')),
-          ],
-          selected: {_agregar},
-          onSelectionChanged: (v) => setState(() {
-            _agregar = v.first;
+  /// Existencia que quedaría tras aplicar el ajuste escrito, o `null` si el
+  /// campo aún no tiene un número válido.
+  int? get _resultado {
+    final n = int.tryParse(_controller.text.trim());
+    if (n == null || n <= 0) return null;
+    return widget.existencia.existencia + (_agregar ? n : -n);
+  }
+
+  Widget _opcion({
+    required bool valor,
+    required IconData icono,
+    required String texto,
+  }) {
+    final seleccionada = _agregar == valor;
+    final color = valor ? BarroTheme.success : BarroTheme.error;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() {
+            _agregar = valor;
             _error = null;
           }),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          key: const ValueKey('existencia-cantidad'),
-          controller: _controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(
-            labelText: 'Cantidad de piezas',
-            errorText: _error,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            decoration: BoxDecoration(
+              color: seleccionada ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: seleccionada
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x1A1E1B19),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icono,
+                  size: 20,
+                  color: seleccionada ? color : BarroTheme.placeholder,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  texto,
+                  style: BarroTheme.type(
+                    14,
+                    20,
+                    weight: FontWeight.w700,
+                    color: seleccionada ? color : BarroTheme.placeholder,
+                  ),
+                ),
+              ],
+            ),
           ),
-          onSubmitted: (_) => _confirmar(),
         ),
-      ],
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancelar'),
       ),
-      FilledButton(onPressed: _confirmar, child: const Text('Aplicar')),
-    ],
-  );
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actual = widget.existencia.existencia;
+    final resultado = _resultado;
+    final acento = _agregar ? BarroTheme.success : BarroTheme.error;
+    return Dialog(
+      backgroundColor: BarroTheme.background,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Encabezado: icono de sucursal + nombre.
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: productoSuave,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.storefront_outlined,
+                    color: BarroTheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ajustar existencia',
+                        style: BarroTheme.type(
+                          12,
+                          17,
+                          weight: FontWeight.w700,
+                          color: BarroTheme.placeholder,
+                        ),
+                      ),
+                      Text(
+                        widget.existencia.sucursalNombre,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: BarroTheme.type(20, 26, weight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Existencia actual.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: BarroTheme.border),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  ExistenciaIcono(actual, tamano: 32),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Existencia actual',
+                          style: BarroTheme.type(
+                            14,
+                            20,
+                            color: BarroTheme.secondary,
+                          ),
+                        ),
+                        Text(
+                          NivelExistencia.de(actual).etiqueta,
+                          style: BarroTheme.type(
+                            12,
+                            16,
+                            weight: FontWeight.w600,
+                            color: NivelExistencia.de(actual).color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    formatoPiezas(actual),
+                    style: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Selector Agregar / Quitar.
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: productoSuave,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  _opcion(
+                    valor: true,
+                    icono: Icons.add_circle_outline,
+                    texto: 'Agregar',
+                  ),
+                  const SizedBox(width: 4),
+                  _opcion(
+                    valor: false,
+                    icono: Icons.remove_circle_outline,
+                    texto: 'Quitar',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              key: const ValueKey('existencia-cantidad'),
+              controller: _controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: BarroTheme.type(18, 24, weight: FontWeight.w700),
+              onChanged: (_) => setState(() => _error = null),
+              decoration: InputDecoration(
+                labelText: 'Cantidad de piezas',
+                hintText: '0',
+                errorText: _error,
+                errorMaxLines: 2,
+                filled: true,
+                fillColor: Colors.white,
+                prefixIcon: Icon(
+                  _agregar ? Icons.add : Icons.remove,
+                  color: acento,
+                ),
+                suffixText: 'pzas',
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: BarroTheme.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: BarroTheme.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(
+                    color: BarroTheme.primary,
+                    width: 2,
+                  ),
+                ),
+              ),
+              onSubmitted: (_) => _confirmar(),
+            ),
+            // Vista previa del resultado.
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              child: resultado == null || _error != null
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Row(
+                        children: [
+                          Icon(
+                            resultado < 0
+                                ? Icons.warning_amber_rounded
+                                : Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: resultado < 0 ? BarroTheme.error : acento,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              resultado < 0
+                                  ? 'No hay suficientes piezas para quitar.'
+                                  : 'Nueva existencia: ${formatoPiezas(resultado)}',
+                              style: BarroTheme.type(
+                                13,
+                                19,
+                                weight: FontWeight.w700,
+                                color: resultado < 0
+                                    ? BarroTheme.error
+                                    : BarroTheme.secondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      foregroundColor: BarroTheme.secondary,
+                      side: const BorderSide(color: BarroTheme.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      backgroundColor: BarroTheme.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: _confirmar,
+                    icon: const Icon(Icons.check_rounded, size: 20),
+                    label: const Text('Aplicar'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Sucursal del negocio donde el producto todavía no tiene existencia registrada.

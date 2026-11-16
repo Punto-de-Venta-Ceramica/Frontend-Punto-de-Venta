@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
+    show productoSuave;
 import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
 import 'package:punto_de_venta/features/tickets/infrastructure/adapters/inbound/seccion_imprimir_ticket.dart';
 import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
@@ -209,6 +211,18 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
     Navigator.of(context).pop(registro.venta);
   }
 
+  /// Escribe un monto sugerido en el campo de efectivo.
+  void _usarMonto(num monto) {
+    final texto = monto == monto.roundToDouble()
+        ? monto.toInt().toString()
+        : monto.toStringAsFixed(2);
+    _efectivo.value = TextEditingValue(
+      text: texto,
+      selection: TextSelection.collapsed(offset: texto.length),
+    );
+    setState(() => _errorMonto = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final metodo = _metodo;
@@ -219,8 +233,8 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
     final monto = _montoRecibido;
     final cambio =
         monto != null && cotizacion != null && monto >= cotizacion.total
-        ? dineroVenta(monto - cotizacion.total)
-        : '—';
+        ? monto - cotizacion.total
+        : null;
 
     return PopScope<VentaRegistrada>(
       canPop: !bloqueado,
@@ -241,6 +255,11 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
           (_?, _) => 'Venta registrada',
           (null, true) => 'Reintentar confirmación',
           (null, false) => 'Registrar venta',
+        },
+        iconoAccion: switch ((registro, _resultadoIncierto)) {
+          (_?, _) => Icons.check_circle_rounded,
+          (null, true) => Icons.refresh_rounded,
+          (null, false) => Icons.point_of_sale_rounded,
         },
         procesando: _guardando,
         onAccion: cotizacion != null && metodo != null && !ocupado
@@ -269,27 +288,25 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
           const SizedBox(height: 28),
           VentaCampo(
             etiqueta: 'Método de pago *',
-            child: ButtonTheme.fromButtonThemeData(
-              data: ButtonTheme.of(context).copyWith(alignedDropdown: true),
-              child: DropdownButtonFormField<MetodoPagoVenta>(
-                initialValue: metodo,
-                isExpanded: true,
-                decoration: decoracionCampoVenta(),
-                hint: const Text('Selecciona un método de pago'),
-                items: [
-                  for (final opcion in MetodoPagoVenta.values)
-                    DropdownMenuItem(
-                      value: opcion,
-                      child: Text(opcion.etiqueta),
+            child: Row(
+              children: [
+                for (final opcion in MetodoPagoVenta.values) ...[
+                  if (opcion != MetodoPagoVenta.values.first)
+                    const SizedBox(width: 12),
+                  Expanded(
+                    child: _OpcionPago(
+                      metodo: opcion,
+                      seleccionado: metodo == opcion,
+                      onTap: bloqueado
+                          ? null
+                          : () => setState(() {
+                              _metodo = opcion;
+                              _errorMonto = null;
+                            }),
                     ),
+                  ),
                 ],
-                onChanged: bloqueado
-                    ? null
-                    : (valor) => setState(() {
-                        _metodo = valor;
-                        _errorMonto = null;
-                      }),
-              ),
+              ],
             ),
           ),
           if (metodo == MetodoPagoVenta.efectivo) ...[
@@ -302,17 +319,30 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: decoracionCampoVenta(
-                  indicacion: 'Ingresa el monto recibido',
-                  error: _errorMonto,
-                ),
+                decoration:
+                    decoracionCampoVenta(
+                      indicacion: 'Ingresa el monto recibido',
+                      error: _errorMonto,
+                    ).copyWith(
+                      prefixIcon: const Icon(
+                        Icons.payments_outlined,
+                        color: BarroTheme.primary,
+                      ),
+                    ),
                 onChanged: (_) => setState(() => _errorMonto = null),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Cambio: $cambio',
-              style: BarroTheme.type(14, 20, weight: FontWeight.w600),
+            if (cotizacion != null && !bloqueado) ...[
+              const SizedBox(height: 10),
+              _MontosRapidos(total: cotizacion.total, onElegir: _usarMonto),
+            ],
+            const SizedBox(height: 14),
+            _Cambio(cambio),
+          ] else if (metodo == MetodoPagoVenta.tarjeta) ...[
+            const SizedBox(height: 14),
+            const _Indicacion(
+              icono: Icons.contactless_outlined,
+              texto: 'Cobra el total con la terminal antes de registrar.',
             ),
           ],
           if (_cotizando) ...[
@@ -362,35 +392,90 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
                     100)
                 .round() /
             100;
+    final piezas = detalles.fold(0, (suma, detalle) => suma + detalle.cantidad);
 
     return VentaPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Productos seleccionados',
-            style: BarroTheme.type(18, 24, weight: FontWeight.w600),
+          Row(
+            children: [
+              const _IconoCirculo(Icons.receipt_long_outlined),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Productos seleccionados',
+                  style: BarroTheme.type(16, 22, weight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                piezas == 1 ? '1 pieza' : '$piezas piezas',
+                style: BarroTheme.type(12, 17, color: BarroTheme.secondary),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
-          for (final detalle in detalles)
-            VentaResumenFila(
-              descripcion:
-                  '${detalle.nombre} · ${detalle.cantidad} × '
-                  '${dineroVenta(detalle.precioUnitario)}',
-              importe: dineroVenta(detalle.subtotal),
-            ),
+          for (final detalle in detalles) _LineaProducto(detalle),
+          const Divider(height: 20, color: BarroTheme.border),
           if (descuento > 0)
-            VentaResumenFila(
-              descripcion: 'Descuento',
-              importe: '-${dineroVenta(descuento)}',
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.local_offer_outlined,
+                    size: 18,
+                    color: BarroTheme.success,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Descuento',
+                      style: BarroTheme.type(
+                        14,
+                        20,
+                        weight: FontWeight.w600,
+                        color: BarroTheme.success,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '-${dineroVenta(descuento)}',
+                    style: BarroTheme.type(
+                      14,
+                      20,
+                      weight: FontWeight.w600,
+                      color: BarroTheme.success,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          const SizedBox(height: 18),
-          VentaResumenFila(
-            descripcion: cotizacion == null
-                ? 'Total estimado (MXN)'
-                : 'Total (MXN)',
-            importe: dineroVenta(total),
-            destacado: true,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: productoSuave,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    cotizacion == null ? 'Total estimado (MXN)' : 'Total (MXN)',
+                    style: BarroTheme.type(14, 20, weight: FontWeight.w600),
+                  ),
+                ),
+                Text(
+                  dineroVenta(total),
+                  style: BarroTheme.type(
+                    22,
+                    28,
+                    weight: FontWeight.w800,
+                    color: BarroTheme.primary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -398,37 +483,226 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
   }
 }
 
-class VentaResumenFila extends StatelessWidget {
-  const VentaResumenFila({
-    required this.descripcion,
-    required this.importe,
-    this.destacado = false,
-    super.key,
+class _IconoCirculo extends StatelessWidget {
+  const _IconoCirculo(this.icono);
+  final IconData icono;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 36,
+    height: 36,
+    decoration: const BoxDecoration(
+      color: productoSuave,
+      shape: BoxShape.circle,
+    ),
+    child: Icon(icono, size: 20, color: BarroTheme.primary),
+  );
+}
+
+class _LineaProducto extends StatelessWidget {
+  const _LineaProducto(this.detalle);
+  final DetalleVenta detalle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      children: [
+        Container(
+          constraints: const BoxConstraints(minWidth: 36),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(color: BarroTheme.border),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '${detalle.cantidad}×',
+            textAlign: TextAlign.center,
+            style: BarroTheme.type(13, 18, weight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                detalle.nombre,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: BarroTheme.type(14, 20, weight: FontWeight.w600),
+              ),
+              Text(
+                '${dineroVenta(detalle.precioUnitario)} c/u',
+                style: BarroTheme.type(12, 17, color: BarroTheme.secondary),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          dineroVenta(detalle.subtotal),
+          style: BarroTheme.type(14, 20, weight: FontWeight.w600),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Tarjeta seleccionable con el ícono y el nombre del método de pago.
+class _OpcionPago extends StatelessWidget {
+  const _OpcionPago({
+    required this.metodo,
+    required this.seleccionado,
+    required this.onTap,
   });
 
-  final String descripcion;
-  final String importe;
-  final bool destacado;
+  final MetodoPagoVenta metodo;
+  final bool seleccionado;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final estilo = BarroTheme.type(
-      14,
-      20,
-      weight: destacado ? FontWeight.w600 : FontWeight.w400,
+    final color = seleccionado ? BarroTheme.primary : BarroTheme.secondary;
+    return Semantics(
+      button: true,
+      selected: seleccionado,
+      child: Material(
+        color: seleccionado ? productoSuave : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: seleccionado ? BarroTheme.primary : BarroTheme.border,
+            width: 1.5,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: Row(
+              children: [
+                Icon(switch (metodo) {
+                  MetodoPagoVenta.efectivo => Icons.payments_outlined,
+                  MetodoPagoVenta.tarjeta => Icons.credit_card_rounded,
+                }, color: color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    metodo.etiqueta,
+                    style: BarroTheme.type(
+                      15,
+                      21,
+                      weight: FontWeight.w600,
+                      color: seleccionado ? BarroTheme.text : color,
+                    ),
+                  ),
+                ),
+                Icon(
+                  seleccionado
+                      ? Icons.check_circle_rounded
+                      : Icons.circle_outlined,
+                  size: 20,
+                  color: seleccionado ? BarroTheme.primary : BarroTheme.border,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+  }
+}
+
+/// Atajos para el efectivo recibido: el monto exacto y los billetes que lo
+/// cubren.
+class _MontosRapidos extends StatelessWidget {
+  const _MontosRapidos({required this.total, required this.onElegir});
+
+  final num total;
+  final ValueChanged<num> onElegir;
+
+  static const _billetes = [20, 50, 100, 200, 500, 1000];
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      ActionChip(
+        avatar: const Icon(Icons.done_all_rounded, size: 18),
+        label: const Text('Exacto'),
+        onPressed: () => onElegir(total),
+      ),
+      for (final billete in _billetes.where((b) => b > total).take(3))
+        ActionChip(
+          label: Text('\$$billete'),
+          onPressed: () => onElegir(billete),
+        ),
+    ],
+  );
+}
+
+/// Cambio que se debe entregar; resaltado en verde cuando el efectivo alcanza.
+class _Cambio extends StatelessWidget {
+  const _Cambio(this.cambio);
+  final num? cambio;
+
+  @override
+  Widget build(BuildContext context) {
+    final valor = cambio;
+    final color = valor == null ? BarroTheme.secondary : BarroTheme.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: valor == null ? Colors.white : const Color(0xFFECF7F0),
+        border: Border.all(
+          color: valor == null ? BarroTheme.border : const Color(0xFFB9DEC8),
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 2, child: Text(descripcion, style: estilo)),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(importe, textAlign: TextAlign.end, style: estilo),
+          Icon(Icons.currency_exchange_rounded, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Cambio a entregar',
+              style: BarroTheme.type(14, 20, weight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            valor == null ? '—' : dineroVenta(valor),
+            style: BarroTheme.type(
+              20,
+              26,
+              weight: FontWeight.w800,
+              color: color,
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _Indicacion extends StatelessWidget {
+  const _Indicacion({required this.icono, required this.texto});
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icono, size: 20, color: BarroTheme.secondary),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          texto,
+          style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
+        ),
+      ),
+    ],
+  );
 }

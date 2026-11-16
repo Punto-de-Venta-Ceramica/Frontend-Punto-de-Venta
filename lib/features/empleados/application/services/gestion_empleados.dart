@@ -14,9 +14,6 @@ class GestionEmpleados implements GestionEmpleadosUseCase {
   }
 
   @override
-  Future<List<NegocioEmpleado>> negocios() => _gateway.negocios();
-
-  @override
   Future<List<SucursalEmpleado>> sucursales(int negocioId) {
     _validarId(negocioId, 'negocio');
     return _gateway.sucursales(negocioId);

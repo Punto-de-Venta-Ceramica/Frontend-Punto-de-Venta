@@ -12,6 +12,7 @@ class VentaScaffold extends StatelessWidget {
     required this.children,
     required this.onCancelar,
     this.onAccion,
+    this.iconoAccion,
     this.procesando = false,
     this.resumen,
     this.debajoAccion,
@@ -25,6 +26,9 @@ class VentaScaffold extends StatelessWidget {
   final String accion;
   final List<Widget> children;
   final VoidCallback? onAccion;
+
+  /// Ícono opcional que acompaña al texto de la acción principal.
+  final IconData? iconoAccion;
   final VoidCallback? onCancelar;
   final bool procesando;
   final Widget? resumen;
@@ -79,6 +83,7 @@ class VentaScaffold extends StatelessWidget {
                     ],
                     _AccionesVenta(
                       accion: accion,
+                      iconoAccion: iconoAccion,
                       onAccion: onAccion,
                       onCancelar: onCancelar,
                       procesando: procesando,
@@ -272,6 +277,7 @@ class VentaPanel extends StatelessWidget {
 class _AccionesVenta extends StatelessWidget {
   const _AccionesVenta({
     required this.accion,
+    required this.iconoAccion,
     required this.onAccion,
     required this.onCancelar,
     required this.procesando,
@@ -280,6 +286,7 @@ class _AccionesVenta extends StatelessWidget {
   });
 
   final String accion;
+  final IconData? iconoAccion;
   final VoidCallback? onAccion;
   final VoidCallback? onCancelar;
   final bool procesando;
@@ -307,7 +314,16 @@ class _AccionesVenta extends StatelessWidget {
                   semanticsLabel: 'Registrando venta',
                 ),
               )
-            : Text(accion, textAlign: TextAlign.center),
+            : iconoAccion == null
+            ? Text(accion, textAlign: TextAlign.center)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: Text(accion, textAlign: TextAlign.center)),
+                  const SizedBox(width: 8),
+                  Icon(iconoAccion, size: 20),
+                ],
+              ),
       ),
       if (debajoAccion case final contenido?) ...[
         const SizedBox(height: 8),

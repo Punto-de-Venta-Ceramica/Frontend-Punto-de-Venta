@@ -5,6 +5,7 @@ import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import '../../../../application/ports/inbound/gestion_empleados_use_case.dart';
 import '../../../../domain/empleado.dart';
+import 'widgets/empleados_vacio.dart';
 
 class AsignarSucursalesPage extends StatefulWidget {
   const AsignarSucursalesPage({
@@ -140,51 +141,33 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
 
   Widget _buildItemEmpleado(Empleado emp) {
     final guardando = _guardandoEmpleados.contains(emp.id);
-    final tieneSucursal = emp.asignado;
+    final seleccionado = widget.empleadoSeleccionadoId == emp.id;
+    final total = emp.sucursales.length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(21),
         border: Border.all(
-          color: widget.empleadoSeleccionadoId == emp.id
-              ? BarroTheme.primary
-              : BarroTheme.border,
-          width: widget.empleadoSeleccionadoId == emp.id ? 1.5 : 1,
+          color: seleccionado ? BarroTheme.primary : BarroTheme.border,
+          width: seleccionado ? 1.5 : 1,
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x06000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+            color: Color(0x0A1E1B19),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9EDE8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  emp.inicial,
-                  style: BarroTheme.type(
-                    18,
-                    24,
-                    weight: FontWeight.w700,
-                    color: BarroTheme.primary,
-                  ),
-                ),
-              ),
+              EmpleadoAvatar(emp.inicial, tamano: 46),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -192,7 +175,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                   children: [
                     Text(
                       emp.nombreCompleto,
-                      style: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                      style: BarroTheme.type(16, 22, weight: FontWeight.w700),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -209,6 +192,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               if (guardando)
                 const SizedBox(
                   width: 20,
@@ -221,24 +205,24 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
               else
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 10,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: tieneSucursal
-                        ? const Color(0xFFECF7F0)
+                    color: total > 0
+                        ? const Color(0xFFE6F4EC)
                         : const Color(0xFFF4EDE9),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    tieneSucursal
-                        ? '${emp.sucursales.length} ${emp.sucursales.length == 1 ? 'sucursal' : 'sucursales'}'
+                    total > 0
+                        ? '$total ${total == 1 ? 'sucursal' : 'sucursales'}'
                         : 'Sin asignar',
                     style: BarroTheme.type(
-                      11,
-                      15,
-                      weight: FontWeight.w600,
-                      color: tieneSucursal
+                      12,
+                      16,
+                      weight: FontWeight.w700,
+                      color: total > 0
                           ? BarroTheme.success
                           : BarroTheme.secondary,
                     ),
@@ -246,39 +230,23 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                 ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, color: BarroTheme.border),
-          ),
-          Text(
-            'Sucursales donde trabaja:',
-            style: BarroTheme.type(13, 18, weight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           if (_sucursales.isEmpty)
-            Text(
-              'Este negocio aún no tiene sucursales.',
-              style: BarroTheme.type(13, 18, color: BarroTheme.placeholder),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Este negocio aún no tiene sucursales.',
+                style: BarroTheme.type(13, 18, color: BarroTheme.placeholder),
+              ),
             )
           else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final suc in _sucursales)
-                  FilterChip(
-                    avatar: const Icon(Icons.store_outlined, size: 16),
-                    label: Text(suc.nombre),
-                    selected: emp.trabajaEn(suc.id),
-                    showCheckmark: true,
-                    selectedColor: const Color(0xFFF9EDE8),
-                    checkmarkColor: BarroTheme.primary,
-                    onSelected: guardando
-                        ? null
-                        : (_) => _alternarSucursal(emp, suc),
-                  ),
-              ],
-            ),
+            for (final suc in _sucursales)
+              _OpcionSucursal(
+                key: ValueKey('asignar-${emp.id}-${suc.id}'),
+                nombre: suc.nombre,
+                seleccionada: emp.trabajaEn(suc.id),
+                onTap: guardando ? null : () => _alternarSucursal(emp, suc),
+              ),
         ],
       ),
     );
@@ -347,21 +315,29 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7EBE6),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white,
+                      border: Border.all(color: BarroTheme.border),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.info_outline_rounded,
-                          color: BarroTheme.primary,
-                          size: 18,
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: empleadoSuave,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: const Icon(
+                            Icons.touch_app_outlined,
+                            color: BarroTheme.primary,
+                            size: 20,
+                          ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Marca o desmarca las sucursales de cada empleado. El cambio se aplica al instante.',
+                            'Toca una sucursal para asignarla o quitarla. El cambio se guarda al instante.',
                             style: BarroTheme.type(
                               12,
                               18,
@@ -387,37 +363,104 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                       ),
                     )
                   else if (_empleados.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: BarroTheme.border),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.people_outline,
-                            size: 40,
-                            color: BarroTheme.placeholder,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No hay empleados registrados',
-                            style: BarroTheme.type(
-                              16,
-                              22,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+                    const EmpleadosVacio(
+                      mensaje:
+                          'Registra empleados para poder asignarlos a tus sucursales.',
                     )
                   else
                     ..._empleados.map(_buildItemEmpleado),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Sucursal que se puede asignar o quitar a un empleado con un toque.
+class _OpcionSucursal extends StatelessWidget {
+  const _OpcionSucursal({
+    required this.nombre,
+    required this.seleccionada,
+    required this.onTap,
+    super.key,
+  });
+  final String nombre;
+  final bool seleccionada;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Semantics(
+      checked: seleccionada,
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: seleccionada ? empleadoSuave : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: seleccionada ? BarroTheme.primary : BarroTheme.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: seleccionada
+                        ? Colors.white
+                        : const Color(0xFFF7F1EE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.storefront_outlined,
+                    size: 19,
+                    color: seleccionada
+                        ? BarroTheme.primary
+                        : BarroTheme.placeholder,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: BarroTheme.type(
+                      14,
+                      20,
+                      weight: seleccionada ? FontWeight.w700 : FontWeight.w500,
+                      color: seleccionada
+                          ? BarroTheme.text
+                          : BarroTheme.secondary,
+                    ),
+                  ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    seleccionada
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    key: ValueKey(seleccionada),
+                    size: 24,
+                    color: seleccionada
+                        ? BarroTheme.primary
+                        : BarroTheme.border,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

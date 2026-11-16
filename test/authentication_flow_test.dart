@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'notificaciones_test_utils.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
@@ -29,7 +30,7 @@ String sessionResponse({int seconds = 900, int refreshSeconds = 1728000}) =>
     });
 
 void main() {
-  testWidgets(
+  testWidgetsConNotificaciones(
     'Registro confirmado → login con correo precargado → sesión → logout',
     (tester) async {
       final requests = <http.Request>[];
@@ -104,7 +105,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  testWidgetsConNotificaciones(
     'Evita envíos repetidos y cierra la sesión al vencer el token de renovación',
     (tester) async {
       final pending = Completer<http.Response>();

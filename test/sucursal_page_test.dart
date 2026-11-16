@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'notificaciones_test_utils.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/sucursal/application/ports/inbound/gestion_sucursales_use_case.dart';
 import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
@@ -146,49 +147,59 @@ Future<void> captura(WidgetTester tester, String nombre) async {
 }
 
 void main() {
-  testWidgets('El diálogo de eliminación se puede usar con texto ampliado', (
-    tester,
-  ) async {
-    await abrir(tester, GestionFake(), size: const Size(320, 568), scale: 1.4);
-    await pulsar(tester, find.text('Editar').first);
-    await pulsar(tester, find.text('Eliminar sucursal'));
-    expect(tester.takeException(), isNull);
-    await pulsar(
-      tester,
-      find.descendant(of: find.byType(Dialog), matching: find.text('Cancelar')),
-    );
-    expect(find.text('Editar sucursal'), findsOneWidget);
-  });
+  testWidgetsConNotificaciones(
+    'El diálogo de eliminación se puede usar con texto ampliado',
+    (tester) async {
+      await abrir(
+        tester,
+        GestionFake(),
+        size: const Size(320, 568),
+        scale: 1.4,
+      );
+      await pulsar(tester, find.text('Editar').first);
+      await pulsar(tester, find.text('Eliminar sucursal'));
+      expect(tester.takeException(), isNull);
+      await pulsar(
+        tester,
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text('Cancelar'),
+        ),
+      );
+      expect(find.text('Editar sucursal'), findsOneWidget);
+    },
+  );
 
-  testWidgets('Lista con logo original, registro validado y éxito confirmado', (
-    tester,
-  ) async {
-    final gestion = GestionFake();
-    await abrir(tester, gestion);
-    expect(find.text('2 sucursales registradas'), findsOneWidget);
-    expect(find.byType(SvgPicture), findsOneWidget);
-    await captura(tester, 'lista');
-    await pulsar(tester, find.text('+ Registrar sucursal'));
-    await captura(tester, 'registro');
-    await pulsar(tester, find.byKey(const ValueKey('sucursal-guardar')));
-    expect(find.text('Este campo es obligatorio.'), findsNWidgets(4));
-    expect(gestion.creadas, 0);
-    for (final e in {
-      'nombre': 'Sucursal Sur',
-      'descripcion': 'Local de venta',
-      'ciudad': 'Dolores Hidalgo',
-      'calle': 'Héroes 24',
-      'codigoPostal': '37800',
-    }.entries) {
-      await rellenar(tester, e.key, e.value);
-    }
-    await pulsar(tester, find.byKey(const ValueKey('sucursal-guardar')));
-    expect(find.text('Sucursal registrada correctamente.'), findsOneWidget);
-    expect(find.text('3 sucursales registradas'), findsOneWidget);
-    expect(gestion.creadas, 1);
-    expect(tester.takeException(), isNull);
-  });
-  testWidgets(
+  testWidgetsConNotificaciones(
+    'Lista con logo original, registro validado y éxito confirmado',
+    (tester) async {
+      final gestion = GestionFake();
+      await abrir(tester, gestion);
+      expect(find.text('2 sucursales registradas'), findsOneWidget);
+      expect(find.byType(SvgPicture), findsOneWidget);
+      await captura(tester, 'lista');
+      await pulsar(tester, find.text('+ Registrar sucursal'));
+      await captura(tester, 'registro');
+      await pulsar(tester, find.byKey(const ValueKey('sucursal-guardar')));
+      expect(find.text('Este campo es obligatorio.'), findsNWidgets(4));
+      expect(gestion.creadas, 0);
+      for (final e in {
+        'nombre': 'Sucursal Sur',
+        'descripcion': 'Local de venta',
+        'ciudad': 'Dolores Hidalgo',
+        'calle': 'Héroes 24',
+        'codigoPostal': '37800',
+      }.entries) {
+        await rellenar(tester, e.key, e.value);
+      }
+      await pulsar(tester, find.byKey(const ValueKey('sucursal-guardar')));
+      expect(find.text('Sucursal registrada correctamente.'), findsOneWidget);
+      expect(find.text('3 sucursales registradas'), findsOneWidget);
+      expect(gestion.creadas, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgetsConNotificaciones(
     'Edición restringida, cancelar borrado y eliminación confirmada',
     (tester) async {
       final gestion = GestionFake();
@@ -236,7 +247,7 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets(
+  testWidgetsConNotificaciones(
     'Un conflicto al eliminar conserva la sucursal y muestra el error',
     (tester) async {
       final gestion = GestionFake()
@@ -256,7 +267,7 @@ void main() {
       expect(find.text('Editar sucursal'), findsOneWidget);
     },
   );
-  testWidgets(
+  testWidgetsConNotificaciones(
     'Negocio sin sucursales y sin negocios son estados reales vacíos',
     (tester) async {
       final gestion = GestionFake()..filas = [];
@@ -269,7 +280,7 @@ void main() {
       expect(find.text('+ Registrar sucursal'), findsNothing);
     },
   );
-  testWidgets(
+  testWidgetsConNotificaciones(
     'Pantalla pequeña y texto ampliado, incluidos formulario y teclado',
     (tester) async {
       await abrir(

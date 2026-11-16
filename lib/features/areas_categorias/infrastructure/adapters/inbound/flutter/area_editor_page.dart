@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../application/ports/inbound/gestion_catalogo_use_case.dart';
 import '../../../../domain/catalogo.dart';
 import 'area_form_page.dart';
@@ -104,6 +105,10 @@ class _AreaEditorPageState extends State<AreaEditorPage> {
         ));
       } else {
         setState(() => _registrada = area);
+        NotificacionServicio.registro(
+          context,
+          'Área registrada. Puedes agregar categorías ahora o más adelante.',
+        );
       }
     } on CatalogoFailure catch (e) {
       if (mounted) _fallo(e);
@@ -193,9 +198,6 @@ class _AreaEditorPageState extends State<AreaEditorPage> {
       errorDescripcion: _errores['descripcion'],
       error: _error,
       ocupado: _ocupado,
-      mensaje: _registrada == null
-          ? null
-          : 'El área ya está registrada. Puedes agregar categorías ahora o más adelante.',
       categorias: [
         for (final c in _categorias)
           CategoriaVista(

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
-    show ProductoImagen;
+    show NivelExistencia, ProductoImagen, productoSuave;
 import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
 import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 
@@ -36,6 +36,7 @@ class RegistrarVentaPage extends StatefulWidget {
 
 class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   final _carrito = <int, SeleccionVenta>{};
+  final _buscador = TextEditingController();
   PaginaProductosVenta? _pagina;
   Timer? _esperaBusqueda;
   int _solicitud = 0;
@@ -55,6 +56,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   @override
   void dispose() {
     _esperaBusqueda?.cancel();
+    _buscador.dispose();
     super.dispose();
   }
 
@@ -75,6 +77,11 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
       const Duration(milliseconds: 300),
       () => _cargar(0),
     );
+  }
+
+  void _limpiarBusqueda() {
+    _buscador.clear();
+    _buscar('');
   }
 
   void _alternarSeleccionados(bool valor) {
@@ -205,18 +212,44 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
       contexto: widget.contexto,
       paso: '1 de 2 · Selecciona productos de tu sucursal.',
       accion: 'Continuar al pago',
+      iconoAccion: Icons.arrow_forward_rounded,
       espacioAntesContenido: 0,
       onAccion: (!_cargando || _soloSeleccionados) && seleccion.isNotEmpty
           ? () => _continuar(seleccion)
           : null,
       onCancelar: () => Navigator.of(context).pop(),
       resumen: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text(
-              '$piezas piezas · ${seleccion.length} productos',
-              style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+            child: Row(
+              children: [
+                Badge(
+                  isLabelVisible: seleccion.isNotEmpty,
+                  backgroundColor: BarroTheme.primary,
+                  label: Text('${seleccion.length}'),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: productoSuave,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 22,
+                      color: BarroTheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '$piezas piezas · ${seleccion.length} productos',
+                    style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
@@ -233,8 +266,16 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
         VentaCampo(
           etiqueta: 'Buscar producto',
           accionEtiqueta: FilterChip(
+            avatar: Icon(
+              _soloSeleccionados
+                  ? Icons.shopping_basket
+                  : Icons.shopping_basket_outlined,
+              size: 18,
+              color: BarroTheme.primary,
+            ),
             label: const Text('Seleccionados'),
             selected: _soloSeleccionados,
+            selectedColor: productoSuave,
             showCheckmark: false,
             materialTapTargetSize: MaterialTapTargetSize.padded,
             visualDensity: VisualDensity.standard,
@@ -242,56 +283,93 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
                 ? _alternarSeleccionados
                 : null,
           ),
-          child: TextField(
-            maxLength: 150,
-            onChanged: _buscar,
-            decoration: decoracionCampoVenta(
-              indicacion: 'Nombre o ID del producto',
-            ).copyWith(counterText: ''),
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _buscador,
+            builder: (context, valor, _) => TextField(
+              controller: _buscador,
+              maxLength: 150,
+              onChanged: _buscar,
+              textInputAction: TextInputAction.search,
+              decoration:
+                  decoracionCampoVenta(
+                    indicacion: 'Nombre o ID del producto',
+                  ).copyWith(
+                    counterText: '',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      size: 22,
+                      color: BarroTheme.primary,
+                    ),
+                    suffixIcon: valor.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Limpiar búsqueda',
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: _limpiarBusqueda,
+                          ),
+                  ),
+            ),
           ),
         ),
         if (!_soloSeleccionados &&
             pagina != null &&
-            (pagina.pagina > 0 || !pagina.ultima))
-          Row(
-            children: [
-              IconButton(
-                onPressed: _cargando || _error != null || pagina.pagina == 0
-                    ? null
-                    : () => _cargar(pagina.pagina - 1),
-                tooltip: 'Página anterior',
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: Text(
-                  'Página ${pagina.pagina + 1} · ${pagina.totalElementos} productos',
-                  textAlign: TextAlign.center,
+            (pagina.pagina > 0 || !pagina.ultima)) ...[
+          const SizedBox(height: 12),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: BarroTheme.border),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: _cargando || _error != null || pagina.pagina == 0
+                      ? null
+                      : () => _cargar(pagina.pagina - 1),
+                  tooltip: 'Página anterior',
+                  color: BarroTheme.primary,
+                  icon: const Icon(Icons.chevron_left),
                 ),
-              ),
-              IconButton(
-                onPressed: _cargando || _error != null || pagina.ultima
-                    ? null
-                    : () => _cargar(pagina.pagina + 1),
-                tooltip: 'Página siguiente',
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
+                Expanded(
+                  child: Text(
+                    'Página ${pagina.pagina + 1} · ${pagina.totalElementos} productos',
+                    textAlign: TextAlign.center,
+                    style: BarroTheme.type(13, 18, weight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _cargando || _error != null || pagina.ultima
+                      ? null
+                      : () => _cargar(pagina.pagina + 1),
+                  tooltip: 'Página siguiente',
+                  color: BarroTheme.primary,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
           ),
-        const SizedBox(height: 24),
+        ],
+        const SizedBox(height: 16),
         if (!_soloSeleccionados && _cargando)
-          const Center(
-            child: CircularProgressIndicator(
-              semanticsLabel: 'Cargando productos',
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Cargando productos',
+              ),
             ),
           )
         else if (!_soloSeleccionados && _error != null)
           AvisoVenta(_error!, onReintentar: () => _cargar(_paginaSolicitada))
         else if (productos.isEmpty)
-          VentaPanel(
-            child: Text(
-              _mensajeSinProductos(seleccion.isEmpty),
-              style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
-            ),
+          _SinProductos(
+            mensaje: _mensajeSinProductos(seleccion.isEmpty),
+            icono: _soloSeleccionados
+                ? Icons.remove_shopping_cart_outlined
+                : _busqueda.isEmpty
+                ? Icons.inventory_2_outlined
+                : Icons.search_off_rounded,
           )
         else
           for (final producto in productos) _tarjeta(producto),
@@ -318,14 +396,14 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
         cantidad < producto.existencia &&
         (cantidad > 0 || _carrito.length < SeleccionVenta.maximoProductos);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: VentaProductoCard(
         nombre: producto.nombre,
         imagenUrl: producto.imagenUrl,
         areaNombre: producto.areaNombre,
         categoriaNombre: producto.categoriaNombre,
-        disponibilidad:
-            '${dineroVenta(producto.precio)} c/u · ${producto.existencia} disponibles',
+        precio: dineroVenta(producto.precio),
+        existencia: producto.existencia,
         cantidad: cantidad,
         subtotal: dineroVenta(seleccion?.importe ?? 0),
         porcentajeDescuento: porcentaje,
@@ -344,10 +422,42 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   }
 }
 
+class _SinProductos extends StatelessWidget {
+  const _SinProductos({required this.mensaje, required this.icono});
+
+  final String mensaje;
+  final IconData icono;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 24),
+    child: Column(
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: const BoxDecoration(
+            color: productoSuave,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icono, size: 30, color: BarroTheme.primary),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          mensaje,
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(14, 20, color: BarroTheme.secondary),
+        ),
+      ],
+    ),
+  );
+}
+
 class VentaProductoCard extends StatelessWidget {
   const VentaProductoCard({
     required this.nombre,
-    required this.disponibilidad,
+    required this.precio,
+    required this.existencia,
     required this.cantidad,
     required this.subtotal,
     this.imagenUrl,
@@ -362,7 +472,10 @@ class VentaProductoCard extends StatelessWidget {
   });
 
   final String nombre;
-  final String disponibilidad;
+
+  /// Precio unitario ya formateado.
+  final String precio;
+  final int existencia;
   final int cantidad;
   final String subtotal;
   final String? imagenUrl;
@@ -374,131 +487,202 @@ class VentaProductoCard extends StatelessWidget {
   final VoidCallback? onQuitar;
   final VoidCallback? onAgregar;
 
-  static const double _altoImagen = 72;
-  static const double _anchoMaximoImagen = 92;
+  /// Lado de la foto: la imagen es lo primero que se reconoce del producto.
+  static const double ladoImagen = 108;
 
   @override
-  Widget build(BuildContext context) => VentaPanel(
-    child: Column(
+  Widget build(BuildContext context) {
+    final seleccionado = cantidad > 0;
+    final radio = BorderRadius.circular(20);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radio,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F57423D),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: seleccionado ? const Color(0xFFFFFCFA) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: radio,
+          side: BorderSide(
+            color: seleccionado ? BarroTheme.primary : BarroTheme.border,
+            width: 1.5,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: _contenido(seleccionado),
+        ),
+      ),
+    );
+  }
+
+  Widget _contenido(bool seleccionado) {
+    final nivel = NivelExistencia.de(existencia);
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ExcludeSemantics(
-              child: SizedBox(
-                width: _anchoMaximoImagen,
-                height: _altoImagen,
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: ProductoImagen(
-                    size: _altoImagen,
-                    url: imagenUrl,
-                    conservarProporcion: true,
-                  ),
-                ),
+              child: Stack(
+                children: [
+                  ProductoImagen(size: ladoImagen, url: imagenUrl),
+                  if (seleccionado)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: BarroTheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     nombre,
-                    textAlign: TextAlign.end,
-                    style: BarroTheme.type(14, 19, weight: FontWeight.w700),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: BarroTheme.type(16, 22, weight: FontWeight.w700),
                   ),
-                  Text(
-                    disponibilidad,
-                    textAlign: TextAlign.end,
-                    style: BarroTheme.type(12, 17, color: BarroTheme.secondary),
+                  const SizedBox(height: 2),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        precio,
+                        style: BarroTheme.type(
+                          18,
+                          24,
+                          weight: FontWeight.w800,
+                          color: BarroTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'c/u',
+                        style: BarroTheme.type(
+                          12,
+                          17,
+                          color: BarroTheme.secondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  if (areaNombre != null || categoriaNombre != null)
-                    DefaultTextStyle(
-                      style: BarroTheme.type(
-                        12,
-                        17,
-                        color: BarroTheme.secondary,
-                      ),
-                      child: Wrap(
-                        alignment: WrapAlignment.end,
-                        spacing: 12,
-                        runSpacing: 2,
-                        children: [
-                          if (areaNombre case final area?)
-                            Text('Área: $area', textAlign: TextAlign.end),
-                          if (categoriaNombre case final categoria?)
-                            Text(
-                              'Categoría: $categoria',
-                              textAlign: TextAlign.end,
-                            ),
-                        ],
-                      ),
+                  const SizedBox(height: 6),
+                  _DatoProducto(
+                    icono: nivel.icono,
+                    texto: '$existencia disponibles',
+                    color: nivel.color,
+                    negritas: true,
+                  ),
+                  if (areaNombre case final area?)
+                    _DatoProducto(
+                      icono: Icons.grid_view_outlined,
+                      texto: area,
+                      etiqueta: 'Área: $area',
+                    ),
+                  if (categoriaNombre case final categoria?)
+                    _DatoProducto(
+                      icono: Icons.label_outline,
+                      texto: categoria,
+                      etiqueta: 'Categoría: $categoria',
                     ),
                 ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: BarroTheme.border.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(7),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
+          decoration: BoxDecoration(
+            color: seleccionado
+                ? productoSuave
+                : BarroTheme.border.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              IconButton.outlined(
+                icon: const Icon(Icons.remove_rounded),
+                tooltip: 'Quitar una pieza de $nombre',
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: BarroTheme.primary,
+                  side: const BorderSide(color: BarroTheme.border),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                onPressed: onQuitar,
+              ),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 36),
+                child: Text(
+                  '$cantidad',
+                  textAlign: TextAlign.center,
+                  style: BarroTheme.type(18, 24, weight: FontWeight.w700),
+                ),
+              ),
+              IconButton.filled(
+                icon: const Icon(Icons.add_rounded),
+                tooltip: 'Agregar una pieza de $nombre',
+                style: IconButton.styleFrom(
+                  backgroundColor: BarroTheme.primary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: onAgregar,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove),
-                      tooltip: 'Quitar una pieza de $nombre',
-                      onPressed: onQuitar,
-                    ),
-                    Flexible(
-                      child: Text(
-                        '$cantidad',
-                        style: BarroTheme.type(14, 20, weight: FontWeight.w600),
+                    Text(
+                      'Subtotal',
+                      style: BarroTheme.type(
+                        12,
+                        16,
+                        color: BarroTheme.secondary,
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Agregar una pieza de $nombre',
-                      onPressed: onAgregar,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        subtotal,
+                        style: BarroTheme.type(18, 24, weight: FontWeight.w800),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 2,
-                children: [
-                  Text(
-                    'Subtotal',
-                    style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
-                  ),
-                  Text(
-                    subtotal,
-                    textAlign: TextAlign.end,
-                    style: BarroTheme.type(16, 22, weight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         if (porcentajeDescuento case final porcentaje?)
           CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
+            contentPadding: const EdgeInsets.only(left: 4),
             minTileHeight: 48,
             dense: true,
             controlAffinity: ListTileControlAffinity.trailing,
@@ -508,16 +692,72 @@ class VentaProductoCard extends StatelessWidget {
             onChanged: onCambiarDescuento == null
                 ? null
                 : (valor) => onCambiarDescuento!(valor ?? false),
+            secondary: const Icon(
+              Icons.local_offer_outlined,
+              size: 20,
+              color: BarroTheme.success,
+            ),
             title: Text(
               'Aplicar descuento · ${_formatearPorcentaje(porcentaje)} %',
-              textAlign: TextAlign.end,
-              style: BarroTheme.type(13, 18, weight: FontWeight.w500),
+              style: BarroTheme.type(
+                13,
+                18,
+                weight: FontWeight.w600,
+                color: BarroTheme.success,
+              ),
             ),
           ),
       ],
-    ),
-  );
+    );
+  }
 
   static String _formatearPorcentaje(num valor) =>
       valor.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
+/// Dato breve del producto acompañado de un ícono (existencia, área, etc.).
+class _DatoProducto extends StatelessWidget {
+  const _DatoProducto({
+    required this.icono,
+    required this.texto,
+    this.etiqueta,
+    this.color = BarroTheme.secondary,
+    this.negritas = false,
+  });
+
+  final IconData icono;
+  final String texto;
+
+  /// Texto para lectores de pantalla cuando el ícono da el contexto.
+  final String? etiqueta;
+  final Color color;
+  final bool negritas;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: etiqueta,
+    excludeSemantics: etiqueta != null,
+    child: Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        children: [
+          Icon(icono, size: 15, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BarroTheme.type(
+                12,
+                17,
+                weight: negritas ? FontWeight.w600 : FontWeight.w400,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

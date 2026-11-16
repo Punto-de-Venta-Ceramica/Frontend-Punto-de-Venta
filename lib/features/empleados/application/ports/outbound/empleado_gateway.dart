@@ -1,7 +1,6 @@
 import '../../../domain/empleado.dart';
 
 abstract interface class EmpleadoGateway {
-  Future<List<NegocioEmpleado>> negocios();
   Future<List<SucursalEmpleado>> sucursales(int negocioId);
   Future<List<Empleado>> listar(
     int negocioId, {

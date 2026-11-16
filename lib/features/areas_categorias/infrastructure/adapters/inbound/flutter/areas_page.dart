@@ -10,7 +10,6 @@ class AreasPage extends StatelessWidget {
   const AreasPage({
     required this.negocio,
     this.areas = const [],
-    this.mensaje,
     this.cargando = false,
     this.error,
     this.filtrando = false,
@@ -25,7 +24,6 @@ class AreasPage extends StatelessWidget {
   });
   final String negocio;
   final List<AreaVista> areas;
-  final String? mensaje;
   final bool cargando;
   final String? error;
   final bool filtrando;
@@ -60,10 +58,6 @@ class AreasPage extends StatelessWidget {
           'Tus áreas, organizadas por negocio.',
           style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
         ),
-        if (mensaje != null) ...[
-          const SizedBox(height: 16),
-          ClasificacionAviso(mensaje!),
-        ],
         ClasificacionEmptyState(
           simbolo: 'Á',
           titulo: 'Agrega tu primera área',
@@ -76,10 +70,6 @@ class AreasPage extends StatelessWidget {
           'Áreas',
           descripcion: 'Administra las áreas de tu negocio.',
         ),
-        if (mensaje != null) ...[
-          const SizedBox(height: 16),
-          ClasificacionAviso(mensaje!),
-        ],
         const SizedBox(height: 20),
         ClasificacionCampo(
           etiqueta: 'Buscar área',

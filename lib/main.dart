@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart'
     show DefaultMaterialLocalizations;
 import 'package:http/http.dart' as http;
 import 'package:toastification/toastification.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'core/infrastructure/widgets/barro_header.dart';
 import 'features/authentication/infrastructure/adapters/inbound/flutter/perfil_usuario_page.dart';
 import 'features/authentication/application/services/authentication_services.dart';
@@ -366,14 +367,9 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       final cambio = venta.cambio;
       final mensaje =
           'Venta ${venta.folio} registrada por ${dineroVenta(venta.total)}.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            cambio == null
-                ? mensaje
-                : '$mensaje Cambio: ${dineroVenta(cambio)}.',
-          ),
-        ),
+      NotificacionServicio.exito(
+        context,
+        cambio == null ? mensaje : '$mensaje Cambio: ${dineroVenta(cambio)}.',
       );
     }
     return true;

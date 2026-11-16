@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../application/ports/inbound/gestion_negocios_use_case.dart';
 import '../../../../application/ports/outbound/selector_logo.dart';
 import '../../../../domain/negocio.dart';
@@ -35,8 +35,6 @@ class _NegociosPageState extends State<NegociosPage> {
   List<Negocio> _negocios = [];
   bool _ocupado = true;
   String? _error;
-  String? _mensaje;
-
   @override
   void initState() {
     super.initState();
@@ -71,7 +69,6 @@ class _NegociosPageState extends State<NegociosPage> {
     setState(() {
       _ocupado = true;
       _error = null;
-      _mensaje = null;
     });
     try {
       final detalle = original == null
@@ -93,8 +90,10 @@ class _NegociosPageState extends State<NegociosPage> {
       setState(() {
         if (resultado.eliminado) {
           _negocios = _negocios.where((n) => n.id != original!.id).toList();
-          _mensaje = null;
-          AlertaServicio.eliminacion(context, 'Negocio');
+          NotificacionServicio.eliminacion(
+            context,
+            'Negocio eliminado correctamente.',
+          );
         } else {
           final guardado = resultado.negocio!;
           _negocios = [..._negocios.where((n) => n.id != guardado.id), guardado]
@@ -104,11 +103,16 @@ class _NegociosPageState extends State<NegociosPage> {
               );
               return nombre == 0 ? a.id.compareTo(b.id) : nombre;
             });
-          _mensaje = null;
           if (original == null) {
-            AlertaServicio.registro(context, 'Negocio');
+            NotificacionServicio.registro(
+              context,
+              'Negocio registrado correctamente.',
+            );
           } else {
-            AlertaServicio.actualizacion(context, 'Negocio');
+            NotificacionServicio.actualizacion(
+              context,
+              'Cambios guardados correctamente.',
+            );
           }
         }
       });
@@ -137,7 +141,6 @@ class _NegociosPageState extends State<NegociosPage> {
     negocios: _negocios,
     cargando: _ocupado,
     error: _error,
-    mensajeExito: _mensaje,
     onRegistrar: _ocupado ? null : () => _formulario(),
     onEditar: _ocupado ? null : _formulario,
     onAdministrar: _ocupado ? null : _administrar,

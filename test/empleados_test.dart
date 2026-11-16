@@ -29,10 +29,6 @@ class GestionEmpleadosFake implements GestionEmpleadosUseCase {
     ),
   ];
 
-  List<NegocioEmpleado> listaNegocios = [
-    const NegocioEmpleado(id: 10, nombre: 'Cerámica del Centro'),
-  ];
-
   List<SucursalEmpleado> listaSucursales = [
     const SucursalEmpleado(id: 100, nombre: 'Sucursal Centro'),
     const SucursalEmpleado(id: 101, nombre: 'Sucursal Norte'),
@@ -40,9 +36,6 @@ class GestionEmpleadosFake implements GestionEmpleadosUseCase {
 
   int eliminados = 0;
   int registrados = 0;
-
-  @override
-  Future<List<NegocioEmpleado>> negocios() async => listaNegocios;
 
   @override
   Future<List<SucursalEmpleado>> sucursales(int negocioId) async =>
@@ -220,24 +213,25 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      Future<void> tocar(String clave) async {
+        final opcion = find.byKey(ValueKey(clave));
+        await tester.ensureVisible(opcion);
+        await tester.tap(opcion);
+        await tester.pumpAndSettle();
+        // Deja que se cierre el aviso emergente para que no tape la lista.
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+      }
+
       // Jorge (id 2) no tiene sucursales: se le asignan las dos.
-      final norte = find.widgetWithText(FilterChip, 'Sucursal Norte');
-      await tester.ensureVisible(norte.last);
-      await tester.tap(norte.last);
-      await tester.pumpAndSettle();
-      final centro = find.widgetWithText(FilterChip, 'Sucursal Centro');
-      await tester.tap(centro.last);
-      await tester.pumpAndSettle();
+      await tocar('asignar-2-101');
+      await tocar('asignar-2-100');
       expect(fake.empleados[1].sucursales.map((s) => s.id), [101, 100]);
 
       // María (id 1) sigue en Centro y se le suma Norte; luego se le quita Centro.
-      await tester.tap(find.widgetWithText(FilterChip, 'Sucursal Norte').first);
-      await tester.pumpAndSettle();
+      await tocar('asignar-1-101');
       expect(fake.empleados[0].sucursales.map((s) => s.id), [100, 101]);
-      await tester.tap(
-        find.widgetWithText(FilterChip, 'Sucursal Centro').first,
-      );
-      await tester.pumpAndSettle();
+      await tocar('asignar-1-100');
       expect(fake.empleados[0].sucursales.map((s) => s.id), [101]);
     });
 

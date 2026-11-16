@@ -8,6 +8,7 @@ import 'corte_realizado_page.dart';
 import 'detalle_movimientos_page.dart';
 import 'historial_cortes_page.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 
 /// Pantalla principal de Corte de Caja (HU-13).
 /// Muestra el arqueo y resumen de la caja activa (Screen 1 del mockup)
@@ -130,10 +131,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     final montoStr = _aperturaCtrl.text.trim().replaceAll(',', '');
     final monto = double.tryParse(montoStr);
     if (monto == null || monto < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ingresa un monto inicial válido mayor o igual a 0.'),
-        ),
+      NotificacionServicio.advertencia(
+        context,
+        'Ingresa un monto inicial válido mayor o igual a 0.',
       );
       return;
     }
@@ -152,9 +152,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         _contadoCtrl.text = esperadoStr;
         _diferencia = 0.0;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Caja abierta correctamente.')),
-      );
+      NotificacionServicio.exito(context, 'Caja abierta correctamente.');
     } on CorteCajaFailure catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -162,15 +160,11 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         widget.onSesionExpirada?.call();
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      NotificacionServicio.error(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo abrir la caja.')),
-      );
+      NotificacionServicio.error(context, 'No se pudo abrir la caja.');
     }
   }
 
@@ -179,10 +173,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     final contadoStr = _contadoCtrl.text.trim().replaceAll(',', '');
     final contado = double.tryParse(contadoStr);
     if (contado == null || contado < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ingresa una cantidad de efectivo contado válida.'),
-        ),
+      NotificacionServicio.advertencia(
+        context,
+        'Ingresa una cantidad de efectivo contado válida.',
       );
       return;
     }
@@ -251,14 +244,13 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         widget.onSesionExpirada?.call();
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      NotificacionServicio.error(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo realizar el corte de caja.')),
+      NotificacionServicio.error(
+        context,
+        'No se pudo realizar el corte de caja.',
       );
     }
   }

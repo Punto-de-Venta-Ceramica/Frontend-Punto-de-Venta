@@ -9,6 +9,7 @@ import 'nuevo_empleado_page.dart';
 import 'asignar_sucursales_page.dart';
 import 'widgets/eliminar_empleado_dialog.dart';
 import 'widgets/empleado_card.dart';
+import 'widgets/empleados_vacio.dart';
 
 class EmpleadosPage extends StatefulWidget {
   const EmpleadosPage({
@@ -44,21 +45,18 @@ class EmpleadosPage extends StatefulWidget {
 }
 
 class _EmpleadosPageState extends State<EmpleadosPage> {
-  late NegocioEmpleado _negocio;
-  List<NegocioEmpleado> _negocios = [];
   List<Empleado> _empleados = [];
 
   bool _ocupado = true;
   String? _error;
-  String? _mensajeExito;
 
+  NegocioEmpleado get _negocio => widget.negocioInicial;
   bool get _porSucursal => widget.sucursalId != null;
 
   @override
   void initState() {
     super.initState();
-    _negocio = widget.negocioInicial;
-    _iniciar();
+    _cargarEmpleados();
   }
 
   void _fallo(EmpleadoFailure e) {
@@ -70,26 +68,6 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
       _error = e.message;
       _ocupado = false;
     });
-  }
-
-  Future<void> _iniciar() async {
-    try {
-      final negocios = await widget.gestion.negocios();
-      if (!mounted) return;
-      setState(() {
-        _negocios = negocios;
-        if (negocios.any((n) => n.id == _negocio.id)) {
-          _negocio = negocios.firstWhere((n) => n.id == _negocio.id);
-        } else if (negocios.isNotEmpty) {
-          _negocio = negocios.first;
-        }
-      });
-      await _cargarEmpleados();
-    } on EmpleadoFailure catch (e) {
-      if (mounted) _fallo(e);
-    } catch (_) {
-      await _cargarEmpleados();
-    }
   }
 
   Future<void> _cargarEmpleados() async {
@@ -233,16 +211,6 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                       id: _negocio.id,
                       nombre: _negocio.nombre,
                     ),
-                    negocios: _negocios
-                        .map((n) => NegocioSucursal(id: n.id, nombre: n.nombre))
-                        .toList(),
-                    onChanged: (n) {
-                      setState(() {
-                        _negocio = NegocioEmpleado(id: n.id, nombre: n.nombre);
-                        _mensajeExito = null;
-                      });
-                      _cargarEmpleados();
-                    },
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -313,10 +281,6 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  if (_mensajeExito != null) ...[
-                    SucursalAviso(_mensajeExito!),
-                    const SizedBox(height: 16),
-                  ],
                   if (_error != null) ...[
                     SucursalAviso(_error!, error: true),
                     const SizedBox(height: 16),
@@ -337,54 +301,10 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                       ),
                     )
                   else if (_empleados.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 40,
-                        horizontal: 24,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: BarroTheme.border),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF9EDE8),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.people_outline_rounded,
-                              size: 32,
-                              color: BarroTheme.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Sin empleados registrados',
-                            style: BarroTheme.type(
-                              18,
-                              24,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Agrega a los colaboradores de tu negocio para que puedan gestionar pedidos y sucursales.',
-                            textAlign: TextAlign.center,
-                            style: BarroTheme.type(
-                              13,
-                              19,
-                              color: BarroTheme.secondary,
-                            ),
-                          ),
-                        ],
-                      ),
+                    EmpleadosVacio(
+                      mensaje: _porSucursal
+                          ? 'Registra un empleado para que pueda trabajar en esta sucursal.'
+                          : 'Registra a tus colaboradores para que puedan gestionar pedidos y ventas en tus sucursales.',
                     )
                   else
                     ..._empleados.map(

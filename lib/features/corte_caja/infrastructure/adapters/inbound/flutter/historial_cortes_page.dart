@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../application/ports/inbound/gestion_corte_caja_use_case.dart';
 import '../../../../domain/corte_caja.dart';
 import 'corte_caja_widgets.dart';
@@ -101,14 +102,13 @@ class _HistorialCortesPageState extends State<HistorialCortesPage> {
         widget.onSesionExpirada?.call();
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      NotificacionServicio.error(context, e.message);
     } catch (_) {
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo abrir el detalle del corte.')),
+      NotificacionServicio.error(
+        context,
+        'No se pudo abrir el detalle del corte.',
       );
     }
   }

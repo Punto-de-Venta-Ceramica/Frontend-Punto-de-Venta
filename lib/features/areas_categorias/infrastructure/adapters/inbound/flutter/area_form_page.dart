@@ -15,7 +15,6 @@ class AreaFormPage extends StatelessWidget {
     this.errorNombre,
     this.errorDescripcion,
     this.error,
-    this.mensaje,
     this.sucursales = const [],
     this.categorias = const [],
     this.pasosDisponibles,
@@ -42,7 +41,6 @@ class AreaFormPage extends StatelessWidget {
   final String? errorNombre;
   final String? errorDescripcion;
   final String? error;
-  final String? mensaje;
   final List<SucursalVista> sucursales;
   final List<CategoriaVista> categorias;
   final List<PasoArea>? pasosDisponibles;
@@ -96,10 +94,6 @@ class AreaFormPage extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 24),
-        if (mensaje != null) ...[
-          ClasificacionAviso(mensaje!),
-          const SizedBox(height: 16),
-        ],
         if (error != null) ...[
           ClasificacionAviso(error!, error: true),
           const SizedBox(height: 16),

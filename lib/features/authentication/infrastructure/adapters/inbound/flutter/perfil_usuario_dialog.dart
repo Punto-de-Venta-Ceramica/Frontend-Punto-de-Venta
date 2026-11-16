@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
 import 'package:punto_de_venta/features/authentication/infrastructure/adapters/inbound/flutter/cambiar_password_dialog.dart';
@@ -117,10 +117,9 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
 
       if (!mounted) return;
       Navigator.of(context).pop();
-      AlertaServicio.actualizacion(
+      NotificacionServicio.actualizacion(
         context,
-        'Perfil',
-        detalle: 'Tus datos de perfil se actualizaron con éxito.',
+        'Tus datos de perfil se actualizaron con éxito.',
       );
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -138,10 +137,9 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
         gateway: widget.gateway,
         obligatorio: false,
         onExito: () {
-          AlertaServicio.actualizacion(
+          NotificacionServicio.actualizacion(
             context,
-            'Contraseña',
-            detalle: 'Tu contraseña se cambió correctamente.',
+            'Tu contraseña se cambió correctamente.',
           );
         },
       ),

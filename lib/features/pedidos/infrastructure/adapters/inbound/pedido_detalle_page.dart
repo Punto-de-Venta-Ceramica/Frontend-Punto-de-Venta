@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
@@ -45,7 +46,6 @@ class PedidoDetallePage extends StatefulWidget {
 class _PedidoDetallePageState extends State<PedidoDetallePage> {
   Pedido? _pedido;
   String? _error;
-  String? _mensaje;
   bool _cargando = true;
   bool _busy = false;
   // Sin turno de caja abierto no se cobran pagos ni se devuelve lo pagado.
@@ -87,13 +87,12 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     setState(() {
       _busy = true;
       _error = null;
-      _mensaje = null;
     });
     try {
       await operacion();
       if (!mounted) return;
       await _cargar();
-      if (mounted) setState(() => _mensaje = exito);
+      if (mounted) NotificacionServicio.exito(context, exito);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -104,7 +103,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
   Future<void> _copiarFolio(String folio) async {
     try {
       await Clipboard.setData(ClipboardData(text: folio));
-      if (mounted) setState(() => _mensaje = 'Folio copiado.');
+      if (mounted) NotificacionServicio.info(context, 'Folio copiado.');
     } catch (_) {
       if (mounted) setState(() => _error = 'No se pudo copiar el folio.');
     }
@@ -161,8 +160,9 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                     !RegExp(
                       r'^\d+(?:[.,]\d{1,2})?$',
                     ).hasMatch(monto.text.trim())) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Revisa el importe.')),
+                  NotificacionServicio.advertencia(
+                    context,
+                    'Revisa el importe.',
                   );
                   return;
                 }
@@ -204,30 +204,19 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     );
     if (guardado == true && mounted) {
       await _cargar();
-      if (mounted) setState(() => _mensaje = 'Datos del pedido actualizados.');
+      if (mounted) {
+        NotificacionServicio.actualizacion(
+          context,
+          'Datos del pedido actualizados.',
+        );
+      }
     }
   }
 
   Future<void> _cancelar(Pedido pedido) async {
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('¿Cancelar este pedido?'),
-        content: Text(
-          'El pedido quedará cancelado y ya no podrá cambiar de estado ni recibir pagos.'
-          '${pedido.pagado > 0 ? '\n\nLo pagado (${formatoPrecio(pedido.pagado)}) se descontará del corte de caja de hoy como devolución.' : ''}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Volver'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Cancelar pedido'),
-          ),
-        ],
-      ),
+      builder: (_) => _CancelarPedidoDialog(pagado: pedido.pagado),
     );
     if (confirmar == true && mounted) {
       await _accion(
@@ -266,10 +255,6 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
             style: BarroTheme.type(28, 36, weight: FontWeight.w700),
           ),
           const SizedBox(height: 20),
-          if (_mensaje != null) ...[
-            ProductoAviso(_mensaje!),
-            const SizedBox(height: 20),
-          ],
           if (_error != null) ...[
             ProductoAviso(_error!, error: true),
             const SizedBox(height: 20),
@@ -713,5 +698,169 @@ class _Fila extends StatelessWidget {
         ),
       ),
     ],
+  );
+}
+
+/// Confirma la cancelación; se cierra con `true` si el usuario la acepta.
+class _CancelarPedidoDialog extends StatelessWidget {
+  const _CancelarPedidoDialog({required this.pagado});
+  final double pagado;
+
+  static const _rojoSuave = Color(0xFFFDECEA);
+
+  Widget _consecuencia(IconData icono, String texto) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icono, size: 18, color: BarroTheme.secondary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            texto,
+            style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: BarroTheme.background,
+    surfaceTintColor: Colors.transparent,
+    insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: _rojoSuave,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFF6C9C4), width: 6),
+              ),
+              child: const Icon(
+                Icons.event_busy_rounded,
+                size: 32,
+                color: BarroTheme.error,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '¿Cancelar este pedido?',
+            textAlign: TextAlign.center,
+            style: BarroTheme.type(21, 27, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Esta acción no se puede deshacer.',
+            textAlign: TextAlign.center,
+            style: BarroTheme.type(13, 19, color: BarroTheme.placeholder),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: BarroTheme.border),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                _consecuencia(
+                  Icons.block_rounded,
+                  'El pedido quedará cancelado y ya no podrá cambiar de estado.',
+                ),
+                _consecuencia(
+                  Icons.money_off_rounded,
+                  'No podrá recibir más pagos.',
+                ),
+              ],
+            ),
+          ),
+          if (pagado > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF6E5),
+                border: Border.all(color: const Color(0xFFF2D59B)),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.currency_exchange_rounded,
+                    size: 20,
+                    color: Color(0xFF9A6200),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        style: BarroTheme.type(
+                          13,
+                          19,
+                          color: const Color(0xFF6B4500),
+                        ),
+                        children: [
+                          const TextSpan(text: 'Lo pagado ('),
+                          TextSpan(
+                            text: formatoPrecio(pagado),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const TextSpan(
+                            text:
+                                ') se descontará del corte de caja de hoy como devolución.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 22),
+          FilledButton.icon(
+            key: const ValueKey('pedido-cancelar-confirmar'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              backgroundColor: BarroTheme.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.cancel_outlined, size: 20),
+            label: const Text('Cancelar pedido'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              foregroundColor: BarroTheme.secondary,
+              side: const BorderSide(color: BarroTheme.border),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, false),
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+            label: const Text('Volver'),
+          ),
+        ],
+      ),
+    ),
   );
 }

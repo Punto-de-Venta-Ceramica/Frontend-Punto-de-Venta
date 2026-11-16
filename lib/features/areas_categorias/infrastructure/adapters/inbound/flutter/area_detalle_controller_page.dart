@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../application/ports/inbound/gestion_catalogo_use_case.dart';
 import '../../../../domain/catalogo.dart';
 import 'area_detalle_page.dart';
@@ -13,14 +14,12 @@ class AreaDetalleControllerPage extends StatefulWidget {
     required this.area,
     required this.gestion,
     required this.onSesionExpirada,
-    this.mensaje,
     super.key,
   });
   final NegocioCatalogo negocio;
   final AreaCatalogo area;
   final GestionCatalogoUseCase gestion;
   final VoidCallback onSesionExpirada;
-  final String? mensaje;
   @override
   State<AreaDetalleControllerPage> createState() =>
       _AreaDetalleControllerPageState();
@@ -32,22 +31,20 @@ class _AreaDetalleControllerPageState extends State<AreaDetalleControllerPage> {
   bool _cargando = true;
   bool _abriendo = false;
   String? _error;
-  String? _mensaje;
   int _carga = 0;
 
   @override
   void initState() {
     super.initState();
     _area = widget.area;
-    _cargar(mensaje: widget.mensaje);
+    _cargar();
   }
 
-  Future<void> _cargar({String? mensaje}) async {
+  Future<void> _cargar() async {
     final carga = ++_carga;
     setState(() {
       _cargando = true;
       _error = null;
-      _mensaje = mensaje;
     });
     try {
       final area = await widget.gestion.consultarArea(
@@ -93,7 +90,11 @@ class _AreaDetalleControllerPageState extends State<AreaDetalleControllerPage> {
       );
       if (!mounted || resultado == null) return;
       _area = resultado.area;
-      await _cargar(mensaje: 'Área editada correctamente.');
+      NotificacionServicio.actualizacion(
+        context,
+        'Área editada correctamente.',
+      );
+      await _cargar();
     } finally {
       if (mounted) setState(() => _abriendo = false);
     }
@@ -116,11 +117,18 @@ class _AreaDetalleControllerPageState extends State<AreaDetalleControllerPage> {
         ),
       );
       if (!mounted || categoria == null) return;
-      await _cargar(
-        mensaje: original == null
-            ? 'Categoría registrada correctamente.'
-            : 'Categoría editada correctamente.',
-      );
+      if (original == null) {
+        NotificacionServicio.registro(
+          context,
+          'Categoría registrada correctamente.',
+        );
+      } else {
+        NotificacionServicio.actualizacion(
+          context,
+          'Categoría editada correctamente.',
+        );
+      }
+      await _cargar();
     } finally {
       if (mounted) setState(() => _abriendo = false);
     }
@@ -163,7 +171,11 @@ class _AreaDetalleControllerPageState extends State<AreaDetalleControllerPage> {
         onSesionExpirada: widget.onSesionExpirada,
       );
       if (!mounted || !eliminada) return;
-      await _cargar(mensaje: 'Categoría eliminada correctamente.');
+      NotificacionServicio.eliminacion(
+        context,
+        'Categoría eliminada correctamente.',
+      );
+      await _cargar();
     } finally {
       if (mounted) setState(() => _abriendo = false);
     }
@@ -189,7 +201,6 @@ class _AreaDetalleControllerPageState extends State<AreaDetalleControllerPage> {
       ],
       cargando: _cargando,
       error: _error,
-      mensaje: _mensaje,
       onVolver: () => Navigator.pop(context),
       onReintentar: () => _cargar(),
       onActualizar: () =>
