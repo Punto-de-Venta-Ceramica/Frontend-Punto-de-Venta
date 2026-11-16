@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
@@ -135,7 +135,10 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     );
 
     if (creado == true && mounted) {
-      AlertaServicio.registro(context, 'Empleado');
+      NotificacionServicio.registro(
+        context,
+        'Empleado registrado correctamente.',
+      );
       await _cargarEmpleados();
     }
   }
@@ -175,7 +178,10 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
               if (!dialogCtx.mounted) return;
               Navigator.of(dialogCtx).pop();
               if (!mounted) return;
-              AlertaServicio.eliminacion(context, 'Empleado');
+              NotificacionServicio.eliminacion(
+                context,
+                '${empleado.nombreCompleto} fue eliminado correctamente.',
+              );
               await _cargarEmpleados();
             } on EmpleadoFailure catch (e) {
               if (!dialogCtx.mounted) return;
@@ -185,20 +191,13 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                 if (mounted) widget.onSesionExpirada();
                 return;
               }
-              ScaffoldMessenger.of(dialogCtx).showSnackBar(
-                SnackBar(
-                  content: Text(e.message),
-                  backgroundColor: BarroTheme.error,
-                ),
-              );
+              NotificacionServicio.error(dialogCtx, e.message);
             } catch (e) {
               if (!dialogCtx.mounted) return;
               setDialogState(() => eliminando = false);
-              ScaffoldMessenger.of(dialogCtx).showSnackBar(
-                const SnackBar(
-                  content: Text('No se pudo eliminar al empleado.'),
-                  backgroundColor: BarroTheme.error,
-                ),
+              NotificacionServicio.error(
+                dialogCtx,
+                'No se pudo eliminar al empleado.',
               );
             }
           },

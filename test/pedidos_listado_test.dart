@@ -234,14 +234,32 @@ void main() {
     expect(find.text('Cancelar pedido'), findsNothing);
   });
 
-  testWidgets('el propietario abre en entregado y termina con confirmación', (
+  testWidgets('el propietario abre en encargado', (tester) async {
+    _pantallaAlta(tester);
+    final gateway = _Pedidos();
+    await tester.pumpWidget(_app(gateway, esPropietario: true));
+    await tester.pumpAndSettle();
+
+    expect(gateway.llamadas, [('ENCARGADO', 0)]);
+    final chip = tester.widget<ChoiceChip>(
+      find.widgetWithText(ChoiceChip, 'Encargado'),
+    );
+    expect(chip.selected, isTrue);
+  });
+
+  testWidgets('el propietario filtra entregados y termina con confirmación', (
     tester,
   ) async {
     _pantallaAlta(tester);
     final gateway = _Pedidos(estadoPedidos: 'ENTREGADO');
     await tester.pumpWidget(_app(gateway, esPropietario: true));
     await tester.pumpAndSettle();
-    expect(gateway.llamadas, [('ENTREGADO', 0)]);
+    final entregado = find.widgetWithText(ChoiceChip, 'Entregado');
+    await tester.ensureVisible(entregado);
+    await tester.pumpAndSettle();
+    await tester.tap(entregado);
+    await tester.pumpAndSettle();
+    expect(gateway.llamadas, [('ENCARGADO', 0), ('ENTREGADO', 0)]);
 
     await tester.tap(find.text('Terminar pedido').first);
     await tester.pumpAndSettle();

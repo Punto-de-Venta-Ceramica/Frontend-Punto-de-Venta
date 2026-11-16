@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart'
     as mui
     show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
+
+import 'notificaciones_test_utils.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/outbound/descuento_gateway.dart';
 import 'package:punto_de_venta/features/descuentos/application/services/gestion_descuentos.dart';
 import 'package:punto_de_venta/features/descuentos/domain/descuento.dart';
@@ -351,7 +353,9 @@ const _producto = Producto(id: 5, nombre: 'Olla', precio: 40, categoriaId: 1);
 
 void main() {
   group('registro', () {
-    testWidgets('el descuento es opcional y así se indica', (tester) async {
+    testWidgetsConNotificaciones('el descuento es opcional y así se indica', (
+      tester,
+    ) async {
       final productos = _Productos();
       final descuentos = _Descuentos();
       await _abrir(tester, productos: productos, descuentos: descuentos);
@@ -375,48 +379,52 @@ void main() {
       expect(descuentos.llamadas, isEmpty);
     });
 
-    testWidgets('permite agregar varios descuentos y quitar alguno', (
-      tester,
-    ) async {
-      final productos = _Productos();
-      final descuentos = _Descuentos();
-      await _abrir(tester, productos: productos, descuentos: descuentos);
-      await _llenarProducto(tester);
+    testWidgetsConNotificaciones(
+      'permite agregar varios descuentos y quitar alguno',
+      (tester) async {
+        final productos = _Productos();
+        final descuentos = _Descuentos();
+        await _abrir(tester, productos: productos, descuentos: descuentos);
+        await _llenarProducto(tester);
 
-      for (var i = 0; i < 3; i++) {
-        await _tocar(tester, 'producto-descuento-agregar');
-      }
-      expect(
-        find.text('Cada descuento llega hasta donde empieza el siguiente.'),
-        findsOneWidget,
-      );
-      expect(find.text('A partir de (piezas)'), findsNWidgets(3));
-      // Sin interruptor de activo por descuento al registrar.
-      expect(
-        find.byKey(const ValueKey('producto-descuento-activo-0')),
-        findsNothing,
-      );
+        for (var i = 0; i < 3; i++) {
+          await _tocar(tester, 'producto-descuento-agregar');
+        }
+        expect(
+          find.text('Cada descuento llega hasta donde empieza el siguiente.'),
+          findsOneWidget,
+        );
+        expect(find.text('A partir de (piezas)'), findsNWidgets(3));
+        // Sin interruptor de activo por descuento al registrar.
+        expect(
+          find.byKey(const ValueKey('producto-descuento-activo-0')),
+          findsNothing,
+        );
 
-      await _escribir(tester, 'producto-descuento-minimo-0', '2');
-      await _escribir(tester, 'producto-descuento-porcentaje-0', '10');
-      await _escribir(tester, 'producto-descuento-minimo-1', '9');
-      await _escribir(tester, 'producto-descuento-porcentaje-1', '99');
-      await _escribir(tester, 'producto-descuento-minimo-2', '5');
-      await _escribir(tester, 'producto-descuento-porcentaje-2', '20');
-      // La fila 1 era un error de captura: se quita antes de guardar.
-      await _tocar(tester, 'producto-descuento-quitar-1');
-      expect(find.text('A partir de (piezas)'), findsNWidgets(2));
+        await _escribir(tester, 'producto-descuento-minimo-0', '2');
+        await _escribir(tester, 'producto-descuento-porcentaje-0', '10');
+        await _escribir(tester, 'producto-descuento-minimo-1', '9');
+        await _escribir(tester, 'producto-descuento-porcentaje-1', '99');
+        await _escribir(tester, 'producto-descuento-minimo-2', '5');
+        await _escribir(tester, 'producto-descuento-porcentaje-2', '20');
+        // La fila 1 era un error de captura: se quita antes de guardar.
+        await _tocar(tester, 'producto-descuento-quitar-1');
+        expect(find.text('A partir de (piezas)'), findsNWidgets(2));
 
-      await _tocar(tester, 'producto-guardar');
+        await _tocar(tester, 'producto-guardar');
 
-      expect(descuentos.llamadas, [
-        'crear Olla · desde 2 piezas 2 10',
-        'crear Olla · desde 5 piezas 5 20',
-      ]);
-      expect(descuentos.filas.every((d) => d.productoIds.contains(5)), isTrue);
-    });
+        expect(descuentos.llamadas, [
+          'crear Olla · desde 2 piezas 2 10',
+          'crear Olla · desde 5 piezas 5 20',
+        ]);
+        expect(
+          descuentos.filas.every((d) => d.productoIds.contains(5)),
+          isTrue,
+        );
+      },
+    );
 
-    testWidgets(
+    testWidgetsConNotificaciones(
       'no guarda el producto si un descuento es inválido o repetido',
       (tester) async {
         final productos = _Productos();
@@ -447,79 +455,86 @@ void main() {
   });
 
   group('edición', () {
-    testWidgets('muestra los descuentos propios y avisa de los compartidos', (
+    testWidgetsConNotificaciones(
+      'muestra los descuentos propios y avisa de los compartidos',
+      (tester) async {
+        await _abrir(
+          tester,
+          productos: _Productos(),
+          descuentos: _Descuentos([_propioA, _propioB, _compartido]),
+          editar: _producto,
+        );
+
+        expect(
+          find.text('Puedes agregar uno o más descuentos opcionales.'),
+          findsOneWidget,
+        );
+        expect(find.text('A partir de (piezas)'), findsNWidgets(2));
+        expect(find.widgetWithText(TextField, '2'), findsOneWidget);
+        expect(find.widgetWithText(TextField, '20'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('producto-descuento-activo-0')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('producto-descuento-activo-1')),
+          findsOneWidget,
+        );
+        // Al editar no se ofrece crear más productos.
+        expect(find.byKey(const ValueKey('producto-crear-mas')), findsNothing);
+        expect(
+          find.textContaining('también recibe 1 descuento compartido'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgetsConNotificaciones(
+      'marca en vivo el cruce con un compartido y no guarda',
+      (tester) async {
+        final productos = _Productos();
+        // Propio "desde 2" y compartido "Mayoreo" desde 10.
+        final descuentos = _Descuentos([_propioA, _compartido]);
+        await _abrir(
+          tester,
+          productos: productos,
+          descuentos: descuentos,
+          editar: _producto,
+        );
+
+        // El propio termina solo donde empieza el compartido.
+        expect(find.text('Aplica: De 2 a 9 piezas'), findsOneWidget);
+        expect(
+          find.textContaining('«Mayoreo» (desde 10 piezas)'),
+          findsWidgets,
+        );
+
+        // Un mínimo dentro del compartido se marca en rojo al escribirlo.
+        await _escribir(tester, 'producto-descuento-minimo-0', '12');
+        await tester.pump();
+        expect(
+          find.byKey(const ValueKey('producto-descuento-cruce-0')),
+          findsOneWidget,
+        );
+        await _tocar(tester, 'producto-guardar');
+        expect(productos.editados, 0);
+        expect(descuentos.llamadas, isEmpty);
+
+        await _escribir(tester, 'producto-descuento-minimo-0', '5');
+        await tester.pump();
+        expect(
+          find.byKey(const ValueKey('producto-descuento-cruce-0')),
+          findsNothing,
+        );
+        await _tocar(tester, 'producto-guardar');
+        expect(productos.editados, 1);
+        expect(descuentos.llamadas, ['guardar 1 5 10 activo']);
+      },
+    );
+
+    testWidgetsConNotificaciones('desactiva, modifica y elimina al guardar', (
       tester,
     ) async {
-      await _abrir(
-        tester,
-        productos: _Productos(),
-        descuentos: _Descuentos([_propioA, _propioB, _compartido]),
-        editar: _producto,
-      );
-
-      expect(
-        find.text('Puedes agregar uno o más descuentos opcionales.'),
-        findsOneWidget,
-      );
-      expect(find.text('A partir de (piezas)'), findsNWidgets(2));
-      expect(find.widgetWithText(TextField, '2'), findsOneWidget);
-      expect(find.widgetWithText(TextField, '20'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('producto-descuento-activo-0')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('producto-descuento-activo-1')),
-        findsOneWidget,
-      );
-      // Al editar no se ofrece crear más productos.
-      expect(find.byKey(const ValueKey('producto-crear-mas')), findsNothing);
-      expect(
-        find.textContaining('también recibe 1 descuento compartido'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('marca en vivo el cruce con un compartido y no guarda', (
-      tester,
-    ) async {
-      final productos = _Productos();
-      // Propio "desde 2" y compartido "Mayoreo" desde 10.
-      final descuentos = _Descuentos([_propioA, _compartido]);
-      await _abrir(
-        tester,
-        productos: productos,
-        descuentos: descuentos,
-        editar: _producto,
-      );
-
-      // El propio termina solo donde empieza el compartido.
-      expect(find.text('Aplica: De 2 a 9 piezas'), findsOneWidget);
-      expect(find.textContaining('«Mayoreo» (desde 10 piezas)'), findsWidgets);
-
-      // Un mínimo dentro del compartido se marca en rojo al escribirlo.
-      await _escribir(tester, 'producto-descuento-minimo-0', '12');
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('producto-descuento-cruce-0')),
-        findsOneWidget,
-      );
-      await _tocar(tester, 'producto-guardar');
-      expect(productos.editados, 0);
-      expect(descuentos.llamadas, isEmpty);
-
-      await _escribir(tester, 'producto-descuento-minimo-0', '5');
-      await tester.pump();
-      expect(
-        find.byKey(const ValueKey('producto-descuento-cruce-0')),
-        findsNothing,
-      );
-      await _tocar(tester, 'producto-guardar');
-      expect(productos.editados, 1);
-      expect(descuentos.llamadas, ['guardar 1 5 10 activo']);
-    });
-
-    testWidgets('desactiva, modifica y elimina al guardar', (tester) async {
       final productos = _Productos();
       final descuentos = _Descuentos([_propioA, _propioB, _compartido]);
       await _abrir(
@@ -554,25 +569,26 @@ void main() {
       expect(descuentos.filas.any((d) => d.id == 3), isTrue);
     });
 
-    testWidgets('agrega un descuento nuevo a un producto sin descuentos', (
-      tester,
-    ) async {
-      final descuentos = _Descuentos();
-      await _abrir(
-        tester,
-        productos: _Productos(),
-        descuentos: descuentos,
-        editar: _producto,
-      );
+    testWidgetsConNotificaciones(
+      'agrega un descuento nuevo a un producto sin descuentos',
+      (tester) async {
+        final descuentos = _Descuentos();
+        await _abrir(
+          tester,
+          productos: _Productos(),
+          descuentos: descuentos,
+          editar: _producto,
+        );
 
-      await _tocar(tester, 'producto-descuento-agregar');
-      await _escribir(tester, 'producto-descuento-minimo-0', '6');
-      await _escribir(tester, 'producto-descuento-porcentaje-0', '8');
-      await _tocar(tester, 'producto-guardar');
+        await _tocar(tester, 'producto-descuento-agregar');
+        await _escribir(tester, 'producto-descuento-minimo-0', '6');
+        await _escribir(tester, 'producto-descuento-porcentaje-0', '8');
+        await _tocar(tester, 'producto-guardar');
 
-      expect(descuentos.llamadas, ['crear Olla · desde 6 piezas 6 8']);
-      expect(descuentos.filas.single.productoIds, [5]);
-    });
+        expect(descuentos.llamadas, ['crear Olla · desde 6 piezas 6 8']);
+        expect(descuentos.filas.single.productoIds, [5]);
+      },
+    );
   });
 
   group('GestionDescuentos.guardarDeProducto', () {

@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart'
     as mui
     show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
+
+import 'notificaciones_test_utils.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/services/gestion_productos.dart';
@@ -123,7 +125,9 @@ String _texto(WidgetTester tester, String clave) =>
     tester.widget<TextField>(find.byKey(ValueKey(clave))).controller!.text;
 
 void main() {
-  testWidgets('"Crear más productos" viene desactivado', (tester) async {
+  testWidgetsConNotificaciones('"Crear más productos" viene desactivado', (
+    tester,
+  ) async {
     await _abrir(tester);
 
     final interruptor = tester.widget<Switch>(
@@ -135,118 +139,127 @@ void main() {
     expect(find.text('Registrar y crear otro'), findsNothing);
   });
 
-  testWidgets('sin activarlo, registrar cierra el formulario como siempre', (
-    tester,
-  ) async {
-    final (productos, anfitrion) = await _abrir(tester);
-    await _elegirClasificacion(tester);
-    await _datos(tester, 'Olla', '40');
+  testWidgetsConNotificaciones(
+    'sin activarlo, registrar cierra el formulario como siempre',
+    (tester) async {
+      final (productos, anfitrion) = await _abrir(tester);
+      await _elegirClasificacion(tester);
+      await _datos(tester, 'Olla', '40');
 
-    await _tocar(tester, 'producto-guardar');
+      await _tocar(tester, 'producto-guardar');
 
-    expect(productos.creados, hasLength(1));
-    expect(anfitrion.cerrado, isTrue);
-    expect(anfitrion.resultado?.nombre, 'Olla');
-    expect(anfitrion.registrados, 1);
-  });
+      expect(productos.creados, hasLength(1));
+      expect(anfitrion.cerrado, isTrue);
+      expect(anfitrion.resultado?.nombre, 'Olla');
+      expect(anfitrion.registrados, 1);
+    },
+  );
 
-  testWidgets('activado, cada registro deja un formulario nuevo', (
-    tester,
-  ) async {
-    final (productos, anfitrion) = await _abrir(tester);
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-crear-mas');
-    expect(find.text('Registrar y crear otro'), findsOneWidget);
+  testWidgetsConNotificaciones(
+    'activado, cada registro deja un formulario nuevo',
+    (tester) async {
+      final (productos, anfitrion) = await _abrir(tester);
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-crear-mas');
+      expect(find.text('Registrar y crear otro'), findsOneWidget);
 
-    await _datos(tester, 'Olla', '40');
-    await _tocar(tester, 'producto-guardar');
+      await _datos(tester, 'Olla', '40');
+      await _tocar(tester, 'producto-guardar');
 
-    // El formulario sigue abierto y completamente en blanco, también área y categoría.
-    expect(anfitrion.cerrado, isFalse);
-    expect(productos.creados, hasLength(1));
-    expect(_texto(tester, 'producto-nombre'), isEmpty);
-    expect(_texto(tester, 'producto-precio'), isEmpty);
-    expect(find.text('Cocina'), findsNothing);
-    expect(find.text('Vajillas'), findsNothing);
-    expect(
-      find.textContaining('Producto «Olla» registrado correctamente'),
-      findsOneWidget,
-    );
-    expect(find.text('Terminar (1 registrado)'), findsOneWidget);
+      // El formulario sigue abierto y completamente en blanco, también área y categoría.
+      expect(anfitrion.cerrado, isFalse);
+      expect(productos.creados, hasLength(1));
+      expect(_texto(tester, 'producto-nombre'), isEmpty);
+      expect(_texto(tester, 'producto-precio'), isEmpty);
+      expect(find.text('Cocina'), findsNothing);
+      expect(find.text('Vajillas'), findsNothing);
+      expect(
+        find.textContaining('Producto «Olla» registrado correctamente'),
+        findsOneWidget,
+      );
+      expect(find.text('Terminar (1 registrado)'), findsOneWidget);
 
-    // Sin elegir área y categoría de nuevo no se puede registrar el siguiente.
-    await _datos(tester, 'Jarra', '25');
-    await _tocar(tester, 'producto-guardar');
-    expect(productos.creados, hasLength(1));
-    expect(find.text('Selecciona un área y una categoría.'), findsOneWidget);
+      // Sin elegir área y categoría de nuevo no se puede registrar el siguiente.
+      await _datos(tester, 'Jarra', '25');
+      await _tocar(tester, 'producto-guardar');
+      expect(productos.creados, hasLength(1));
+      expect(find.text('Selecciona un área y una categoría.'), findsOneWidget);
 
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-guardar');
-    await _datos(tester, 'Plato', '15');
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-guardar');
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-guardar');
+      await _datos(tester, 'Plato', '15');
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-guardar');
 
-    expect(productos.creados.map((d) => d.nombre), ['Olla', 'Jarra', 'Plato']);
-    expect(productos.creados.every((d) => d.categoriaId == 1), isTrue);
-    expect(find.text('Terminar (3 registrados)'), findsOneWidget);
-    expect(anfitrion.cerrado, isFalse);
-  });
+      expect(productos.creados.map((d) => d.nombre), [
+        'Olla',
+        'Jarra',
+        'Plato',
+      ]);
+      expect(productos.creados.every((d) => d.categoriaId == 1), isTrue);
+      expect(find.text('Terminar (3 registrados)'), findsOneWidget);
+      expect(anfitrion.cerrado, isFalse);
+    },
+  );
 
-  testWidgets('Terminar cierra devolviendo el último y el total', (
-    tester,
-  ) async {
-    final (_, anfitrion) = await _abrir(tester);
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-crear-mas');
-    await _datos(tester, 'Olla', '40');
-    await _tocar(tester, 'producto-guardar');
-    await _datos(tester, 'Jarra', '25');
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-guardar');
+  testWidgetsConNotificaciones(
+    'Terminar cierra devolviendo el último y el total',
+    (tester) async {
+      final (_, anfitrion) = await _abrir(tester);
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-crear-mas');
+      await _datos(tester, 'Olla', '40');
+      await _tocar(tester, 'producto-guardar');
+      await _datos(tester, 'Jarra', '25');
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-guardar');
 
-    await tester.tap(find.text('Terminar (2 registrados)'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Terminar (2 registrados)'));
+      await tester.pumpAndSettle();
 
-    expect(anfitrion.cerrado, isTrue);
-    expect(anfitrion.resultado?.nombre, 'Jarra');
-    expect(anfitrion.registrados, 2);
-  });
+      expect(anfitrion.cerrado, isTrue);
+      expect(anfitrion.resultado?.nombre, 'Jarra');
+      expect(anfitrion.registrados, 2);
+    },
+  );
 
-  testWidgets('desactivarlo en el último registro termina el lote', (
-    tester,
-  ) async {
-    final (productos, anfitrion) = await _abrir(tester);
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-crear-mas');
-    await _datos(tester, 'Olla', '40');
-    await _tocar(tester, 'producto-guardar');
+  testWidgetsConNotificaciones(
+    'desactivarlo en el último registro termina el lote',
+    (tester) async {
+      final (productos, anfitrion) = await _abrir(tester);
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-crear-mas');
+      await _datos(tester, 'Olla', '40');
+      await _tocar(tester, 'producto-guardar');
 
-    await _tocar(tester, 'producto-crear-mas');
-    await _datos(tester, 'Jarra', '25');
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-guardar');
+      await _tocar(tester, 'producto-crear-mas');
+      await _datos(tester, 'Jarra', '25');
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-guardar');
 
-    expect(productos.creados, hasLength(2));
-    expect(anfitrion.cerrado, isTrue);
-    expect(anfitrion.resultado?.nombre, 'Jarra');
-    expect(anfitrion.registrados, 2);
-  });
+      expect(productos.creados, hasLength(2));
+      expect(anfitrion.cerrado, isTrue);
+      expect(anfitrion.resultado?.nombre, 'Jarra');
+      expect(anfitrion.registrados, 2);
+    },
+  );
 
-  testWidgets('los datos inválidos no registran ni reinician el formulario', (
-    tester,
-  ) async {
-    final (productos, anfitrion) = await _abrir(tester);
-    await _elegirClasificacion(tester);
-    await _tocar(tester, 'producto-crear-mas');
-    await _datos(tester, 'Olla', '');
+  testWidgetsConNotificaciones(
+    'los datos inválidos no registran ni reinician el formulario',
+    (tester) async {
+      final (productos, anfitrion) = await _abrir(tester);
+      await _elegirClasificacion(tester);
+      await _tocar(tester, 'producto-crear-mas');
+      await _datos(tester, 'Olla', '');
 
-    await _tocar(tester, 'producto-guardar');
+      await _tocar(tester, 'producto-guardar');
 
-    expect(productos.creados, isEmpty);
-    expect(anfitrion.cerrado, isFalse);
-    expect(_texto(tester, 'producto-nombre'), 'Olla');
-    expect(find.text('Ingresa un precio mayor que cero.'), findsOneWidget);
-  });
+      expect(productos.creados, isEmpty);
+      expect(anfitrion.cerrado, isFalse);
+      expect(_texto(tester, 'producto-nombre'), 'Olla');
+      expect(find.text('Ingresa un precio mayor que cero.'), findsOneWidget);
+    },
+  );
 }
 
 class _SinExistencias implements ExistenciasGateway {

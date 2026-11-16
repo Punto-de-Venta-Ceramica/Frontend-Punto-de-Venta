@@ -142,6 +142,11 @@ class HttpPedidosGateway implements PedidosGateway {
               id: j['id'] as int,
               nombre: j['nombre'] as String,
               precio: (j['precio'] as num).toDouble(),
+              areaId: (j['areaId'] as num?)?.toInt(),
+              area: j['area'] as String?,
+              categoriaId: (j['categoriaId'] as num?)?.toInt(),
+              categoria: j['categoria'] as String?,
+              imagenUrl: j['imagenUrl'] as String?,
               descuentos: ((j['descuentos'] as List?) ?? const [])
                   .cast<Map<String, dynamic>>()
                   .map(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
@@ -32,7 +33,6 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
 
   bool _ocupado = true;
   String? _error;
-  String? _mensajeExito;
   final Set<int> _guardandoEmpleados = {};
   bool _huboCambios = false;
 
@@ -95,10 +95,7 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
       ids.add(sucursal.id);
     }
 
-    setState(() {
-      _guardandoEmpleados.add(empleado.id);
-      _mensajeExito = null;
-    });
+    setState(() => _guardandoEmpleados.add(empleado.id));
 
     try {
       final actualizado = await widget.gestion.asignarSucursales(
@@ -115,10 +112,13 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
         if (index != -1) {
           _empleados[index] = actualizado;
         }
-        _mensajeExito = quitar
-            ? '${empleado.nombreCompleto} ya no trabaja en ${sucursal.nombre}.'
-            : '${empleado.nombreCompleto} ahora trabaja en ${sucursal.nombre}.';
       });
+      NotificacionServicio.actualizacion(
+        context,
+        quitar
+            ? '${empleado.nombreCompleto} ya no trabaja en ${sucursal.nombre}.'
+            : '${empleado.nombreCompleto} ahora trabaja en ${sucursal.nombre}.',
+      );
       _huboCambios = true;
     } on EmpleadoFailure catch (e) {
       if (!mounted) return;
@@ -127,17 +127,13 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
         widget.onSesionExpirada();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: BarroTheme.error),
-      );
+      NotificacionServicio.error(context, e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _guardandoEmpleados.remove(empleado.id));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo actualizar la asignación.'),
-          backgroundColor: BarroTheme.error,
-        ),
+      NotificacionServicio.error(
+        context,
+        'No se pudo actualizar la asignación.',
       );
     }
   }
@@ -377,10 +373,6 @@ class _AsignarSucursalesPageState extends State<AsignarSucursalesPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if (_mensajeExito != null) ...[
-                    SucursalAviso(_mensajeExito!),
-                    const SizedBox(height: 16),
-                  ],
                   if (_error != null) ...[
                     SucursalAviso(_error!, error: true),
                     const SizedBox(height: 16),

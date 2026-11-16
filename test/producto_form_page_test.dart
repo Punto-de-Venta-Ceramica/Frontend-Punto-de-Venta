@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart'
     as mui
     show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
+
+import 'notificaciones_test_utils.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/existencias_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/ports/outbound/producto_gateway.dart';
 import 'package:punto_de_venta/features/productos/application/services/gestion_productos.dart';
@@ -81,7 +83,7 @@ Future<void> _llenarDatos(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets(
+  testWidgetsConNotificaciones(
     'en una sucursal el registro es una sola pantalla con existencia',
     (tester) async {
       final gateway = await _abrir(
@@ -109,33 +111,102 @@ void main() {
     },
   );
 
-  testWidgets('en el negocio el paso 2 guía la selección de sucursales', (
-    tester,
-  ) async {
-    await _abrir(tester);
-    await _llenarDatos(tester);
-    await tester.ensureVisible(find.byKey(const ValueKey('producto-guardar')));
-    await tester.tap(find.byKey(const ValueKey('producto-guardar')));
-    await tester.pumpAndSettle();
+  testWidgetsConNotificaciones(
+    'en el negocio el paso 2 guía la selección de sucursales',
+    (tester) async {
+      await _abrir(tester);
+      await _llenarDatos(tester);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Selecciona la sucursal que quieres agregar a este producto.'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Selecciona la sucursal para agregar'),
-      findsNothing,
-    );
-    // Sin seleccionar no hay campo de existencia; al marcarla aparece.
-    expect(find.byKey(const ValueKey('producto-existencia-10')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('producto-sucursal-10')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('producto-existencia-10')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('producto-existencia-11')), findsNothing);
-  });
+      expect(
+        find.text(
+          'Selecciona la sucursal que quieres agregar a este producto.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Selecciona la sucursal para agregar'),
+        findsNothing,
+      );
+      // Sin seleccionar no hay campo de existencia; al marcarla aparece.
+      expect(
+        find.byKey(const ValueKey('producto-existencia-10')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-sucursal-10')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('producto-existencia-10')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('producto-existencia-11')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgetsConNotificaciones(
+    'regresa del paso de sucursales a los datos sin perderlos',
+    (tester) async {
+      await _abrir(tester);
+      await _llenarDatos(tester);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-resumen')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('producto-sucursal-10')));
+      await tester.pumpAndSettle();
+
+      // Tocar el paso 1 del indicador vuelve a los datos.
+      await tester.tap(find.byKey(const ValueKey('producto-paso-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-resumen')), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('producto-nombre')))
+            .controller!
+            .text,
+        'Olla',
+      );
+
+      // Continuar de nuevo conserva la sucursal elegida.
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('producto-existencia-10')),
+        findsOneWidget,
+      );
+
+      // El botón atrás del sistema también regresa un paso en vez de salir.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-nombre')), findsOneWidget);
+      expect(find.byType(ProductoFormPage), findsOneWidget);
+
+      // Y el botón «Anterior» del paso 2.
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-anterior')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-anterior')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-nombre')), findsOneWidget);
+    },
+  );
 }
 
 class _SinExistencias implements ExistenciasGateway {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 
 import '../../../domain/ticket.dart';
@@ -120,45 +121,29 @@ class TarjetaImprimirTicket extends StatelessWidget {
   );
 }
 
-/// Aviso flotante del resultado de imprimir, con icono y color según éxito.
+/// Notificación del resultado de imprimir; si falló, ofrece reintentar.
 void avisoImpresion(
   BuildContext context,
   String texto, {
   bool error = false,
   VoidCallback? onReintentar,
 }) {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  if (messenger == null) return;
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: error ? BarroTheme.error : BarroTheme.success,
-        duration: Duration(seconds: error ? 6 : 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        content: Row(
-          children: [
-            Icon(
-              error ? Icons.error_outline : Icons.check_circle_outline,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                texto,
-                style: BarroTheme.type(14, 20, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        action: onReintentar == null
-            ? null
-            : SnackBarAction(
-                label: 'Reintentar',
-                textColor: Colors.white,
-                onPressed: onReintentar,
-              ),
-      ),
+  final accion = onReintentar == null
+      ? null
+      : AccionNotificacion('Reintentar', onReintentar);
+  if (error) {
+    NotificacionServicio.error(
+      context,
+      texto,
+      titulo: 'No se pudo imprimir',
+      accion: accion,
     );
+  } else {
+    NotificacionServicio.exito(
+      context,
+      texto,
+      titulo: 'Ticket impreso',
+      accion: accion,
+    );
+  }
 }

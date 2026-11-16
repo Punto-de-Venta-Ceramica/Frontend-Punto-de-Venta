@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'notificaciones_test_utils.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
@@ -545,23 +547,26 @@ void main() {
   });
 
   group('DescuentosPage', () {
-    testWidgets('muestra todos los descuentos, también los inactivos', (
+    testWidgetsConNotificaciones(
+      'muestra todos los descuentos, también los inactivos',
+      (tester) async {
+        await _abrirLista(tester, _Gateway([_mayoreo, _docena]));
+
+        expect(find.text('2 descuentos registrados'), findsOneWidget);
+        expect(find.text('5 % de descuento'), findsOneWidget);
+        expect(find.text('De 10 a 20 piezas'), findsOneWidget);
+        expect(find.text('Asignado a: 1 producto'), findsOneWidget);
+        expect(find.text('Activo'), findsOneWidget);
+        expect(find.text('Inactivo'), findsOneWidget);
+        expect(find.text('Sin asignar'), findsOneWidget);
+        expect(find.text('Administrar'), findsNWidgets(2));
+        expect(find.text('Editar'), findsNWidgets(2));
+      },
+    );
+
+    testWidgetsConNotificaciones('sin descuentos ofrece registrar el primero', (
       tester,
     ) async {
-      await _abrirLista(tester, _Gateway([_mayoreo, _docena]));
-
-      expect(find.text('2 descuentos registrados'), findsOneWidget);
-      expect(find.text('5 % de descuento'), findsOneWidget);
-      expect(find.text('De 10 a 20 piezas'), findsOneWidget);
-      expect(find.text('Asignado a: 1 producto'), findsOneWidget);
-      expect(find.text('Activo'), findsOneWidget);
-      expect(find.text('Inactivo'), findsOneWidget);
-      expect(find.text('Sin asignar'), findsOneWidget);
-      expect(find.text('Administrar'), findsNWidgets(2));
-      expect(find.text('Editar'), findsNWidgets(2));
-    });
-
-    testWidgets('sin descuentos ofrece registrar el primero', (tester) async {
       await _abrirLista(tester, _Gateway());
 
       expect(
@@ -571,7 +576,9 @@ void main() {
       expect(find.byKey(const ValueKey('descuento-registrar')), findsOneWidget);
     });
 
-    testWidgets('un error se muestra y permite reintentar', (tester) async {
+    testWidgetsConNotificaciones('un error se muestra y permite reintentar', (
+      tester,
+    ) async {
       final gateway = _Gateway()
         ..fallo = const DescuentoFailure('Sin conexión.');
       await _abrirLista(tester, gateway);
@@ -587,24 +594,32 @@ void main() {
       );
     });
 
-    testWidgets('registrar un descuento lo agrega a la lista', (tester) async {
-      final gateway = _Gateway([_mayoreo]);
-      await _abrirLista(tester, gateway);
+    testWidgetsConNotificaciones(
+      'registrar un descuento lo agrega a la lista',
+      (tester) async {
+        final gateway = _Gateway([_mayoreo]);
+        await _abrirLista(tester, gateway);
 
-      await _tocar(tester, 'descuento-registrar');
-      await _escribir(tester, 'descuento-nombre', 'Super mayoreo');
-      await _escribir(tester, 'descuento-cantidadMinima', '21');
-      await _escribir(tester, 'descuento-cantidadMaxima', '30');
-      await _escribir(tester, 'descuento-porcentaje', '12');
-      await _tocar(tester, 'descuento-guardar');
+        await _tocar(tester, 'descuento-registrar');
+        await _escribir(tester, 'descuento-nombre', 'Super mayoreo');
+        await _escribir(tester, 'descuento-cantidadMinima', '21');
+        await _escribir(tester, 'descuento-cantidadMaxima', '30');
+        await _escribir(tester, 'descuento-porcentaje', '12');
+        await _tocar(tester, 'descuento-guardar');
 
-      expect(gateway.llamadas, ['crear']);
-      expect(find.text('Descuento registrado correctamente.'), findsOneWidget);
-      expect(find.text('Super mayoreo'), findsOneWidget);
-      expect(find.text('De 21 a 30 piezas'), findsOneWidget);
-    });
+        expect(gateway.llamadas, ['crear']);
+        expect(
+          find.text('Descuento registrado correctamente.'),
+          findsOneWidget,
+        );
+        expect(find.text('Super mayoreo'), findsOneWidget);
+        expect(find.text('De 21 a 30 piezas'), findsOneWidget);
+      },
+    );
 
-    testWidgets('el formulario valida antes de enviar', (tester) async {
+    testWidgetsConNotificaciones('el formulario valida antes de enviar', (
+      tester,
+    ) async {
       final gateway = _Gateway();
       await _abrirLista(tester, gateway);
 
@@ -620,7 +635,9 @@ void main() {
       );
     });
 
-    testWidgets('editar actualiza los datos del descuento', (tester) async {
+    testWidgetsConNotificaciones('editar actualiza los datos del descuento', (
+      tester,
+    ) async {
       final gateway = _Gateway([_mayoreo]);
       await _abrirLista(tester, gateway);
 
@@ -637,7 +654,9 @@ void main() {
       expect(find.text('8 % de descuento'), findsOneWidget);
     });
 
-    testWidgets('desactivar y activar desde la edición', (tester) async {
+    testWidgetsConNotificaciones('desactivar y activar desde la edición', (
+      tester,
+    ) async {
       final gateway = _Gateway([_mayoreo]);
       await _abrirLista(tester, gateway);
 
@@ -655,31 +674,32 @@ void main() {
       expect(gateway.llamadas, ['desactivar 1', 'activar 1']);
     });
 
-    testWidgets('eliminar pide confirmación y quita el descuento', (
-      tester,
-    ) async {
-      final gateway = _Gateway([_mayoreo, _docena]);
-      await _abrirLista(tester, gateway);
+    testWidgetsConNotificaciones(
+      'eliminar pide confirmación y quita el descuento',
+      (tester) async {
+        final gateway = _Gateway([_mayoreo, _docena]);
+        await _abrirLista(tester, gateway);
 
-      await _tocar(tester, 'descuento-editar-1');
-      await _tocar(tester, 'descuento-eliminar');
-      expect(find.text('¿Eliminar descuento?'), findsOneWidget);
+        await _tocar(tester, 'descuento-editar-1');
+        await _tocar(tester, 'descuento-eliminar');
+        expect(find.text('¿Eliminar descuento?'), findsOneWidget);
 
-      await tester.tap(find.text('Cancelar').last);
-      await tester.pumpAndSettle();
-      expect(gateway.llamadas, isEmpty);
+        await tester.tap(find.text('Cancelar').last);
+        await tester.pumpAndSettle();
+        expect(gateway.llamadas, isEmpty);
 
-      await _tocar(tester, 'descuento-eliminar');
-      await tester.tap(
-        find.byKey(const ValueKey('descuento-confirmar-eliminar')),
-      );
-      await tester.pumpAndSettle();
+        await _tocar(tester, 'descuento-eliminar');
+        await tester.tap(
+          find.byKey(const ValueKey('descuento-confirmar-eliminar')),
+        );
+        await tester.pumpAndSettle();
 
-      expect(gateway.llamadas, ['eliminar 1']);
-      expect(find.text('Descuento eliminado correctamente.'), findsOneWidget);
-      expect(find.text('Mayoreo'), findsNothing);
-      expect(find.text('Docena'), findsOneWidget);
-    });
+        expect(gateway.llamadas, ['eliminar 1']);
+        expect(find.text('Descuento eliminado correctamente.'), findsOneWidget);
+        expect(find.text('Mayoreo'), findsNothing);
+        expect(find.text('Docena'), findsOneWidget);
+      },
+    );
   });
 
   group('DescuentoDetallePage', () {
@@ -700,7 +720,9 @@ void main() {
       return gateway;
     }
 
-    testWidgets('muestra por nombre lo que tiene asignado', (tester) async {
+    testWidgetsConNotificaciones('muestra por nombre lo que tiene asignado', (
+      tester,
+    ) async {
       await abrir(tester);
 
       expect(find.text('Administrar descuento'), findsOneWidget);
@@ -711,35 +733,38 @@ void main() {
       expect(find.text('Áreas (0)'), findsOneWidget);
     });
 
-    testWidgets('asigna un producto, una categoría y un área', (tester) async {
-      final gateway = await abrir(tester);
+    testWidgetsConNotificaciones(
+      'asigna un producto, una categoría y un área',
+      (tester) async {
+        final gateway = await abrir(tester);
 
-      await _tocar(tester, 'descuento-asignar-producto');
-      // La olla ya está asignada: solo se ofrece la jarra.
-      expect(find.byKey(const ValueKey('descuento-opcion-3')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('descuento-opcion-4')));
-      await tester.pumpAndSettle();
-      expect(find.text('Productos (2)'), findsOneWidget);
-      expect(find.text('Descuento asignado a Jarra.'), findsOneWidget);
+        await _tocar(tester, 'descuento-asignar-producto');
+        // La olla ya está asignada: solo se ofrece la jarra.
+        expect(find.byKey(const ValueKey('descuento-opcion-3')), findsNothing);
+        await tester.tap(find.byKey(const ValueKey('descuento-opcion-4')));
+        await tester.pumpAndSettle();
+        expect(find.text('Productos (2)'), findsOneWidget);
+        expect(find.text('Descuento asignado a Jarra.'), findsOneWidget);
 
-      await _tocar(tester, 'descuento-asignar-categoria');
-      await tester.tap(find.byKey(const ValueKey('descuento-opcion-10')));
-      await tester.pumpAndSettle();
-      expect(find.text('Categorías (1)'), findsOneWidget);
+        await _tocar(tester, 'descuento-asignar-categoria');
+        await tester.tap(find.byKey(const ValueKey('descuento-opcion-10')));
+        await tester.pumpAndSettle();
+        expect(find.text('Categorías (1)'), findsOneWidget);
 
-      await _tocar(tester, 'descuento-asignar-area');
-      await tester.tap(find.byKey(const ValueKey('descuento-opcion-20')));
-      await tester.pumpAndSettle();
-      expect(find.text('Áreas (1)'), findsOneWidget);
+        await _tocar(tester, 'descuento-asignar-area');
+        await tester.tap(find.byKey(const ValueKey('descuento-opcion-20')));
+        await tester.pumpAndSettle();
+        expect(find.text('Áreas (1)'), findsOneWidget);
 
-      expect(gateway.llamadas, [
-        'asignar producto 4',
-        'asignar categoria 10',
-        'asignar area 20',
-      ]);
-    });
+        expect(gateway.llamadas, [
+          'asignar producto 4',
+          'asignar categoria 10',
+          'asignar area 20',
+        ]);
+      },
+    );
 
-    testWidgets('quita un producto asignado', (tester) async {
+    testWidgetsConNotificaciones('quita un producto asignado', (tester) async {
       final gateway = await abrir(tester);
 
       await _tocar(tester, 'descuento-quitar-producto-3');
@@ -752,7 +777,9 @@ void main() {
       );
     });
 
-    testWidgets('el selector filtra por búsqueda', (tester) async {
+    testWidgetsConNotificaciones('el selector filtra por búsqueda', (
+      tester,
+    ) async {
       await abrir(tester, _docena);
 
       await _tocar(tester, 'descuento-asignar-producto');
@@ -769,24 +796,25 @@ void main() {
       expect(find.byKey(const ValueKey('descuento-opcion-4')), findsOneWidget);
     });
 
-    testWidgets('desde la lista, Administrar refleja los cambios', (
-      tester,
-    ) async {
-      final gateway = _Gateway([_mayoreo]);
-      await _abrirLista(tester, gateway);
+    testWidgetsConNotificaciones(
+      'desde la lista, Administrar refleja los cambios',
+      (tester) async {
+        final gateway = _Gateway([_mayoreo]);
+        await _abrirLista(tester, gateway);
 
-      await _tocar(tester, 'descuento-administrar-1');
-      await _tocar(tester, 'descuento-asignar-area');
-      await tester.tap(find.byKey(const ValueKey('descuento-opcion-20')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Volver').last);
-      await tester.pumpAndSettle();
+        await _tocar(tester, 'descuento-administrar-1');
+        await _tocar(tester, 'descuento-asignar-area');
+        await tester.tap(find.byKey(const ValueKey('descuento-opcion-20')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Volver').last);
+        await tester.pumpAndSettle();
 
-      expect(find.text('Asignado a: 1 producto · 1 área'), findsOneWidget);
-    });
+        expect(find.text('Asignado a: 1 producto · 1 área'), findsOneWidget);
+      },
+    );
   });
 
-  testWidgets(
+  testWidgetsConNotificaciones(
     'la pantalla del negocio muestra la tarjeta Descuentos y la abre',
     (tester) async {
       _pantalla(tester);

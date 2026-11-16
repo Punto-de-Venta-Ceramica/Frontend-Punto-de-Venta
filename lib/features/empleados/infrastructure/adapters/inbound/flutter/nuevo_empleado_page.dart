@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
@@ -39,7 +40,6 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
   int? _sucursalSeleccionadaId;
 
   bool _ocupado = false;
-  String? _errorGeneral;
   Map<String, String> _errores = {};
 
   @override
@@ -66,13 +66,18 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
       }
     } catch (_) {
       // Si falla la carga de sucursales, el formulario sigue funcionando sin asignar sucursal.
+      if (mounted) {
+        NotificacionServicio.advertencia(
+          context,
+          'No se pudieron cargar las sucursales. Puedes registrar al empleado y asignarlo después.',
+        );
+      }
     }
   }
 
   Future<void> _guardar() async {
     setState(() {
       _ocupado = true;
-      _errorGeneral = null;
       _errores = {};
     });
 
@@ -115,17 +120,18 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
         widget.onSesionExpirada();
         return;
       }
+      NotificacionServicio.error(context, e.message);
       setState(() {
-        _errorGeneral = e.message;
         _errores = e.fieldErrors;
         _ocupado = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errorGeneral = 'Ocurrió un error inesperado al registrar el empleado.';
-        _ocupado = false;
-      });
+      NotificacionServicio.error(
+        context,
+        'Ocurrió un error inesperado al registrar el empleado.',
+      );
+      setState(() => _ocupado = false);
     }
   }
 
@@ -236,10 +242,6 @@ class _NuevoEmpleadoPageState extends State<NuevoEmpleadoPage> {
                     ),
                     sucursal: widget.sucursalNombre,
                   ),
-                  const SizedBox(height: 20),
-                ],
-                if (_errorGeneral != null) ...[
-                  SucursalAviso(_errorGeneral!, error: true),
                   const SizedBox(height: 20),
                 ],
                 _buildTextField(

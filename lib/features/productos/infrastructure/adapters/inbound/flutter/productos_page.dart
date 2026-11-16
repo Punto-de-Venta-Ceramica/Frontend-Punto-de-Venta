@@ -1,12 +1,8 @@
 import 'dart:async';
 
-import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
-import 'package:material_ui/material_ui.dart'
-    as mui
-    show InputDecoration, ListTile, Material, MaterialType, OutlineInputBorder;
 import 'package:flutter/services.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../application/ports/inbound/gestion_productos_use_case.dart';
@@ -84,10 +80,15 @@ class _ProductosPageState extends State<ProductosPage> {
 
   /// Recargando la lista por un filtro, o pidiendo la página siguiente.
   bool _listando = false;
+
+  /// El servidor confirmó que no hay ningún producto (consulta sin búsqueda ni
+  /// filtros). Solo entonces se muestra la pantalla de «primer producto»: una
+  /// búsqueda o un filtro sin resultados nunca la activa, aunque mientras llega
+  /// la respuesta la lista siga vacía por la consulta anterior.
+  bool _catalogoVacio = false;
   bool _cargandoMas = false;
   bool _busy = true;
   String? _error;
-  String? _mensaje;
   int _carga = 0;
 
   @override
@@ -140,16 +141,12 @@ class _ProductosPageState extends State<ProductosPage> {
     }
   }
 
-  Future<void> _cargar(
-    NegocioProducto negocio, {
-    bool conservarMensaje = false,
-  }) async {
+  Future<void> _cargar(NegocioProducto negocio) async {
     final carga = ++_carga;
     setState(() {
       _negocio = negocio;
       _busy = true;
       _error = null;
-      if (!conservarMensaje) _mensaje = null;
     });
     try {
       // La clasificación es complementaria: si áreas/categorías no responden
@@ -174,6 +171,7 @@ class _ProductosPageState extends State<ProductosPage> {
       final pagina = resultados[0] as PaginaProductos;
       setState(() {
         _productos = pagina.productos;
+        _catalogoVacio = pagina.productos.isEmpty;
         _pagina = pagina.pagina;
         _ultima = pagina.ultima;
         _total = pagina.total;
@@ -201,19 +199,17 @@ class _ProductosPageState extends State<ProductosPage> {
   /// silencio. No hay pantalla de carga, se conserva el scroll, y la búsqueda y
   /// los filtros siguen aplicados; áreas, categorías y sucursales no cambian
   /// desde esas pantallas, así que no se vuelven a pedir.
-  Future<void> _refrescar({bool conservarMensaje = false}) async {
+  Future<void> _refrescar() async {
     final negocio = _negocio;
     if (negocio == null) return;
     final carga = ++_carga;
-    if (!conservarMensaje && _mensaje != null) setState(() => _mensaje = null);
+    final filtro = _filtroActual;
     try {
-      final pagina = await widget.gestion.listar(
-        negocio.id,
-        filtro: _filtroActual,
-      );
+      final pagina = await widget.gestion.listar(negocio.id, filtro: filtro);
       if (!mounted || carga != _carga) return;
       setState(() {
         _productos = pagina.productos;
+        _actualizarCatalogoVacio(filtro, pagina);
         _pagina = pagina.pagina;
         _ultima = pagina.ultima;
         _total = pagina.total;
@@ -232,6 +228,26 @@ class _ProductosPageState extends State<ProductosPage> {
     precioMinimo: _precio(_precioMin),
     precioMaximo: _precio(_precioMax),
   );
+
+  /// Si la consulta no llevaba búsqueda ni filtros del usuario (la sucursal
+  /// fija de la pantalla no cuenta como filtro).
+  bool _consultaSinFiltros(FiltroProductos f) =>
+      f.buscar.isEmpty &&
+      f.areaId == null &&
+      f.categoriaId == null &&
+      f.precioMinimo == null &&
+      f.precioMaximo == null &&
+      f.sucursalId == widget.sucursal?.id;
+
+  /// Solo una consulta sin filtros dice si el catálogo está vacío; cualquier
+  /// resultado con productos confirma que no lo está.
+  void _actualizarCatalogoVacio(FiltroProductos filtro, PaginaProductos p) {
+    if (_consultaSinFiltros(filtro)) {
+      _catalogoVacio = p.productos.isEmpty;
+    } else if (p.productos.isNotEmpty) {
+      _catalogoVacio = false;
+    }
+  }
 
   static double? _precio(TextEditingController c) =>
       double.tryParse(c.text.trim().replaceAll(',', '.'));
@@ -276,18 +292,17 @@ class _ProductosPageState extends State<ProductosPage> {
     final negocio = _negocio;
     if (negocio == null) return;
     final carga = ++_carga;
+    final filtro = _filtroActual;
     setState(() {
       _listando = true;
       _error = null;
     });
     try {
-      final pagina = await widget.gestion.listar(
-        negocio.id,
-        filtro: _filtroActual,
-      );
+      final pagina = await widget.gestion.listar(negocio.id, filtro: filtro);
       if (!mounted || carga != _carga) return;
       setState(() {
         _productos = pagina.productos;
+        _actualizarCatalogoVacio(filtro, pagina);
         _pagina = pagina.pagina;
         _ultima = pagina.ultima;
         _total = pagina.total;
@@ -426,24 +441,22 @@ class _ProductosPageState extends State<ProductosPage> {
     if (!mounted || guardado == null) return;
     if (registrados > 1) {
       // Registro por lotes: se vuelve a la lista en lugar de abrir un solo producto.
-      _mensaje = null;
-      AlertaServicio.registro(
+      NotificacionServicio.registro(
         context,
-        'Productos',
-        detalle: '$registrados productos registrados correctamente.',
+        '$registrados productos registrados correctamente.',
       );
-      await _refrescar(conservarMensaje: false);
+      await _refrescar();
       return;
     }
+    // El formulario ya avisó del registro de este producto.
     await _abrirDetalle(
       widget.sucursal == null
           ? guardado
           : guardado.soloSucursal(widget.sucursal!.id),
-      mensaje: 'Producto guardado correctamente.',
     );
   }
 
-  Future<void> _abrirDetalle(Producto producto, {String? mensaje}) async {
+  Future<void> _abrirDetalle(Producto producto) async {
     // Sin foco al salir, Flutter no devuelve el cursor (ni el teclado) al buscador.
     _quitarFoco();
     final eliminado = await Navigator.of(context).push<bool>(
@@ -456,7 +469,6 @@ class _ProductosPageState extends State<ProductosPage> {
           descuentos: widget.descuentos,
           imagenes: widget.imagenes,
           onSesionExpirada: widget.onSesionExpirada,
-          mensajeInicial: mensaje,
           soloLectura: widget.soloLectura,
         ),
       ),
@@ -464,10 +476,12 @@ class _ProductosPageState extends State<ProductosPage> {
     _quitarFoco();
     if (!mounted) return;
     if (eliminado == true) {
-      _mensaje = null;
-      AlertaServicio.eliminacion(context, 'Producto');
+      NotificacionServicio.eliminacion(
+        context,
+        'Producto eliminado correctamente.',
+      );
     }
-    await _refrescar(conservarMensaje: false);
+    await _refrescar();
   }
 
   /// Flutter devuelve el foco al campo que lo tenía al cerrar un menú o volver
@@ -547,153 +561,21 @@ class _ProductosPageState extends State<ProductosPage> {
     required ValueChanged<int?> onChanged,
     required IconData icono,
     bool conBuscador = false,
-  }) {
-    (int, String)? seleccionado;
-    for (final o in opciones) {
-      if (o.$1 == valor) seleccionado = o;
-    }
-    final estilo = BarroTheme.type(13, 18, color: BarroTheme.primary);
-    // dropdown_search usa su propio material_ui: necesita un Material de ese
-    // paquete como ancestro (el de flutter/material.dart no le sirve).
-    return mui.Material(
-      type: mui.MaterialType.transparency,
-      child: DropdownSearch<(int, String)>(
-        key: key,
-        items: (filtro, _) => opciones,
-        selectedItem: seleccionado,
-        itemAsString: (o) => o.$2,
-        compareFn: (a, b) => a.$1 == b.$1,
-        filterFn: (o, filtro) =>
-            o.$2.toLowerCase().contains(filtro.trim().toLowerCase()),
-        enabled: !(_busy || _listando),
-        onBeforePopupOpening: (_) {
-          _quitarFoco();
-          return true;
-        },
-        onSelected: (o) {
-          onChanged(o?.$1);
-          _quitarFoco();
-        },
-        decoratorProps: DropDownDecoratorProps(
-          baseStyle: estilo.copyWith(fontWeight: FontWeight.w700),
-          decoration: mui.InputDecoration(
-            hintText: texto,
-            hintStyle: estilo.copyWith(fontWeight: FontWeight.w700),
-            prefixIcon: Icon(icono, size: 18, color: BarroTheme.primary),
-            filled: true,
-            fillColor: productoSuave,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 12,
-            ),
-            border: mui.OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: mui.OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: mui.OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: BarroTheme.primary),
-            ),
-          ),
-        ),
-        suffixProps: const DropdownSuffixProps(
-          clearButtonProps: ClearButtonProps(
-            isVisible: true,
-            icon: Icon(Icons.close, size: 16),
-            padding: EdgeInsets.zero,
-            tooltip: 'Quitar filtro',
-          ),
-          dropdownButtonProps: DropdownButtonProps(
-            iconClosed: Icon(
-              Icons.keyboard_arrow_down,
-              size: 20,
-              color: BarroTheme.primary,
-            ),
-            iconOpened: Icon(
-              Icons.keyboard_arrow_up,
-              size: 20,
-              color: BarroTheme.primary,
-            ),
-          ),
-        ),
-        popupProps: PopupProps.menu(
-          showSearchBox: conBuscador,
-          fit: FlexFit.loose,
-          constraints: const BoxConstraints(maxHeight: 320),
-          menuProps: MenuProps(
-            // Se usa `shape` (no `borderRadius`): MenuProps ya trae un shape por
-            // defecto y Material no admite ambos a la vez.
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 4,
-          ),
-          searchFieldProps: TextFieldProps(
-            autofocus: false,
-            style: BarroTheme.type(14, 21),
-            decoration: mui.InputDecoration(
-              hintText: textoBuscador,
-              hintStyle: BarroTheme.type(14, 21, color: BarroTheme.placeholder),
-              prefixIcon: const Icon(
-                Icons.search,
-                size: 20,
-                color: BarroTheme.primary,
-              ),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 12,
-              ),
-              border: mui.OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: BarroTheme.border),
-              ),
-              enabledBorder: mui.OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: BarroTheme.border),
-              ),
-              focusedBorder: mui.OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: BarroTheme.primary),
-              ),
-            ),
-          ),
-          itemBuilder: (context, o, deshabilitado, activo) => mui.ListTile(
-            dense: true,
-            selected: activo,
-            selectedTileColor: productoSuave,
-            title: Text(
-              o.$2,
-              style: BarroTheme.type(
-                14,
-                20,
-                weight: activo ? FontWeight.w700 : FontWeight.w400,
-                color: activo ? BarroTheme.primary : BarroTheme.text,
-              ),
-            ),
-            trailing: activo
-                ? const Icon(Icons.check, size: 18, color: BarroTheme.primary)
-                : null,
-          ),
-          emptyBuilder: (context, busqueda) => Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-              conBuscador && busqueda.isNotEmpty
-                  ? 'Sin resultados para "$busqueda"'
-                  : 'Sin opciones disponibles',
-              textAlign: TextAlign.center,
-              style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  }) => ProductoFiltroDesplegable(
+    key: key,
+    texto: texto,
+    textoBuscador: textoBuscador,
+    valor: valor,
+    opciones: opciones,
+    onChanged: (id) {
+      onChanged(id);
+      _quitarFoco();
+    },
+    icono: icono,
+    conBuscador: conBuscador,
+    habilitado: !(_busy || _listando),
+    onAntesDeAbrir: _quitarFoco,
+  );
 
   Widget _tarjeta(Producto p) => RepaintBoundary(
     key: ValueKey('producto-tarjeta-${p.id}'),
@@ -806,13 +688,14 @@ class _ProductosPageState extends State<ProductosPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Solo es "catálogo vacío" si no hay filtros: con una búsqueda o filtro sin
-    // resultados se mantiene la pantalla de filtros y se avisa que no hay
-    // coincidencias.
+    // Solo es "catálogo vacío" si el servidor lo confirmó sin filtros. Con una
+    // búsqueda o filtro sin resultados (o mientras se recarga tras quitarlos)
+    // se mantiene la pantalla de filtros y se avisa que no hay coincidencias.
     final vacioTotal =
         !_busy &&
         _error == null &&
         _negocio != null &&
+        _catalogoVacio &&
         _productos.isEmpty &&
         !_hayFiltros;
     final categoriasVisibles = _categorias
@@ -860,10 +743,6 @@ class _ProductosPageState extends State<ProductosPage> {
           style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
         ),
         const SizedBox(height: 20),
-        if (_mensaje != null) ...[
-          ProductoAviso(_mensaje!),
-          const SizedBox(height: 20),
-        ],
         if (_busy)
           const Padding(
             padding: EdgeInsets.all(40),

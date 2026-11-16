@@ -20,10 +20,37 @@ class ProductoPedido {
     required this.nombre,
     required this.precio,
     this.descuentos = const [],
+    this.areaId,
+    this.area,
+    this.categoriaId,
+    this.categoria,
+    this.imagenUrl,
   });
   final int id;
   final String nombre;
   final double precio;
+
+  /// Área y categoría del catálogo, para filtrar al elegir el producto. Son
+  /// null si el servidor no las envía.
+  final int? areaId, categoriaId;
+  final String? area, categoria;
+
+  /// Imagen del producto en el catálogo; null si no tiene.
+  final String? imagenUrl;
+
+  /// Cantidad mínima del siguiente escalón de mayoreo por encima de
+  /// [cantidad], o null si ya no hay uno mayor.
+  int? siguienteEscalon(int cantidad) {
+    int? siguiente;
+    for (final escalon in descuentos) {
+      if (escalon.porcentaje > 0 &&
+          escalon.cantidadMinima > cantidad &&
+          (siguiente == null || escalon.cantidadMinima < siguiente)) {
+        siguiente = escalon.cantidadMinima;
+      }
+    }
+    return siguiente;
+  }
 
   /// Escalones por cantidad (p. ej. 5–10, 11–20, 21+); solo aplica aquel en que cae la cantidad.
   final List<EscalonDescuento> descuentos;
@@ -75,6 +102,12 @@ class LineaPedido {
     productoId: productoId,
     cantidad: cantidad,
     aplicarDescuento: aplicar,
+  );
+
+  LineaPedido conCantidad(int nueva) => LineaPedido(
+    productoId: productoId,
+    cantidad: nueva,
+    aplicarDescuento: aplicarDescuento,
   );
 }
 
@@ -189,9 +222,11 @@ class DatosPedido {
 class EstadosPedido {
   EstadosPedido._();
 
-  /// Filtro con el que abre el listado, para ambos roles: lo entregado,
-  /// que es lo que falta terminar.
-  static const porDefecto = 'ENTREGADO';
+  /// Filtro con el que abre el listado. El propietario ve lo encargado (los
+  /// pedidos que tiene que hacer); el empleado, lo entregado en sucursal, que
+  /// es lo que le falta terminar.
+  static String porDefecto({required bool esPropietario}) =>
+      esPropietario ? 'ENCARGADO' : 'ENTREGADO';
 
   /// Estados del selector de la tarjeta, en orden.
   static const progreso = ['ENCARGADO', 'PRODUCCION', 'ENTREGADO'];

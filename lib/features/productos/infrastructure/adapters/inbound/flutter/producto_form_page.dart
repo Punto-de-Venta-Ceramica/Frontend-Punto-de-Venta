@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/descuentos/application/ports/inbound/gestion_descuentos_use_case.dart';
 import 'package:punto_de_venta/features/descuentos/domain/descuento.dart';
@@ -93,7 +94,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   bool _crearMas = false;
   int _registrados = 0;
   Producto? _ultimo;
-  String? _aviso;
   final _arriba = GlobalKey();
   List<AreaProducto> _areas = [];
   List<CategoriaProducto> _categorias = [];
@@ -103,12 +103,18 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   int _paso = 0;
   bool _cargando = true;
   bool _busy = false;
-  String? _error;
+
+  /// No se pudieron cargar áreas y categorías (y lo demás del formulario):
+  /// se avisa bajo esos campos, con opción de reintentar.
+  String? _errorCarga;
   bool get _edicion => widget.producto != null;
+
+  /// En Android, iOS y navegador (en el teléfono abre la cámara; en una
+  /// computadora sin cámara el navegador ofrece elegir un archivo).
   bool get _permiteTomarFoto =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS);
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   /// Al registrar desde una sucursal todo va en una sola pantalla: datos y existencia.
   bool get _unaPantalla => !_edicion && widget.sucursal != null;
@@ -143,8 +149,8 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       widget.onSesionExpirada();
       return;
     }
+    NotificacionServicio.error(context, e.message);
     setState(() {
-      _error = e.message;
       _cargando = false;
       _busy = false;
       if (e.fieldErrors.isNotEmpty) {
@@ -196,18 +202,29 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         _cargando = false;
       });
     } on ProductoFailure catch (e) {
-      if (mounted) _fallo(e);
+      if (mounted) _falloCarga(e.sesionExpirada);
     } on DescuentoFailure catch (e) {
-      if (!mounted) return;
-      if (e.sesionExpirada) {
-        widget.onSesionExpirada();
-        return;
-      }
-      setState(() {
-        _error = e.message;
-        _cargando = false;
-      });
+      if (mounted) _falloCarga(e.sesionExpirada);
     }
+  }
+
+  void _falloCarga(bool sesionExpirada) {
+    if (sesionExpirada) {
+      widget.onSesionExpirada();
+      return;
+    }
+    setState(() {
+      _cargando = false;
+      _errorCarga = 'No se pudieron cargar las áreas y categorías.';
+    });
+  }
+
+  void _reintentarCarga() {
+    setState(() {
+      _cargando = true;
+      _errorCarga = null;
+    });
+    _cargar();
   }
 
   TextEditingController _controladorExistencia(int sucursalId) =>
@@ -259,7 +276,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         _errores
           ..clear()
           ..addAll(errores);
-        _error = null;
       });
       return;
     }
@@ -275,7 +291,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _errores
         ..clear()
         ..addAll(errores);
-      _error = null;
       if (errores.isEmpty && descuentosOk) _paso = 1;
     });
   }
@@ -296,14 +311,14 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           ? await servicio.tomarFoto()
           : await servicio.elegirImagen();
       if (!mounted || archivo == null) return;
-      setState(() {
-        _imagenPendiente = archivo;
-        _error = null;
-        _aviso = null;
-      });
+      setState(() => _imagenPendiente = archivo);
     } on ImagenProductoException catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.mensaje);
+      NotificacionServicio.error(
+        context,
+        e.mensaje,
+        titulo: 'Imagen no válida',
+      );
     }
   }
 
@@ -314,19 +329,17 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       _imagenUrl = null;
       _imagenPublicId = null;
       _progresoImagen = null;
-      _error = null;
     });
   }
 
   Widget _seccionImagen() {
     if (widget.imagenes == null) return const SizedBox.shrink();
     final hayImagen = _imagenPendiente != null || _imagenUrl != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return ProductoSeccion(
+      icono: Icons.image_outlined,
+      titulo: 'Imagen del producto',
+      subtitulo: 'Opcional. Ayuda a reconocerlo al vender.',
       children: [
-        const SizedBox(height: 20),
-        const ProductoEtiqueta('Imagen del producto'),
-        const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -435,11 +448,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       }
     }
     if (!_descuentosValidos()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _aviso = null;
-    });
+    setState(() => _busy = true);
     try {
       final imagenPendiente = _imagenPendiente;
       if (imagenPendiente != null) {
@@ -498,11 +507,12 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             return;
           }
           if (!mounted) return;
-          setState(() {
-            _busy = false;
-            _error =
-                'El producto se guardó, pero los descuentos no. ${e.message}';
-          });
+          setState(() => _busy = false);
+          NotificacionServicio.advertencia(
+            context,
+            'El producto se guardó, pero los descuentos no. ${e.message}',
+            titulo: 'Guardado incompleto',
+          );
           return;
         }
       }
@@ -515,6 +525,13 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       if (!_edicion) {
         _registrados++;
         widget.onRegistrados?.call(_registrados);
+        // Con varios registrados, la lista muestra el resumen del lote.
+        if (_registrados == 1) {
+          NotificacionServicio.registro(
+            context,
+            'Producto «${guardado.nombre}» registrado correctamente.',
+          );
+        }
       }
       Navigator.of(context).pop<Producto>(guardado);
     } on ProductoFailure catch (e) {
@@ -523,9 +540,13 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.mensaje;
         _progresoImagen = null;
       });
+      NotificacionServicio.error(
+        context,
+        e.mensaje,
+        titulo: 'Imagen no válida',
+      );
     }
   }
 
@@ -537,9 +558,6 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     final anteriores = [..._filas];
     setState(() {
       _busy = false;
-      _error = null;
-      _aviso =
-          'Producto «${guardado.nombre}» registrado correctamente. Llevas $_registrados ${_registrados == 1 ? 'registrado' : 'registrados'}; completa el siguiente.';
       _nombre.clear();
       _precio.clear();
       _areaId = null;
@@ -561,6 +579,10 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         c.clear();
       }
     });
+    NotificacionServicio.registro(
+      context,
+      'Producto «${guardado.nombre}» registrado correctamente. Llevas $_registrados ${_registrados == 1 ? 'registrado' : 'registrados'}; completa el siguiente.',
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       for (final f in anteriores) {
         f.dispose();
@@ -641,7 +663,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   }
 
   void _limpiar(String clave) {
-    if (_errores.containsKey(clave) || _error != null) {
+    if (_errores.containsKey(clave)) {
       setState(() => _errores.remove(clave));
     }
   }
@@ -653,6 +675,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
     String? hint,
     TextInputType? teclado,
     List<TextInputFormatter>? formatos,
+    IconData? icono,
   }) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -664,7 +687,12 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         keyboardType: teclado,
         inputFormatters: formatos,
         style: BarroTheme.type(14, 21),
-        decoration: productoDecoracion(hint: hint, error: _errores[clave]),
+        decoration: productoDecoracion(hint: hint, error: _errores[clave])
+            .copyWith(
+              prefixIcon: icono == null
+                  ? null
+                  : Icon(icono, size: 20, color: BarroTheme.secondary),
+            ),
         onChanged: (_) => _limpiar(clave),
       ),
     ],
@@ -675,23 +703,68 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         .where((c) => c.areaId == _areaId)
         .toList();
     return [
-      _texto(
-        'nombre',
-        'Nombre del producto *',
-        _nombre,
-        hint: 'Ej. Taza cerámica esmaltada',
+      ProductoSeccion(
+        icono: Icons.sell_outlined,
+        titulo: 'Información básica',
+        subtitulo: 'Cómo se llama y a qué precio se vende.',
+        children: [
+          _texto(
+            'nombre',
+            'Nombre del producto *',
+            _nombre,
+            hint: 'Ej. Taza cerámica esmaltada',
+            icono: Icons.label_outline,
+          ),
+          const SizedBox(height: 16),
+          _texto(
+            'precio',
+            'Precio unitario (MXN) *',
+            _precio,
+            hint: '0.00',
+            icono: Icons.attach_money,
+            teclado: const TextInputType.numberWithOptions(decimal: true),
+            formatos: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+          ),
+        ],
       ),
       _seccionImagen(),
-      const SizedBox(height: 20),
-      _texto(
-        'precio',
-        'Precio unitario (MXN) *',
-        _precio,
-        hint: '\$ 0.00',
-        teclado: const TextInputType.numberWithOptions(decimal: true),
-        formatos: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      ProductoSeccion(
+        icono: Icons.category_outlined,
+        titulo: 'Clasificación',
+        subtitulo: 'Área y categoría del catálogo donde aparecerá.',
+        children: _clasificacion(categoriasDelArea),
       ),
-      const SizedBox(height: 20),
+      if (widget.descuentos != null)
+        ProductoSeccion(
+          icono: Icons.local_offer_outlined,
+          titulo: 'Descuento por cantidad',
+          subtitulo: _edicion
+              ? 'Puedes agregar uno o más descuentos opcionales.'
+              : 'Agrega uno o más descuentos opcionales.',
+          children: _seccionDescuentos(),
+        ),
+      if (_edicion)
+        Row(
+          children: [
+            const Icon(
+              Icons.inventory_outlined,
+              size: 18,
+              color: BarroTheme.secondary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Las existencias se ajustan en Inventario.',
+                style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+              ),
+            ),
+          ],
+        ),
+    ];
+  }
+
+  List<Widget> _clasificacion(List<CategoriaProducto> categoriasDelArea) {
+    return [
       const ProductoEtiqueta('Área *'),
       ProductoSelector<int>(
         key: const ValueKey('producto-area'),
@@ -706,7 +779,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
                 _errores.remove('categoriaId');
               }),
       ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 16),
       const ProductoEtiqueta('Categoría *'),
       ProductoSelectorBuscable(
         key: const ValueKey('producto-categoria'),
@@ -729,14 +802,31 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             style: BarroTheme.type(12, 18, color: BarroTheme.error),
           ),
         ),
-      if (widget.descuentos != null) ..._seccionDescuentos(),
-      if (_edicion) ...[
-        const SizedBox(height: 16),
-        Text(
-          'Las existencias se ajustan en Inventario.',
-          style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+      if (_errorCarga != null)
+        Padding(
+          key: const ValueKey('producto-error-carga'),
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 18,
+                color: BarroTheme.error,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _errorCarga!,
+                  style: BarroTheme.type(12, 18, color: BarroTheme.error),
+                ),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _reintentarCarga,
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
         ),
-      ],
     ];
   }
 
@@ -926,26 +1016,13 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   List<Widget> _seccionDescuentos() {
     final maximos = _maximosVigentes();
     return [
-      const SizedBox(height: 24),
-      Text(
-        'Descuento por cantidad',
-        style: BarroTheme.type(18, 26, weight: FontWeight.w700),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        _edicion
-            ? 'Puedes agregar uno o más descuentos opcionales.'
-            : 'Agrega uno o más descuentos opcionales.',
-        style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
-      ),
-      const SizedBox(height: 12),
       if (_filas.isNotEmpty) ...[
         Container(
           key: const ValueKey('producto-descuentos'),
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: productoSuave.withValues(alpha: 0.4),
             border: Border.all(color: BarroTheme.border),
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1095,28 +1172,88 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         .firstOrNull;
     final area = _areas.where((a) => a.id == categoria?.areaId).firstOrNull;
     return [
-      if (unica) ...[
-        Text(
-          _nombre.text.trim(),
-          style: BarroTheme.type(20, 28, weight: FontWeight.w700),
+      // Resumen de lo capturado en el paso anterior, con acceso para editarlo.
+      Container(
+        key: const ValueKey('producto-resumen'),
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: BarroTheme.border),
+        ),
+        child: Row(
+          children: [
+            ProductoImagen(
+              size: 64,
+              url: _imagenUrl,
+              bytes: _imagenPendiente?.bytes,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _nombre.text.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: BarroTheme.type(16, 22, weight: FontWeight.w700),
+                  ),
+                  Text(
+                    formatoPrecio(_datos().precioNumero ?? 0),
+                    style: BarroTheme.type(
+                      14,
+                      20,
+                      weight: FontWeight.w700,
+                      color: BarroTheme.primary,
+                    ),
+                  ),
+                  Text(
+                    '${area?.nombre ?? ''} · ${categoria?.nombre ?? ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+                  ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _busy ? null : _volverADatos,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text('Editar'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                textStyle: BarroTheme.type(13, 18, weight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (!unica) ...[
+        Row(
+          children: [
+            const Icon(
+              Icons.storefront_outlined,
+              size: 20,
+              color: BarroTheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Sucursales y existencias iniciales',
+                style: BarroTheme.type(17, 24, weight: FontWeight.w700),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         Text(
-          '${formatoPrecio(_datos().precioNumero ?? 0)} · ${area?.nombre ?? ''} / ${categoria?.nombre ?? ''}',
-          style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
-        ),
-        const SizedBox(height: 24),
-      ] else ...[
-        Text(
-          'Sucursales y existencias iniciales',
-          style: BarroTheme.type(18, 26, weight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(
           'Selecciona la sucursal que quieres agregar a este producto.',
-          style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+          style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
       ],
       if (_sucursales.isEmpty)
         const ProductoAviso(
@@ -1126,14 +1263,27 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       if (unica)
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: productoSuave,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
           ),
-          child: Text(
-            'Este negocio tiene una sola sucursal.\nEl producto se asignará a ella automáticamente.',
-            style: BarroTheme.type(14, 23, color: BarroTheme.secondary),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.info_outline,
+                size: 20,
+                color: BarroTheme.secondary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Este negocio tiene una sola sucursal.\nEl producto se asignará a ella automáticamente.',
+                  style: BarroTheme.type(13, 21, color: BarroTheme.secondary),
+                ),
+              ),
+            ],
           ),
         ),
     ];
@@ -1142,19 +1292,20 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   List<Widget> _seccionExistencia() {
     final s = widget.sucursal!;
     return [
-      const SizedBox(height: 24),
-      Text(
-        'Existencia',
-        style: BarroTheme.type(18, 26, weight: FontWeight.w700),
+      ProductoSeccion(
+        icono: Icons.inventory_outlined,
+        titulo: 'Existencia',
+        subtitulo: 'Piezas disponibles en ${s.nombre}.',
+        children: [_campoExistencia(s, activa: true)],
       ),
-      const SizedBox(height: 4),
-      Text(
-        'Piezas disponibles en ${s.nombre}.',
-        style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
-      ),
-      const SizedBox(height: 12),
-      _campoExistencia(s, activa: true),
     ];
+  }
+
+  /// Regresa al paso de datos sin perder lo capturado.
+  void _volverADatos() {
+    if (_busy || _paso == 0) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _paso = 0);
   }
 
   @override
@@ -1177,15 +1328,28 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
         : 'Agrega un producto a tu negocio.';
     final puedeCrearMas = !_edicion && (enSucursales || _unaPantalla);
     return PopScope(
-      // Con productos ya registrados, salir informa cuántos fueron.
-      canPop: !_busy && _registrados == 0,
+      // En el paso de sucursales, atrás regresa a los datos. Con productos ya
+      // registrados, salir informa cuántos fueron.
+      canPop: !_busy && _registrados == 0 && !enSucursales,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_busy && _registrados > 0) _terminar();
+        if (didPop || _busy) return;
+        if (enSucursales) {
+          _volverADatos();
+        } else if (_registrados > 0) {
+          _terminar();
+        }
       },
       child: ProductoScaffold(
         children: [
           SizedBox(key: _arriba, height: 14),
-          ProductoEnlaceVolver(onPressed: _busy ? null : _terminar),
+          ProductoEnlaceVolver(
+            texto: enSucursales ? 'Volver a datos' : 'Productos',
+            onPressed: _busy
+                ? null
+                : enSucursales
+                ? _volverADatos
+                : _terminar,
+          ),
           ProductoNegocioPanel(
             negocio: widget.negocio,
             sucursal: widget.sucursal?.nombre,
@@ -1199,16 +1363,11 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           ),
           const SizedBox(height: 16),
           if (!_edicion && !_unaPantalla) ...[
-            ProductoPasos(paso: _paso),
+            ProductoPasos(
+              paso: _paso,
+              onPaso: _busy ? null : (_) => _volverADatos(),
+            ),
             const SizedBox(height: 20),
-          ],
-          if (_aviso != null) ...[
-            ProductoAviso(_aviso!),
-            const SizedBox(height: 16),
-          ],
-          if (_error != null) ...[
-            ProductoAviso(_error!, error: true),
-            const SizedBox(height: 16),
           ],
           if (_cargando)
             const Padding(
@@ -1218,44 +1377,72 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
           else ...[
             ...(enSucursales ? _pasoSucursales() : _pasoDatos()),
             if (_unaPantalla) ..._seccionExistencia(),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
             if (puedeCrearMas) ...[
               _interruptorCrearMas(),
               const SizedBox(height: 16),
             ],
-            ProductoBoton(
-              key: const ValueKey('producto-guardar'),
-              texto: _edicion
-                  ? 'Guardar cambios'
-                  : enSucursales || _unaPantalla
-                  ? (_crearMas
-                        ? 'Registrar y crear otro'
-                        : 'Registrar producto')
-                  : 'Continuar',
-              busy: _busy,
-              onPressed: _edicion || enSucursales
-                  ? _guardar
-                  : _unaPantalla
-                  ? _registrarEnSucursal
-                  : _continuar,
+            Row(
+              children: [
+                if (enSucursales) ...[
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('producto-anterior'),
+                      onPressed: _busy ? null : _volverADatos,
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Anterior'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: BarroTheme.primary,
+                        side: const BorderSide(color: BarroTheme.primary),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        textStyle: BarroTheme.type(
+                          14,
+                          20,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  flex: 3,
+                  child: ProductoBoton(
+                    key: const ValueKey('producto-guardar'),
+                    texto: _edicion
+                        ? 'Guardar cambios'
+                        : enSucursales || _unaPantalla
+                        ? (_crearMas
+                              ? 'Registrar y crear otro'
+                              : 'Registrar producto')
+                        : 'Continuar',
+                    busy: _busy,
+                    onPressed: _edicion || enSucursales
+                        ? _guardar
+                        : _unaPantalla
+                        ? _registrarEnSucursal
+                        : _continuar,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Center(
-              child: TextButton(
-                onPressed: _busy
-                    ? null
-                    : enSucursales
-                    ? () => setState(() => _paso = 0)
-                    : _terminar,
-                child: Text(
-                  enSucursales
-                      ? 'Volver a los datos'
-                      : _registrados > 0
-                      ? 'Terminar ($_registrados ${_registrados == 1 ? 'registrado' : 'registrados'})'
-                      : 'Cancelar',
+            if (!enSucursales || _registrados > 0) ...[
+              const SizedBox(height: 4),
+              Center(
+                child: TextButton(
+                  onPressed: _busy ? null : _terminar,
+                  child: Text(
+                    _registrados > 0
+                        ? 'Terminar ($_registrados ${_registrados == 1 ? 'registrado' : 'registrados'})'
+                        : 'Cancelar',
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ],
       ),
