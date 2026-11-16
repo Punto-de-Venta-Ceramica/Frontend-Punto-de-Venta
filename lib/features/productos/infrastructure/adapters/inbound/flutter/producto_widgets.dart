@@ -329,8 +329,13 @@ class ProductoScaffold extends StatelessWidget {
 }
 
 class ProductoEnlaceVolver extends StatelessWidget {
-  const ProductoEnlaceVolver({required this.onPressed, super.key});
+  const ProductoEnlaceVolver({
+    required this.onPressed,
+    this.texto = 'Productos',
+    super.key,
+  });
   final VoidCallback? onPressed;
+  final String texto;
   @override
   Widget build(BuildContext context) => TextButton.icon(
     onPressed: onPressed,
@@ -339,7 +344,7 @@ class ProductoEnlaceVolver extends StatelessWidget {
       alignment: Alignment.centerLeft,
     ),
     icon: const Icon(Icons.arrow_back, size: 18),
-    label: const Text('Productos'),
+    label: Text(texto),
   );
 }
 
@@ -539,38 +544,362 @@ class ProductoSelectorBuscable extends StatelessWidget {
   }
 }
 
-class ProductoPasos extends StatelessWidget {
-  const ProductoPasos({required this.paso, super.key});
-  final int paso;
+/// Filtro desplegable del listado (área, categoría, sucursal): fondo suave,
+/// icono al inicio y botón para quitar el filtro. Con [conBuscador] el menú
+/// permite buscar entre las opciones.
+class ProductoFiltroDesplegable extends StatelessWidget {
+  const ProductoFiltroDesplegable({
+    required this.texto,
+    required this.textoBuscador,
+    required this.valor,
+    required this.opciones,
+    required this.onChanged,
+    required this.icono,
+    this.conBuscador = false,
+    this.habilitado = true,
+    this.onAntesDeAbrir,
+    super.key,
+  });
+  final String texto;
+  final String textoBuscador;
+  final int? valor;
+  final List<(int, String)> opciones;
+  final ValueChanged<int?> onChanged;
+  final IconData icono;
+  final bool conBuscador;
+  final bool habilitado;
+
+  /// Se llama antes de abrir el menú (p. ej. para soltar el foco del teclado).
+  final VoidCallback? onAntesDeAbrir;
+
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      for (final (i, texto) in const [
-        '1. Datos del producto',
-        '2. Sucursales',
-      ].indexed) ...[
-        if (i > 0) const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: i == paso ? productoSuave : Colors.white,
-              borderRadius: BorderRadius.circular(10),
+  Widget build(BuildContext context) {
+    (int, String)? seleccionado;
+    for (final o in opciones) {
+      if (o.$1 == valor) seleccionado = o;
+    }
+    final estilo = BarroTheme.type(13, 18, color: BarroTheme.primary);
+    // dropdown_search usa su propio material_ui: necesita un Material de ese
+    // paquete como ancestro (el de flutter/material.dart no le sirve).
+    return mui.Material(
+      type: mui.MaterialType.transparency,
+      child: DropdownSearch<(int, String)>(
+        items: (filtro, _) => opciones,
+        selectedItem: seleccionado,
+        itemAsString: (o) => o.$2,
+        compareFn: (a, b) => a.$1 == b.$1,
+        filterFn: (o, filtro) =>
+            o.$2.toLowerCase().contains(filtro.trim().toLowerCase()),
+        enabled: habilitado,
+        onBeforePopupOpening: (_) {
+          onAntesDeAbrir?.call();
+          return true;
+        },
+        onSelected: (o) => onChanged(o?.$1),
+        decoratorProps: DropDownDecoratorProps(
+          baseStyle: estilo.copyWith(fontWeight: FontWeight.w700),
+          decoration: mui.InputDecoration(
+            hintText: texto,
+            hintStyle: estilo.copyWith(fontWeight: FontWeight.w700),
+            prefixIcon: Icon(icono, size: 18, color: BarroTheme.primary),
+            filled: true,
+            fillColor: productoSuave,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 12,
             ),
-            child: Text(
-              texto,
-              style: BarroTheme.type(
-                11,
-                16,
-                weight: FontWeight.w700,
-                color: i == paso ? BarroTheme.primary : BarroTheme.secondary,
-              ),
+            border: mui.OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: mui.OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: mui.OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: BarroTheme.primary),
             ),
           ),
         ),
+        suffixProps: const DropdownSuffixProps(
+          clearButtonProps: ClearButtonProps(
+            isVisible: true,
+            icon: Icon(Icons.close, size: 16),
+            padding: EdgeInsets.zero,
+            tooltip: 'Quitar filtro',
+          ),
+          dropdownButtonProps: DropdownButtonProps(
+            iconClosed: Icon(
+              Icons.keyboard_arrow_down,
+              size: 20,
+              color: BarroTheme.primary,
+            ),
+            iconOpened: Icon(
+              Icons.keyboard_arrow_up,
+              size: 20,
+              color: BarroTheme.primary,
+            ),
+          ),
+        ),
+        popupProps: PopupProps.menu(
+          showSearchBox: conBuscador,
+          fit: FlexFit.loose,
+          constraints: const BoxConstraints(maxHeight: 320),
+          menuProps: MenuProps(
+            // Se usa `shape` (no `borderRadius`): MenuProps ya trae un shape por
+            // defecto y Material no admite ambos a la vez.
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 4,
+          ),
+          searchFieldProps: TextFieldProps(
+            autofocus: false,
+            style: BarroTheme.type(14, 21),
+            decoration: mui.InputDecoration(
+              hintText: textoBuscador,
+              hintStyle: BarroTheme.type(14, 21, color: BarroTheme.placeholder),
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 20,
+                color: BarroTheme.primary,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+              border: mui.OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: BarroTheme.border),
+              ),
+              enabledBorder: mui.OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: BarroTheme.border),
+              ),
+              focusedBorder: mui.OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: BarroTheme.primary),
+              ),
+            ),
+          ),
+          itemBuilder: (context, o, deshabilitado, activo) => mui.ListTile(
+            dense: true,
+            selected: activo,
+            selectedTileColor: productoSuave,
+            title: Text(
+              o.$2,
+              style: BarroTheme.type(
+                14,
+                20,
+                weight: activo ? FontWeight.w700 : FontWeight.w400,
+                color: activo ? BarroTheme.primary : BarroTheme.text,
+              ),
+            ),
+            trailing: activo
+                ? const Icon(Icons.check, size: 18, color: BarroTheme.primary)
+                : null,
+          ),
+          emptyBuilder: (context, busqueda) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              conBuscador && busqueda.isNotEmpty
+                  ? 'Sin resultados para "$busqueda"'
+                  : 'Sin opciones disponibles',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(13, 18, color: BarroTheme.secondary),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Indicador de pasos del registro: círculos con icono unidos por una línea.
+/// Los pasos ya completados muestran una palomita y, con [onPaso], se pueden
+/// tocar para regresar a ellos.
+class ProductoPasos extends StatelessWidget {
+  const ProductoPasos({
+    required this.paso,
+    this.pasos = const [
+      ('Datos', Icons.inventory_2_outlined),
+      ('Sucursales', Icons.storefront_outlined),
+    ],
+    this.onPaso,
+    super.key,
+  });
+  final int paso;
+  final List<(String, IconData)> pasos;
+  final ValueChanged<int>? onPaso;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final (i, (titulo, icono)) in pasos.indexed) ...[
+        if (i > 0)
+          Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(top: 21),
+              decoration: BoxDecoration(
+                color: i <= paso ? BarroTheme.primary : BarroTheme.border,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
+        _paso(i, titulo, icono),
       ],
     ],
+  );
+
+  Widget _paso(int i, String titulo, IconData icono) {
+    final completado = i < paso;
+    final actual = i == paso;
+    final contenido = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: completado || actual ? BarroTheme.primary : Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: completado || actual
+                  ? BarroTheme.primary
+                  : BarroTheme.border,
+              width: 1.5,
+            ),
+            boxShadow: actual
+                ? [
+                    BoxShadow(
+                      color: BarroTheme.primary.withValues(alpha: 0.25),
+                      spreadRadius: 4,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(
+            completado ? Icons.check_rounded : icono,
+            size: 22,
+            color: completado || actual ? Colors.white : BarroTheme.placeholder,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          titulo,
+          style: BarroTheme.type(
+            12,
+            16,
+            weight: actual ? FontWeight.w700 : FontWeight.w500,
+            color: actual || completado
+                ? BarroTheme.primary
+                : BarroTheme.placeholder,
+          ),
+        ),
+      ],
+    );
+    final tocable = completado && onPaso != null;
+    return Semantics(
+      button: tocable,
+      selected: actual,
+      label: 'Paso ${i + 1} de ${pasos.length}: $titulo',
+      child: tocable
+          ? Tooltip(
+              message: 'Volver a $titulo',
+              child: InkWell(
+                key: ValueKey('producto-paso-$i'),
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => onPaso!(i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: contenido,
+                ),
+              ),
+            )
+          : Padding(
+              key: ValueKey('producto-paso-$i'),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: contenido,
+            ),
+    );
+  }
+}
+
+/// Tarjeta con encabezado (icono, título y descripción) para agrupar campos
+/// de un formulario.
+class ProductoSeccion extends StatelessWidget {
+  const ProductoSeccion({
+    required this.icono,
+    required this.titulo,
+    required this.children,
+    this.subtitulo,
+    this.accion,
+    super.key,
+  });
+  final IconData icono;
+  final String titulo;
+  final String? subtitulo;
+  final Widget? accion;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: BarroTheme.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: productoSuave,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icono, size: 20, color: BarroTheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: BarroTheme.type(16, 22, weight: FontWeight.w700),
+                  ),
+                  if (subtitulo != null)
+                    Text(
+                      subtitulo!,
+                      style: BarroTheme.type(
+                        12,
+                        18,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            ?accion,
+          ],
+        ),
+        const SizedBox(height: 16),
+        ...children,
+      ],
+    ),
   );
 }
 

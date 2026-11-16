@@ -24,7 +24,8 @@ final class SelectorImagenMovil implements SelectorImagenProducto {
       _seleccionar(ImageSource.gallery);
 
   Future<ArchivoImagenProducto?> _seleccionar(ImageSource fuente) async {
-    if (!_esAndroid && !_esIos) {
+    // En el navegador, image_picker abre la cámara con <input capture>.
+    if (!_esAndroid && !_esIos && !kIsWeb) {
       throw const ImagenProductoException(
         'La selección de imágenes de producto está disponible en Android e iOS.',
       );

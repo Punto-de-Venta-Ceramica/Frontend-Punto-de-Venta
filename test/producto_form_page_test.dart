@@ -149,6 +149,64 @@ void main() {
       );
     },
   );
+
+  testWidgetsConNotificaciones(
+    'regresa del paso de sucursales a los datos sin perderlos',
+    (tester) async {
+      await _abrir(tester);
+      await _llenarDatos(tester);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-resumen')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('producto-sucursal-10')));
+      await tester.pumpAndSettle();
+
+      // Tocar el paso 1 del indicador vuelve a los datos.
+      await tester.tap(find.byKey(const ValueKey('producto-paso-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-resumen')), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('producto-nombre')))
+            .controller!
+            .text,
+        'Olla',
+      );
+
+      // Continuar de nuevo conserva la sucursal elegida.
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('producto-existencia-10')),
+        findsOneWidget,
+      );
+
+      // El botón atrás del sistema también regresa un paso en vez de salir.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-nombre')), findsOneWidget);
+      expect(find.byType(ProductoFormPage), findsOneWidget);
+
+      // Y el botón «Anterior» del paso 2.
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-guardar')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-guardar')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('producto-anterior')),
+      );
+      await tester.tap(find.byKey(const ValueKey('producto-anterior')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('producto-nombre')), findsOneWidget);
+    },
+  );
 }
 
 class _SinExistencias implements ExistenciasGateway {

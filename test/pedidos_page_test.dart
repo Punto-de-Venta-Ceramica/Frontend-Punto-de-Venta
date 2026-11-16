@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart'
+    as mui
+    show DefaultMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -27,9 +30,29 @@ class _Gateway implements PedidosGateway {
       nombre: 'Taza',
       precio: 100,
       descuentos: [EscalonDescuento(cantidadMinima: 2, porcentaje: 10)],
+      areaId: 1,
+      area: 'Cocina',
+      categoriaId: 10,
+      categoria: 'Tazas',
     ),
-    const ProductoPedido(id: 4, nombre: 'Plato', precio: 50),
-    const ProductoPedido(id: 5, nombre: 'Ánfora', precio: 80),
+    const ProductoPedido(
+      id: 4,
+      nombre: 'Plato',
+      precio: 50,
+      areaId: 1,
+      area: 'Cocina',
+      categoriaId: 11,
+      categoria: 'Platos',
+    ),
+    const ProductoPedido(
+      id: 5,
+      nombre: 'Ánfora',
+      precio: 80,
+      areaId: 2,
+      area: 'Decoración',
+      categoriaId: 20,
+      categoria: 'Jarrones',
+    ),
   ];
   @override
   Future<void> registrar(DatosPedido datos) async {
@@ -68,6 +91,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
         home: RegistrarPedidoPage(
           gestion: GestionPedidos(gateway),
           sucursalId: 1,
@@ -97,6 +123,8 @@ void main() {
       find.byType(TextFormField).first,
       '  Pedido   de 5 piezas  ',
     );
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     expect(
@@ -113,24 +141,22 @@ void main() {
           .text,
       '2',
     );
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Agregar producto'));
     await tester.tap(find.text('Agregar producto'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Aplica descuento de mayoreo'), findsOneWidget);
     expect(find.text('Selecciona un producto'), findsOneWidget);
-    expect(
-      tester
-          .widget<TextFormField>(find.byType(TextFormField).at(1))
-          .controller!
-          .text,
-      isEmpty,
-    );
+    expect(find.byKey(const ValueKey('pedido-cantidad')), findsNothing);
+    expect(find.byKey(const ValueKey('pedido-linea-3')), findsOneWidget);
     await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Plato').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -139,6 +165,7 @@ void main() {
     final campos = find.byType(TextFormField);
     await tester.enterText(campos.at(0), '  An4a   María  ');
     await tester.enterText(campos.at(1), '123');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -157,6 +184,7 @@ void main() {
     await tester.enterText(campos.at(2), '  Puebla  ');
     await tester.enterText(campos.at(3), '  5   de  Mayo  ');
     await tester.enterText(campos.at(4), '  Calle   12  #34  ');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -210,6 +238,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
         home: RegistrarPedidoPage(
           gestion: GestionPedidos(_Gateway()),
           sucursalId: 1,
@@ -229,8 +260,8 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Taza')).dy),
     );
     final buscador = find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.byType(TextField),
+      of: find.byType(BottomSheet),
+      matching: find.byKey(const ValueKey('pedido-buscar-producto')),
     );
     await tester.enterText(buscador, 'anfora');
     await tester.pumpAndSettle();
@@ -247,11 +278,159 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Taza ·'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('pedido-producto-seleccionado')),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('Quitar selección de producto'));
     await tester.pumpAndSettle();
     expect(find.text('Selecciona un producto'), findsOneWidget);
-    expect(find.textContaining('Taza ·'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('pedido-producto-seleccionado')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('filtra el modal por área y categoría', (tester) async {
+    tester.view.physicalSize = const Size(416, 858);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
+        home: RegistrarPedidoPage(
+          gestion: GestionPedidos(_Gateway()),
+          sucursalId: 1,
+          negocio: const NegocioProducto(id: 1, nombre: 'Cerámica'),
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 productos'), findsOneWidget);
+    expect(find.text('Cocina · Tazas'), findsOneWidget);
+
+    await tester.tap(find.text('Todas las áreas'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cocina').last, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('2 productos'), findsOneWidget);
+    expect(find.text('Ánfora'), findsNothing);
+
+    await tester.tap(find.text('Todas las categorías'));
+    await tester.pumpAndSettle();
+    // Solo se ofrecen las categorías del área elegida.
+    expect(find.text('Jarrones'), findsNothing);
+    await tester.tap(find.text('Platos').last, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('1 producto'), findsOneWidget);
+    expect(find.text('Plato'), findsOneWidget);
+    expect(find.text('Taza'), findsNothing);
+
+    await tester.tap(find.text('Limpiar filtros'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 productos'), findsOneWidget);
+    await tester.tap(find.text('Taza'));
+    await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Agregar producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agregar producto'));
+    await tester.pumpAndSettle();
+
+    // Ajusta la cantidad desde el renglón y recalcula el total con mayoreo.
+    await tester.ensureVisible(find.byTooltip('Sumar una pieza de Taza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Sumar una pieza de Taza'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('pedido-linea-cantidad-3')))
+          .data,
+      '2',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('pedido-total-lineas')))
+          .data,
+      '\$180.00',
+    );
+
+    // Un producto ya agregado aparece marcado y no se puede volver a elegir.
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    expect(find.text('En el pedido · 2 piezas'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('pedido-opcion-producto-3')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsOneWidget);
+  });
+
+  testWidgets('regresa a pasos anteriores sin perder lo capturado', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(416, 858);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
+        home: RegistrarPedidoPage(
+          gestion: GestionPedidos(_Gateway()),
+          sucursalId: 1,
+          negocio: const NegocioProducto(id: 1, nombre: 'Cerámica'),
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Taza'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    final campos = find.byType(TextFormField);
+    await tester.enterText(campos.at(0), 'Ana');
+    await tester.enterText(campos.at(1), '5512345678');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Resumen del pedido'), findsOneWidget);
+    expect(find.text('Ana'), findsOneWidget);
+
+    // Tocar el paso 2 del indicador vuelve a los datos del cliente.
+    await tester.ensureVisible(find.byKey(const ValueKey('pedido-paso-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('pedido-paso-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Datos de contacto'), findsOneWidget);
+    expect(tester.widget<TextFormField>(campos.at(0)).controller!.text, 'Ana');
+
+    // El botón atrás del sistema retrocede un paso en vez de salir.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('pedido-linea-3')), findsOneWidget);
+    expect(find.byType(RegistrarPedidoPage), findsOneWidget);
   });
 
   testWidgets('con la caja cerrada registra el pedido sin anticipo', (
@@ -265,6 +444,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
         home: RegistrarPedidoPage(
           gestion: GestionPedidos(gateway),
           sucursalId: 1,
@@ -274,11 +456,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -286,6 +471,7 @@ void main() {
     final campos = find.byType(TextFormField);
     await tester.enterText(campos.at(0), 'Ana');
     await tester.enterText(campos.at(1), '5512345678');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -317,6 +503,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
         home: RegistrarPedidoPage(
           gestion: GestionPedidos(gateway),
           sucursalId: 1,
@@ -326,12 +515,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
     // 2 tazas: aplica el 10 % de mayoreo.
     await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Agregar producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Agregar producto'));
@@ -346,6 +538,7 @@ void main() {
     expect(tester.widget<Switch>(interruptor).value, isFalse);
     expect(find.textContaining('sin aplicar'), findsOneWidget);
 
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -353,6 +546,7 @@ void main() {
     final campos = find.byType(TextFormField);
     await tester.enterText(campos.at(0), 'Ana');
     await tester.enterText(campos.at(1), '5512345678');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -382,6 +576,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: BarroTheme.data,
+          localizationsDelegates: const [
+            mui.DefaultMaterialLocalizations.delegate,
+          ],
           home: const Scaffold(body: Text('Listado')),
         ),
       );
@@ -447,6 +644,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
         home: RegistrarPedidoPage(
           gestion: GestionPedidos(gateway),
           sucursalId: 1,
@@ -456,11 +656,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -469,6 +672,7 @@ void main() {
     final campos = find.byType(TextFormField);
     await tester.enterText(campos.at(0), 'Ana');
     await tester.enterText(campos.at(1), '5512345678');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -500,6 +704,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: BarroTheme.data,
+        localizationsDelegates: const [
+          mui.DefaultMaterialLocalizations.delegate,
+        ],
         home: RegistrarPedidoPage(
           gestion: GestionPedidos(gateway),
           sucursalId: 1,
@@ -509,11 +716,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Selecciona un producto'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Selecciona un producto'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -521,6 +731,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), 'Marco');
     await tester.enterText(find.byType(TextFormField).at(1), '5512345678');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -555,7 +766,7 @@ void main() {
       find.text('Cantidad del producto 1: La cantidad debe ser mayor a cero.'),
       findsOneWidget,
     );
-    expect(find.text('Agregar producto'), findsOneWidget);
+    expect(find.text('Productos del pedido'), findsOneWidget);
     await tester.ensureVisible(find.byTooltip('Quitar Taza'));
     await tester.tap(find.byTooltip('Quitar Taza'));
     await tester.pump();
