@@ -9,7 +9,6 @@ class ClasificacionScaffold extends StatelessWidget {
     required this.children,
     this.volver,
     this.footer,
-    this.mostrarNavegacion = false,
     this.onVolver,
     this.onActualizar,
     super.key,
@@ -18,13 +17,11 @@ class ClasificacionScaffold extends StatelessWidget {
   final String? volver;
   final List<Widget> children;
   final Widget? footer;
-  final bool mostrarNavegacion;
   final VoidCallback? onVolver;
   final Future<void> Function()? onActualizar;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    bottomNavigationBar: mostrarNavegacion ? const _NavegacionCatalogo() : null,
     body: SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) => Align(
@@ -103,54 +100,6 @@ class ClasificacionScaffold extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _NavegacionCatalogo extends StatelessWidget {
-  const _NavegacionCatalogo();
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(top: BorderSide(color: clasificacionBorde)),
-    ),
-    child: SafeArea(
-      top: false,
-      child: Center(
-        heightFactor: 1,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 430),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                for (final item in const [
-                  (Icons.home_outlined, 'Inicio'),
-                  (Icons.receipt_long_outlined, 'Pedidos'),
-                  (Icons.point_of_sale_outlined, 'Caja'),
-                  (Icons.inventory_2_outlined, 'Catálogo'),
-                  (Icons.apps_rounded, 'Más'),
-                ])
-                  IconButton(
-                    onPressed: null,
-                    tooltip: item.$2,
-                    style: IconButton.styleFrom(
-                      disabledForegroundColor: item.$2 == 'Catálogo'
-                          ? Colors.white
-                          : BarroTheme.secondary,
-                      disabledBackgroundColor: item.$2 == 'Catálogo'
-                          ? BarroTheme.primary
-                          : Colors.transparent,
-                    ),
-                    icon: Icon(item.$1, size: 23),
-                  ),
-              ],
             ),
           ),
         ),

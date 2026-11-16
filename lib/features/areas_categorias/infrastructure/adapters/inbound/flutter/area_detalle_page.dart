@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'widgets/clasificacion_cards.dart';
 import 'widgets/clasificacion_estado.dart';
 import 'widgets/clasificacion_scaffold.dart';
@@ -50,11 +49,16 @@ class AreaDetallePage extends StatelessWidget {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ClasificacionBoton('Editar área', onPressed: onEditarArea),
+              ClasificacionBoton(
+                'Editar área',
+                icono: Icons.edit_outlined,
+                onPressed: onEditarArea,
+              ),
               if (mostrarEliminar) ...[
                 const SizedBox(height: 12),
                 ClasificacionBoton(
                   'Eliminar área',
+                  icono: Icons.delete_outline,
                   destructivo: true,
                   outlined: true,
                   onPressed: onEliminarArea,
@@ -63,7 +67,11 @@ class AreaDetallePage extends StatelessWidget {
             ],
           ),
     children: [
-      const ClasificacionTitulo('Detalle del área'),
+      const ClasificacionTitulo(
+        'Detalle del área',
+        icono: iconoArea,
+        descripcion: 'Consulta el área y administra sus categorías.',
+      ),
       const SizedBox(height: 24),
       if (cargando || error != null)
         ClasificacionEstado(
@@ -74,23 +82,32 @@ class AreaDetallePage extends StatelessWidget {
       else ...[
         AreaCard(area: area, mostrarAcceso: false),
         const SizedBox(height: 28),
-        Text(
+        ClasificacionSeccion(
           'Categorías',
-          style: BarroTheme.type(21, 28, weight: FontWeight.w700),
+          icono: iconoCategoria,
+          contador: categorias.length,
         ),
         const SizedBox(height: 12),
-        ClasificacionBoton(
-          '+ Registrar categoría',
-          onPressed: onRegistrarCategoria,
-        ),
-        const SizedBox(height: 20),
-        Text(
-          '${categorias.length} ${categorias.length == 1 ? 'categoría registrada' : 'categorías registradas'}',
-          style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
-        ),
-        const SizedBox(height: 12),
+        if (categorias.isEmpty)
+          ClasificacionEmptyState(
+            compacto: true,
+            icono: iconoCategoria,
+            titulo: 'Sin categorías todavía',
+            descripcion: 'Agrega categorías para clasificar tus productos.',
+            accion: 'Registrar categoría',
+            onAccion: onRegistrarCategoria,
+          )
+        else ...[
+          ClasificacionBoton(
+            'Registrar categoría',
+            icono: Icons.add_rounded,
+            outlined: true,
+            onPressed: onRegistrarCategoria,
+          ),
+          const SizedBox(height: 16),
+        ],
         for (var i = 0; i < categorias.length; i++) ...[
-          if (i > 0) const SizedBox(height: 16),
+          if (i > 0) const SizedBox(height: 12),
           CategoriaCard(
             categoria: categorias[i],
             mostrarEliminar: mostrarEliminar,

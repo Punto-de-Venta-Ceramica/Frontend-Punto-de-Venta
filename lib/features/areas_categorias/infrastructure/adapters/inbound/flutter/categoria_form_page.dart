@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'widgets/clasificacion_scaffold.dart';
 import 'widgets/clasificacion_widgets.dart';
 
@@ -44,7 +43,8 @@ class CategoriaFormPage extends StatelessWidget {
     volver: 'Categorías',
     onVolver: ocupado ? null : onCancelar,
     footer: ClasificacionPie(
-      accion: 'Guardar',
+      accion: editando ? 'Guardar cambios' : 'Guardar categoría',
+      iconoAccion: Icons.check_rounded,
       onContinuar: onGuardar,
       onCancelar: onCancelar,
       ocupado: ocupado,
@@ -52,15 +52,16 @@ class CategoriaFormPage extends StatelessWidget {
     children: [
       ClasificacionTitulo(
         editando ? 'Editar categoría' : 'Registrar categoría',
+        icono: editando ? Icons.edit_outlined : iconoCategoria,
         descripcion: editando
-            ? 'Actualiza tu categoría.'
-            : 'Agrega una categoría a tu negocio.',
+            ? 'Actualiza el nombre o la descripción de la categoría.'
+            : 'Agrega una categoría dentro del área.',
       ),
       if (areaNombre != null) ...[
-        const SizedBox(height: 12),
-        Text(
-          'Área: $areaNombre',
-          style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+        const SizedBox(height: 16),
+        ClasificacionContexto(
+          etiqueta: 'Pertenece al área',
+          valor: areaNombre!,
         ),
       ],
       const SizedBox(height: 24),
@@ -69,8 +70,11 @@ class CategoriaFormPage extends StatelessWidget {
         const SizedBox(height: 16),
       ],
       ClasificacionCampo(
-        etiqueta: 'Nombre de la categoría *',
-        hint: 'Ej. Maceta',
+        etiqueta: 'Nombre de la categoría',
+        obligatorio: true,
+        icono: iconoCategoria,
+        hint: 'Ej. Macetas',
+        ayuda: 'Así aparecerá al clasificar tus productos.',
         valor: nombre,
         controller: nombreController,
         onChanged: onNombreChanged,
@@ -81,7 +85,8 @@ class CategoriaFormPage extends StatelessWidget {
       const SizedBox(height: 20),
       ClasificacionCampo(
         etiqueta: 'Descripción',
-        hint: 'Ej. Categoría enfocada a artículos de tipo maceta.',
+        opcional: true,
+        hint: 'Ej. Macetas de barro de distintos tamaños.',
         valor: descripcion,
         controller: descripcionController,
         onChanged: onDescripcionChanged,

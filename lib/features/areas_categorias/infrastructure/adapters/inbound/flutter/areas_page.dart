@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'widgets/clasificacion_cards.dart';
 import 'widgets/clasificacion_estado.dart';
 import 'widgets/clasificacion_scaffold.dart';
@@ -38,7 +37,6 @@ class AreasPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClasificacionScaffold(
     negocio: negocio,
-    mostrarNavegacion: true,
     volver: onVolver == null ? null : 'Mi negocio',
     onVolver: onVolver,
     onActualizar: onActualizar,
@@ -46,6 +44,7 @@ class AreasPage extends StatelessWidget {
       if (cargando || error != null) ...[
         const ClasificacionTitulo(
           'Áreas',
+          icono: iconoArea,
           descripcion: 'Administra las áreas de tu negocio.',
         ),
         ClasificacionEstado(
@@ -54,45 +53,57 @@ class AreasPage extends StatelessWidget {
           onReintentar: onReintentar,
         ),
       ] else if (areas.isEmpty && !filtrando) ...[
-        Text(
-          'Tus áreas, organizadas por negocio.',
-          style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+        const ClasificacionTitulo(
+          'Áreas',
+          icono: iconoArea,
+          descripcion: 'Organiza tu catálogo en áreas y categorías.',
         ),
         ClasificacionEmptyState(
-          simbolo: 'Á',
+          icono: iconoArea,
           titulo: 'Agrega tu primera área',
-          descripcion: 'Registra su nombre y descripción.',
+          descripcion:
+              'Las áreas agrupan tus categorías, por ejemplo Cocina o Jardín.',
           accion: 'Registrar mi primera área',
           onAccion: onRegistrar,
         ),
       ] else ...[
         const ClasificacionTitulo(
           'Áreas',
+          icono: iconoArea,
           descripcion: 'Administra las áreas de tu negocio.',
         ),
         const SizedBox(height: 20),
         ClasificacionCampo(
           etiqueta: 'Buscar área',
-          hint: 'Buscar área…',
+          hint: 'Buscar por nombre o descripción',
           controller: busquedaController,
           onChanged: onBuscar,
+          icono: Icons.search_rounded,
+          limpiable: true,
+          mostrarEtiqueta: false,
+          textInputAction: TextInputAction.search,
         ),
         const SizedBox(height: 16),
-        ClasificacionBoton('+ Registrar área', onPressed: onRegistrar),
+        ClasificacionBoton(
+          'Registrar área',
+          icono: Icons.add_rounded,
+          onPressed: onRegistrar,
+        ),
         const SizedBox(height: 24),
-        Text(
-          '${areas.length} ${filtrando ? (areas.length == 1 ? 'resultado' : 'resultados') : (areas.length == 1 ? 'área registrada' : 'áreas registradas')}',
-          style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
+        ClasificacionSeccion(
+          filtrando ? 'Resultados' : 'Tus áreas',
+          contador: areas.length,
         ),
         const SizedBox(height: 12),
         if (areas.isEmpty)
           const ClasificacionEmptyState(
-            simbolo: '?',
+            compacto: true,
+            icono: Icons.search_off_rounded,
             titulo: 'No se encontraron áreas',
             descripcion: 'Prueba con otro nombre o descripción.',
           ),
         for (var i = 0; i < areas.length; i++) ...[
-          if (i > 0) const SizedBox(height: 16),
+          if (i > 0) const SizedBox(height: 12),
           AreaCard(
             area: areas[i],
             onVer: onVerArea == null || areas[i].id == null

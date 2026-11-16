@@ -50,7 +50,7 @@ class ConfirmarEliminarClasificacionDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.priority_high,
+                    Icons.delete_outline,
                     color: BarroTheme.error,
                   ),
                 ),

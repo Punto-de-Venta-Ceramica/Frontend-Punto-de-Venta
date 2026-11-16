@@ -9,6 +9,7 @@ import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
 import 'pedido_detalle_page.dart';
 import 'registrar_pedido_page.dart';
+import 'terminar_pedido_dialog.dart';
 import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 import 'notificaciones_page.dart';
 import 'pedido_widgets.dart';
@@ -408,23 +409,7 @@ class _PedidosPageState extends State<PedidosPage> {
   Future<void> _terminar(ResumenPedido p) async {
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Terminar pedido'),
-        content: Text(
-          '¿Estás seguro de terminar el pedido de ${p.cliente}? '
-          'Ya no podrá cambiar de estado.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sí, terminar'),
-          ),
-        ],
-      ),
+      builder: (_) => TerminarPedidoDialog(pedido: p),
     );
     if (confirmar == true && mounted) {
       await _accion(() => widget.gestion.cambiarEstado(p.id, 'TERMINADO'));

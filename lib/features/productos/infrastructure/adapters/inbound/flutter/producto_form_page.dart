@@ -434,6 +434,9 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   Future<void> _guardar() async {
     if (_busy) return;
     FocusScope.of(context).unfocus();
+    // Un producto siempre debe quedar en al menos una sucursal (la API lo
+    // exige); en el registro por sucursal la sucursal ya viene dada.
+    if (!_edicion && !_unaPantalla && _seleccion.isEmpty) return;
     if (!_edicion) {
       final errores = _erroresExistencias();
       if (errores.isNotEmpty) {
@@ -1257,7 +1260,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
       ],
       if (_sucursales.isEmpty)
         const ProductoAviso(
-          'Este negocio aún no tiene sucursales. El producto se registrará sin existencias.',
+          'Este negocio aún no tiene sucursales. Registra una sucursal para poder agregar productos.',
         ),
       for (final s in _sucursales) _tarjetaSucursal(s, unica: unica),
       if (unica)
@@ -1312,6 +1315,7 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
   Widget build(BuildContext context) {
     final enSucursales = !_edicion && !_unaPantalla && _paso == 1;
     final unica = _sucursales.length == 1;
+    final faltaSucursal = enSucursales && _seleccion.isEmpty;
     final titulo = _edicion
         ? 'Editar producto'
         : enSucursales
@@ -1378,6 +1382,29 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
             ...(enSucursales ? _pasoSucursales() : _pasoDatos()),
             if (_unaPantalla) ..._seccionExistencia(),
             const SizedBox(height: 16),
+            if (faltaSucursal && _sucursales.isNotEmpty) ...[
+              Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: BarroTheme.secondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Selecciona al menos una sucursal para registrar el producto.',
+                      style: BarroTheme.type(
+                        12,
+                        18,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
             if (puedeCrearMas) ...[
               _interruptorCrearMas(),
               const SizedBox(height: 16),
@@ -1421,7 +1448,9 @@ class _ProductoFormPageState extends State<ProductoFormPage> {
                               : 'Registrar producto')
                         : 'Continuar',
                     busy: _busy,
-                    onPressed: _edicion || enSucursales
+                    onPressed: faltaSucursal
+                        ? null
+                        : _edicion || enSucursales
                         ? _guardar
                         : _unaPantalla
                         ? _registrarEnSucursal

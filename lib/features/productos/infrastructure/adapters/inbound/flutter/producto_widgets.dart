@@ -647,6 +647,8 @@ class ProductoBoton extends StatelessWidget {
             ? const Color(0xFFB91F16)
             : BarroTheme.primary,
         foregroundColor: Colors.white,
+        disabledBackgroundColor: BarroTheme.primary.withValues(alpha: 0.4),
+        disabledForegroundColor: Colors.white,
         minimumSize: const Size.fromHeight(52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
         textStyle: BarroTheme.type(14, 20, weight: FontWeight.w700),
@@ -1004,12 +1006,26 @@ class ProductoFiltroDesplegable extends StatelessWidget {
           return true;
         },
         onSelected: (o) => onChanged(o?.$1),
+        // Una sola línea con "…": en espacios angostos (dos filtros lado a
+        // lado) el nombre largo no debe partirse letra por letra.
+        dropdownBuilder: (context, item) => item == null
+            ? const SizedBox.shrink()
+            : Tooltip(
+                message: item.$2,
+                child: Text(
+                  item.$2,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
         decoratorProps: DropDownDecoratorProps(
           baseStyle: estilo.copyWith(fontWeight: FontWeight.w700),
           decoration: mui.InputDecoration(
             hintText: texto,
             hintStyle: estilo.copyWith(fontWeight: FontWeight.w700),
             prefixIcon: Icon(icono, size: 18, color: BarroTheme.primary),
+            prefixIconConstraints: const BoxConstraints(minWidth: 36),
             filled: true,
             fillColor: productoSuave,
             isDense: true,
@@ -1021,9 +1037,15 @@ class ProductoFiltroDesplegable extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
             ),
+            // Con un filtro aplicado se marca el borde para que se note
+            // que la lista está filtrada.
             enabledBorder: mui.OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
+              borderSide: seleccionado == null
+                  ? BorderSide.none
+                  : BorderSide(
+                      color: BarroTheme.primary.withValues(alpha: 0.55),
+                    ),
             ),
             focusedBorder: mui.OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -1036,9 +1058,12 @@ class ProductoFiltroDesplegable extends StatelessWidget {
             isVisible: true,
             icon: Icon(Icons.close, size: 16),
             padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(width: 28, height: 32),
             tooltip: 'Quitar filtro',
           ),
           dropdownButtonProps: DropdownButtonProps(
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(width: 28, height: 32),
             iconClosed: Icon(
               Icons.keyboard_arrow_down,
               size: 20,

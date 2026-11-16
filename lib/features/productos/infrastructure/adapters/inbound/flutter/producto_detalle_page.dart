@@ -117,34 +117,13 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
     }
   }
 
-  /// Quita el producto de una sucursal; el backend conserva su existencia
-  /// por si se vuelve a asignar, y exige que quede en al menos otra.
+  /// Quita el producto de una sucursal; el backend deja su existencia en 0
+  /// y exige que quede en al menos otra.
   Future<void> _quitar(ExistenciaSucursal e) async {
     if (_busy || _ajustandoId != null) return;
     final confirmado = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('¿Quitar de ${e.sucursalNombre}?'),
-        content: Text(
-          e.existencia > 0
-              ? 'El producto dejará de aparecer en esta sucursal. Tiene '
-                    '${formatoPiezas(e.existencia)} registradas; se conservarán '
-                    'si vuelves a asignarlo.'
-              : 'El producto dejará de aparecer en esta sucursal. Puedes '
-                    'volver a asignarlo cuando quieras.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            key: const ValueKey('confirmar-quitar-sucursal'),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Quitar'),
-          ),
-        ],
-      ),
+      builder: (_) => _QuitarSucursalDialog(existencia: e),
     );
     if (confirmado != true || !mounted) return;
     setState(() => _ajustandoId = e.inventarioId);
@@ -329,16 +308,6 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
             'Detalle del producto',
             style: BarroTheme.type(28, 36, weight: FontWeight.w700),
           ),
-          if (p.areaNombre != null || p.categoriaNombre != null) ...[
-            const SizedBox(height: 8),
-            if (p.areaNombre != null)
-              _DatoClasificacion(etiqueta: 'Área', valor: p.areaNombre!),
-            if (p.categoriaNombre != null)
-              _DatoClasificacion(
-                etiqueta: 'Categoría',
-                valor: p.categoriaNombre!,
-              ),
-          ],
           const SizedBox(height: 20),
           Container(
             width: double.infinity,
@@ -491,6 +460,13 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
               ],
             ),
           ),
+          if (p.areaNombre != null || p.categoriaNombre != null) ...[
+            const SizedBox(height: 16),
+            _PanelClasificacion(
+              area: p.areaNombre,
+              categoria: p.categoriaNombre,
+            ),
+          ],
           const SizedBox(height: 24),
           Text(
             _modoSucursal
@@ -595,28 +571,83 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
   }
 }
 
-/// "Área: Cocina y comedor" — etiqueta en gris y valor en negrita.
+/// Panel con el área y la categoría del producto, cada una con su icono.
+class _PanelClasificacion extends StatelessWidget {
+  const _PanelClasificacion({this.area, this.categoria});
+  final String? area;
+  final String? categoria;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: BarroTheme.border),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Column(
+      children: [
+        if (area != null)
+          _DatoClasificacion(
+            icono: Icons.space_dashboard_outlined,
+            etiqueta: 'Área',
+            valor: area!,
+          ),
+        if (area != null && categoria != null)
+          const Divider(height: 1, color: Color(0xFFEFE3DD)),
+        if (categoria != null)
+          _DatoClasificacion(
+            icono: Icons.sell_outlined,
+            etiqueta: 'Categoría',
+            valor: categoria!,
+          ),
+      ],
+    ),
+  );
+}
+
 class _DatoClasificacion extends StatelessWidget {
-  const _DatoClasificacion({required this.etiqueta, required this.valor});
+  const _DatoClasificacion({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+  });
+  final IconData icono;
   final String etiqueta;
   final String valor;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 2),
-    child: Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '$etiqueta: ',
-            style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8E7DF),
+            borderRadius: BorderRadius.circular(12),
           ),
-          TextSpan(
-            text: valor,
-            style: BarroTheme.type(14, 21, weight: FontWeight.w700),
+          child: Icon(icono, size: 21, color: BarroTheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                etiqueta,
+                style: BarroTheme.type(12, 17, color: BarroTheme.secondary),
+              ),
+              Text(
+                valor,
+                style: BarroTheme.type(15, 21, weight: FontWeight.w700),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -688,11 +719,41 @@ class _FilaExistencia extends StatelessWidget {
                   tooltip: 'Más opciones',
                   enabled: !ocupado,
                   icon: const Icon(Icons.more_vert),
+                  color: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 6,
+                  shadowColor: Colors.black26,
+                  position: PopupMenuPosition.under,
+                  offset: const Offset(0, 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(color: BarroTheme.border),
+                  ),
                   itemBuilder: (_) => [
                     PopupMenuItem<void>(
                       key: ValueKey('existencia-quitar-${e.inventarioId}'),
                       onTap: onQuitar,
-                      child: const Text('Quitar de esta sucursal'),
+                      height: 48,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.remove_circle_outline,
+                            size: 20,
+                            color: BarroTheme.error,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Quitar de esta sucursal',
+                            style: BarroTheme.type(
+                              14,
+                              20,
+                              weight: FontWeight.w600,
+                              color: BarroTheme.error,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1337,8 +1398,7 @@ class _FilaSinAsignar extends StatelessWidget {
 }
 
 /// Pide la existencia inicial al asignar el producto a una sucursal. Se cierra
-/// con `(cantidad: null)` si se deja vacío: 0 piezas en una asignación nueva, o
-/// la existencia que tenía si el producto ya estuvo en esa sucursal.
+/// con `(cantidad: null)` si se deja vacío: el producto empieza con 0 piezas.
 class _AsignarDialog extends StatefulWidget {
   const _AsignarDialog({required this.sucursal});
   final SucursalProducto sucursal;
@@ -1371,29 +1431,364 @@ class _AsignarDialogState extends State<_AsignarDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Asignar a ${widget.sucursal.nombre}'),
-    content: TextField(
-      key: const ValueKey('asignar-existencia'),
-      controller: _controller,
-      autofocus: true,
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: InputDecoration(
-        labelText: 'Existencia inicial (piezas)',
-        helperText:
-            'Vacío: 0 piezas, o las que tenía si ya estuvo en esta sucursal.',
-        helperMaxLines: 2,
-        errorText: _error,
+  Widget build(BuildContext context) {
+    OutlineInputBorder borde(Color color, [double ancho = 1]) =>
+        OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: color, width: ancho),
+        );
+    return Dialog(
+      backgroundColor: BarroTheme.background,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: productoSuave,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.add_business_outlined,
+                    size: 30,
+                    color: BarroTheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Asignar a sucursal',
+                textAlign: TextAlign.center,
+                style: BarroTheme.type(21, 28, weight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'El producto estará disponible para vender en esta sucursal.',
+                textAlign: TextAlign.center,
+                style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: BarroTheme.border),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: productoSuave,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.storefront_outlined,
+                        size: 21,
+                        color: BarroTheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.sucursal.nombre,
+                        style: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Existencia inicial',
+                style: BarroTheme.type(13, 19, weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                key: const ValueKey('asignar-existencia'),
+                controller: _controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: BarroTheme.type(18, 24, weight: FontWeight.w700),
+                onChanged: (_) {
+                  if (_error != null) setState(() => _error = null);
+                },
+                decoration: InputDecoration(
+                  hintText: '0',
+                  hintStyle: BarroTheme.type(
+                    18,
+                    24,
+                    weight: FontWeight.w700,
+                    color: BarroTheme.placeholder,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: BarroTheme.primary,
+                  ),
+                  suffixText: 'piezas',
+                  suffixStyle: BarroTheme.type(
+                    13,
+                    19,
+                    color: BarroTheme.secondary,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                  enabledBorder: borde(BarroTheme.border),
+                  focusedBorder: borde(BarroTheme.primary, 1.6),
+                  errorBorder: borde(BarroTheme.error),
+                  focusedErrorBorder: borde(BarroTheme.error, 1.6),
+                  errorText: _error,
+                  errorMaxLines: 2,
+                ),
+                onSubmitted: (_) => _confirmar(),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: productoSuave,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: BarroTheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Si lo dejas vacío, el producto empieza con 0 piezas.',
+                        style: BarroTheme.type(
+                          12,
+                          18,
+                          color: BarroTheme.secondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                onPressed: _confirmar,
+                style: FilledButton.styleFrom(
+                  backgroundColor: BarroTheme.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                ),
+                icon: const Icon(Icons.check_rounded, size: 20),
+                label: const Text('Asignar'),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: BarroTheme.secondary,
+                  minimumSize: const Size.fromHeight(44),
+                  textStyle: BarroTheme.type(14, 20, weight: FontWeight.w600),
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
       ),
-      onSubmitted: (_) => _confirmar(),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancelar'),
+    );
+  }
+}
+
+/// Confirmación para quitar el producto de una sucursal: muestra la sucursal,
+/// que sus piezas quedarán en 0 y acciones claras.
+class _QuitarSucursalDialog extends StatelessWidget {
+  const _QuitarSucursalDialog({required this.existencia});
+  final ExistenciaSucursal existencia;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = existencia;
+    return Dialog(
+      backgroundColor: BarroTheme.background,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFDE8E4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.remove_shopping_cart_outlined,
+                    size: 30,
+                    color: BarroTheme.error,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '¿Quitar de esta sucursal?',
+                textAlign: TextAlign.center,
+                style: BarroTheme.type(21, 28, weight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'El producto dejará de aparecer en la sucursal.',
+                textAlign: TextAlign.center,
+                style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: BarroTheme.border),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: productoSuave,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.storefront_outlined,
+                        size: 21,
+                        color: BarroTheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            e.sucursalNombre,
+                            style: BarroTheme.type(
+                              15,
+                              21,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${formatoPiezas(e.existencia)} registradas',
+                            style: BarroTheme.type(
+                              12,
+                              18,
+                              color: BarroTheme.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF0EE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: BarroTheme.error,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        e.existencia > 0
+                            ? 'Sus ${formatoPiezas(e.existencia)} quedarán en 0. '
+                                  'Si lo vuelves a asignar, indica de nuevo '
+                                  'su existencia.'
+                            : 'Puedes volver a asignarlo cuando quieras.',
+                        style: BarroTheme.type(
+                          12,
+                          18,
+                          color: BarroTheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                key: const ValueKey('confirmar-quitar-sucursal'),
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: BarroTheme.error,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                ),
+                icon: const Icon(Icons.remove_circle_outline, size: 20),
+                label: const Text('Quitar'),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: TextButton.styleFrom(
+                  foregroundColor: BarroTheme.secondary,
+                  minimumSize: const Size.fromHeight(44),
+                  textStyle: BarroTheme.type(14, 20, weight: FontWeight.w600),
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
       ),
-      FilledButton(onPressed: _confirmar, child: const Text('Asignar')),
-    ],
-  );
+    );
+  }
 }

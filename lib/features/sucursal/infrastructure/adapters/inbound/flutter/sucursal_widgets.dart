@@ -113,12 +113,16 @@ class SucursalBoton extends StatelessWidget {
     required this.onPressed,
     this.busy = false,
     this.destructivo = false,
+    this.icono,
     super.key,
   });
   final String texto;
   final VoidCallback? onPressed;
   final bool busy;
   final bool destructivo;
+
+  /// Icono opcional a la izquierda del texto.
+  final IconData? icono;
   @override
   Widget build(BuildContext context) => SizedBox(
     width: double.infinity,
@@ -139,7 +143,82 @@ class SucursalBoton extends StatelessWidget {
               height: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Text(texto, textAlign: TextAlign.center),
+          : icono == null
+          ? Text(texto, textAlign: TextAlign.center)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icono, size: 20),
+                const SizedBox(width: 8),
+                Flexible(child: Text(texto, textAlign: TextAlign.center)),
+              ],
+            ),
+    ),
+  );
+}
+
+/// Tarjeta blanca con encabezado de icono, usada para agrupar campos.
+class SucursalSeccion extends StatelessWidget {
+  const SucursalSeccion({
+    required this.icono,
+    required this.titulo,
+    required this.children,
+    this.subtitulo,
+    super.key,
+  });
+  final IconData icono;
+  final String titulo;
+  final String? subtitulo;
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: BarroTheme.border),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: sucursalSuave,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icono, size: 20, color: BarroTheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                  ),
+                  if (subtitulo != null)
+                    Text(
+                      subtitulo!,
+                      style: BarroTheme.type(
+                        12,
+                        18,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ...children,
+      ],
     ),
   );
 }
