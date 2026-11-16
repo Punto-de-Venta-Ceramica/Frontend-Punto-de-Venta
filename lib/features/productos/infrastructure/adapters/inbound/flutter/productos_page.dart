@@ -600,7 +600,7 @@ class _ProductosPageState extends State<ProductosPage> {
             ProductoImagen(
               key: ValueKey('producto-imagen-${p.id}'),
               size: 200,
-              ancho: double.infinity,
+              proporcion: 4 / 3,
               url: p.imagenUrl,
             ),
             const SizedBox(height: 12),

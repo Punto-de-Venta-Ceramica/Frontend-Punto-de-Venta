@@ -9,6 +9,10 @@ abstract interface class ExistenciasGateway {
   /// Devuelve la existencia resultante.
   Future<int> ajustar(int inventarioId, int cantidad);
 
+  /// Entrada de piezas (solo suma); es lo que puede hacer el empleado.
+  /// Devuelve la existencia resultante.
+  Future<int> agregar(int inventarioId, int cantidad);
+
   /// Asigna un producto ya registrado a otra sucursal. Sin [existencia]
   /// (null) empieza en 0, o conserva la que tenía si se había quitado de ahí.
   Future<ExistenciaSucursal> asignar(

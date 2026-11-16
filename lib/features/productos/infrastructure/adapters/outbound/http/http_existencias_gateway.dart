@@ -86,6 +86,18 @@ class HttpExistenciasGateway implements ExistenciasGateway {
   });
 
   @override
+  Future<int> agregar(int inventarioId, int cantidad) => _seguro(() async {
+    final json = _map(
+      await _api.requestJson(
+        'POST',
+        'api/inventario/$inventarioId/entradas',
+        body: {'cantidad': cantidad},
+      ),
+    );
+    return _existencia(json['existencia']);
+  });
+
+  @override
   Future<ExistenciaSucursal> asignar(
     int productoId,
     SucursalProducto sucursal,

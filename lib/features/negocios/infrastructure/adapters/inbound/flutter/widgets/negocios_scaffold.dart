@@ -64,12 +64,16 @@ class NegociosPrimaryButton extends StatelessWidget {
   const NegociosPrimaryButton({
     required this.label,
     this.destructivo = false,
+    this.icon,
+    this.cargando = false,
     this.onPressed,
     super.key,
   });
 
   final String label;
   final bool destructivo;
+  final IconData? icon;
+  final bool cargando;
   final VoidCallback? onPressed;
 
   @override
@@ -87,7 +91,26 @@ class NegociosPrimaryButton extends StatelessWidget {
       textStyle: BarroTheme.type(14, 20, weight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    child: Text(label, textAlign: TextAlign.center),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (cargando) ...[
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 10),
+        ] else if (icon != null) ...[
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+        ],
+        Flexible(child: Text(label, textAlign: TextAlign.center)),
+      ],
+    ),
   );
 }
 

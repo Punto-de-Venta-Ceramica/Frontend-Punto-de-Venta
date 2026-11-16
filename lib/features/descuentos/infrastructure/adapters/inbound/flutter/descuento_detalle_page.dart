@@ -6,6 +6,7 @@ import 'package:punto_de_venta/features/productos/infrastructure/adapters/inboun
 import '../../../../application/ports/inbound/gestion_descuentos_use_case.dart';
 import '../../../../domain/descuento.dart';
 import 'descuento_widgets.dart';
+import 'selector_producto_descuento.dart';
 
 /// Administración de un descuento: a qué productos, categorías y áreas se aplica.
 /// Se cierra con el [Descuento] actualizado.
@@ -94,14 +95,16 @@ class _DescuentoDetallePageState extends State<DescuentoDetallePage> {
       for (final e in _catalogo.de(destino))
         if (!_descuento.idsDe(destino).contains(e.id)) e,
     ];
-    final elegido = await showModalBottomSheet<ElementoCatalogo>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (_) =>
-          _SelectorElemento(destino: destino, opciones: disponibles),
-    );
+    final elegido = destino == DestinoDescuento.producto
+        ? await seleccionarProductoDescuento(context, productos: disponibles)
+        : await showModalBottomSheet<ElementoCatalogo>(
+            context: context,
+            isScrollControlled: true,
+            showDragHandle: true,
+            backgroundColor: Colors.white,
+            builder: (_) =>
+                _SelectorElemento(destino: destino, opciones: disponibles),
+          );
     if (elegido == null || !mounted) return;
     await _cambiar(
       () => widget.gestion.asignar(

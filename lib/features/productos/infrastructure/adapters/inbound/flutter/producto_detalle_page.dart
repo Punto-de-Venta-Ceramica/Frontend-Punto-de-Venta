@@ -199,15 +199,19 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
     }
   }
 
-  /// Suma (positiva) o resta (negativa) piezas en una sucursal.
-  Future<void> _ajustar(ExistenciaSucursal e, int cantidad) async {
+  /// Suma (positiva) o resta (negativa) piezas en una sucursal. Con [entrada]
+  /// solo se suma, que es lo único que puede hacer el empleado.
+  Future<void> _ajustar(
+    ExistenciaSucursal e,
+    int cantidad, {
+    bool entrada = false,
+  }) async {
     if (_busy || _ajustandoId != null) return;
     setState(() => _ajustandoId = e.inventarioId);
     try {
-      final nueva = await widget.gestion.ajustarExistencia(
-        e.inventarioId,
-        cantidad,
-      );
+      final nueva = entrada
+          ? await widget.gestion.agregarExistencia(e.inventarioId, cantidad)
+          : await widget.gestion.ajustarExistencia(e.inventarioId, cantidad);
       if (!mounted) return;
       setState(() {
         _producto = _producto.conExistencias([
@@ -235,6 +239,25 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
       builder: (_) => _AjusteDialog(existencia: e),
     );
     if (cantidad != null && mounted) _ajustar(e, cantidad);
+  }
+
+  /// Empleado: elige cuántas piezas agregar y confirma antes de guardarlas.
+  Future<void> _agregarExistencias(ExistenciaSucursal e) async {
+    if (_busy || _ajustandoId != null) return;
+    final cantidad = await showDialog<int>(
+      context: context,
+      builder: (_) => _AjusteDialog(existencia: e, soloAgregar: true),
+    );
+    if (cantidad == null || !mounted) return;
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ConfirmarEntradaDialog(
+        producto: _producto.nombre,
+        existencia: e,
+        cantidad: cantidad,
+      ),
+    );
+    if (confirmado == true && mounted) _ajustar(e, cantidad, entrada: true);
   }
 
   Future<void> _editar() async {
@@ -329,11 +352,45 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Solo visualización de la imagen del producto.
-                ProductoImagen(
-                  key: const ValueKey('producto-detalle-imagen'),
-                  size: 260,
-                  ancho: double.infinity,
-                  url: p.imagenUrl,
+                Builder(
+                  builder: (context) {
+                    final imagen = ProductoImagen(
+                      key: const ValueKey('producto-detalle-imagen'),
+                      size: 260,
+                      proporcion: 1,
+                      url: p.imagenUrl,
+                    );
+                    final url = p.imagenUrl?.trim() ?? '';
+                    if (url.isEmpty) return imagen;
+                    return Semantics(
+                      button: true,
+                      label: 'Ver imagen completa',
+                      child: GestureDetector(
+                        onTap: () => mostrarImagenProducto(context, url),
+                        child: Stack(
+                          children: [
+                            imagen,
+                            Positioned(
+                              right: 10,
+                              bottom: 10,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.zoom_out_map_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -471,8 +528,12 @@ class _ProductoDetallePageState extends State<ProductoDetallePage> {
                           cargando: _ajustandoId == e.inventarioId,
                           onAjustar: (c) => _ajustar(e, c),
                           onCantidad: () => _ajustarCantidad(e),
-                          // Ajustar inventario es solo del propietario (HU-05).
+                          // Ajustar inventario es solo del propietario (HU-05);
+                          // el empleado solo puede agregar piezas.
                           editable: !widget.soloLectura,
+                          onAgregar: widget.soloLectura
+                              ? () => _agregarExistencias(e)
+                              : null,
                           // Solo el propietario, desde el negocio, y si queda
                           // al menos otra sucursal con el producto.
                           onQuitar:
@@ -568,6 +629,7 @@ class _FilaExistencia extends StatelessWidget {
     required this.onAjustar,
     required this.onCantidad,
     this.onQuitar,
+    this.onAgregar,
     this.editable = true,
   });
   final ExistenciaSucursal existencia;
@@ -578,6 +640,9 @@ class _FilaExistencia extends StatelessWidget {
 
   /// Sin permiso de ajuste (empleado) solo se muestra la existencia.
   final bool editable;
+
+  /// Empleado: botón para agregar piezas (nunca quitar).
+  final VoidCallback? onAgregar;
 
   /// Null cuando no se puede quitar (modo sucursal, empleado o última sucursal).
   final VoidCallback? onQuitar;
@@ -635,6 +700,38 @@ class _FilaExistencia extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ExistenciaBarra(e.existencia),
+          if (!editable && onAgregar != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 46,
+              child: cargando
+                  ? const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : FilledButton.tonalIcon(
+                      key: ValueKey('existencia-agregar-${e.inventarioId}'),
+                      onPressed: ocupado ? null : onAgregar,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: productoSuave,
+                        foregroundColor: BarroTheme.primary,
+                        textStyle: BarroTheme.type(
+                          14,
+                          20,
+                          weight: FontWeight.w700,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add_box_outlined, size: 20),
+                      label: const Text('Agregar existencias'),
+                    ),
+            ),
+          ],
           if (editable) ...[
             const SizedBox(height: 8),
             Row(
@@ -680,9 +777,11 @@ class _FilaExistencia extends StatelessWidget {
 }
 
 /// Pide cuántas piezas agregar o quitar; se cierra con la cantidad con signo.
+/// Con [soloAgregar] (empleado) no se ofrece quitar.
 class _AjusteDialog extends StatefulWidget {
-  const _AjusteDialog({required this.existencia});
+  const _AjusteDialog({required this.existencia, this.soloAgregar = false});
   final ExistenciaSucursal existencia;
+  final bool soloAgregar;
   @override
   State<_AjusteDialog> createState() => _AjusteDialogState();
 }
@@ -822,7 +921,9 @@ class _AjusteDialogState extends State<_AjusteDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Ajustar existencia',
+                        widget.soloAgregar
+                            ? 'Agregar existencias'
+                            : 'Ajustar existencia',
                         style: BarroTheme.type(
                           12,
                           17,
@@ -886,30 +987,32 @@ class _AjusteDialogState extends State<_AjusteDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            // Selector Agregar / Quitar.
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: productoSuave,
-                borderRadius: BorderRadius.circular(16),
+            // Selector Agregar / Quitar (el empleado solo agrega).
+            if (!widget.soloAgregar) ...[
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: productoSuave,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    _opcion(
+                      valor: true,
+                      icono: Icons.add_circle_outline,
+                      texto: 'Agregar',
+                    ),
+                    const SizedBox(width: 4),
+                    _opcion(
+                      valor: false,
+                      icono: Icons.remove_circle_outline,
+                      texto: 'Quitar',
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  _opcion(
-                    valor: true,
-                    icono: Icons.add_circle_outline,
-                    texto: 'Agregar',
-                  ),
-                  const SizedBox(width: 4),
-                  _opcion(
-                    valor: false,
-                    icono: Icons.remove_circle_outline,
-                    texto: 'Quitar',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
             TextField(
               key: const ValueKey('existencia-cantidad'),
               controller: _controller,
@@ -919,7 +1022,9 @@ class _AjusteDialogState extends State<_AjusteDialog> {
               style: BarroTheme.type(18, 24, weight: FontWeight.w700),
               onChanged: (_) => setState(() => _error = null),
               decoration: InputDecoration(
-                labelText: 'Cantidad de piezas',
+                labelText: widget.soloAgregar
+                    ? 'Piezas a agregar'
+                    : 'Cantidad de piezas',
                 hintText: '0',
                 errorText: _error,
                 errorMaxLines: 2,
@@ -1016,8 +1121,163 @@ class _AjusteDialogState extends State<_AjusteDialog> {
                       ),
                     ),
                     onPressed: _confirmar,
+                    icon: Icon(
+                      widget.soloAgregar
+                          ? Icons.arrow_forward_rounded
+                          : Icons.check_rounded,
+                      size: 20,
+                    ),
+                    label: Text(widget.soloAgregar ? 'Continuar' : 'Aplicar'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Confirmación que ve el empleado antes de sumar piezas a la existencia.
+class _ConfirmarEntradaDialog extends StatelessWidget {
+  const _ConfirmarEntradaDialog({
+    required this.producto,
+    required this.existencia,
+    required this.cantidad,
+  });
+  final String producto;
+  final ExistenciaSucursal existencia;
+  final int cantidad;
+
+  @override
+  Widget build(BuildContext context) {
+    final actual = existencia.existencia;
+    final negrita = BarroTheme.type(14, 21, weight: FontWeight.w700);
+    return Dialog(
+      backgroundColor: BarroTheme.background,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: BarroTheme.success.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.add_box_outlined,
+                  size: 28,
+                  color: BarroTheme.success,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '¿Agregar ${formatoPiezas(cantidad)}?',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(20, 26, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Se sumarán a '),
+                  TextSpan(text: producto, style: negrita),
+                  const TextSpan(text: ' en '),
+                  TextSpan(text: existencia.sucursalNombre, style: negrita),
+                  const TextSpan(text: '.'),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(14, 21, color: BarroTheme.secondary),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: BarroTheme.border),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    formatoPiezas(actual),
+                    style: BarroTheme.type(
+                      15,
+                      21,
+                      weight: FontWeight.w600,
+                      color: BarroTheme.secondary,
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 18,
+                      color: BarroTheme.success,
+                    ),
+                  ),
+                  Text(
+                    formatoPiezas(actual + cantidad),
+                    style: BarroTheme.type(
+                      16,
+                      22,
+                      weight: FontWeight.w700,
+                      color: BarroTheme.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Solo el propietario puede corregir o quitar piezas después.',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(12, 17, color: BarroTheme.placeholder),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      foregroundColor: BarroTheme.secondary,
+                      side: const BorderSide(color: BarroTheme.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    key: const ValueKey('existencia-confirmar-agregar'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      backgroundColor: BarroTheme.success,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(context, true),
                     icon: const Icon(Icons.check_rounded, size: 20),
-                    label: const Text('Aplicar'),
+                    label: const Text('Sí, agregar'),
                   ),
                 ),
               ],

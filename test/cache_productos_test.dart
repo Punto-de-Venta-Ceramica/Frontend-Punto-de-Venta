@@ -72,6 +72,10 @@ class _Existencias implements ExistenciasGateway {
       existencia += cantidad;
 
   @override
+  Future<int> agregar(int inventarioId, int cantidad) async =>
+      existencia += cantidad;
+
+  @override
   Future<ExistenciaSucursal> asignar(
     int productoId,
     SucursalProducto sucursal,

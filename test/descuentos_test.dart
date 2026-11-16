@@ -539,7 +539,9 @@ void main() {
 
         final c = await HttpDescuentoGateway(api).catalogo(7);
 
-        expect(c.productos.single.contexto, 'Ollas');
+        expect(c.productos.single.contexto, 'Cocina · Ollas');
+        expect(c.productos.single.areaId, 20);
+        expect(c.productos.single.categoriaId, 10);
         expect(c.categorias.single.contexto, 'Cocina');
         expect(c.areas.single.nombre, 'Cocina');
       },

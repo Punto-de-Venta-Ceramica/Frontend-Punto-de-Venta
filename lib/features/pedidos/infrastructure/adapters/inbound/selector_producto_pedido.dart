@@ -3,17 +3,6 @@ import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import '../../../domain/pedido.dart';
 
-/// Clave para ordenar y buscar sin distinguir mayúsculas ni acentos.
-String claveProductoPedido(String texto) => texto
-    .trim()
-    .toLowerCase()
-    .replaceAll(RegExp('[áàäâ]'), 'a')
-    .replaceAll(RegExp('[éèëê]'), 'e')
-    .replaceAll(RegExp('[íìïî]'), 'i')
-    .replaceAll(RegExp('[óòöô]'), 'o')
-    .replaceAll(RegExp('[úùüû]'), 'u')
-    .replaceAll('ñ', 'n{');
-
 /// Abre la hoja para elegir un producto del catálogo. Devuelve el id elegido o
 /// null si se cierra sin elegir. Los productos de [agregados] ya están en el
 /// pedido: se muestran marcados y no se pueden volver a elegir.
@@ -66,9 +55,9 @@ class _SelectorProductoPedidoState extends State<_SelectorProductoPedido> {
     super.initState();
     _ordenados = List.of(widget.productos)
       ..sort((a, b) {
-        final orden = claveProductoPedido(
+        final orden = claveBusqueda(
           a.nombre,
-        ).compareTo(claveProductoPedido(b.nombre));
+        ).compareTo(claveBusqueda(b.nombre));
         return orden != 0 ? orden : a.id.compareTo(b.id);
       });
   }
@@ -89,9 +78,8 @@ class _SelectorProductoPedidoState extends State<_SelectorProductoPedido> {
       final o = opcion(p);
       if (o != null) unicas[o.$1] = o.$2;
     }
-    return [for (final e in unicas.entries) (e.key, e.value)]..sort(
-      (a, b) => claveProductoPedido(a.$2).compareTo(claveProductoPedido(b.$2)),
-    );
+    return [for (final e in unicas.entries) (e.key, e.value)]
+      ..sort((a, b) => claveBusqueda(a.$2).compareTo(claveBusqueda(b.$2)));
   }
 
   List<(int, String)> get _areas => _opciones(
@@ -119,13 +107,13 @@ class _SelectorProductoPedidoState extends State<_SelectorProductoPedido> {
 
   @override
   Widget build(BuildContext context) {
-    final texto = claveProductoPedido(_busqueda.text);
+    final texto = claveBusqueda(_busqueda.text);
     final coincidencias = _ordenados
         .where(
           (p) =>
               (_areaId == null || p.areaId == _areaId) &&
               (_categoriaId == null || p.categoriaId == _categoriaId) &&
-              claveProductoPedido(p.nombre).contains(texto),
+              claveBusqueda(p.nombre).contains(texto),
         )
         .toList();
     final areas = _areas;
