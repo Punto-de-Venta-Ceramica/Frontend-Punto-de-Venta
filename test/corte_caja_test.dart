@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'notificaciones_test_utils.dart';
 import 'package:punto_de_venta/features/corte_caja/application/ports/outbound/corte_caja_gateway.dart';
 import 'package:punto_de_venta/features/corte_caja/application/services/gestion_corte_caja.dart';
 import 'package:punto_de_venta/features/corte_caja/domain/corte_caja.dart';
@@ -211,56 +212,57 @@ void main() {
   });
 
   group('Corte de caja - Widgets', () {
-    testWidgets('Muestra pantalla de apertura cuando la caja está cerrada', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgetsConNotificaciones(
+      'Muestra pantalla de apertura cuando la caja está cerrada',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final fake = FakeCorteCajaGateway()..corteActivo = null;
-      final gestion = GestionCorteCaja(fake);
-      var ventasRegistradas = 0;
+        final fake = FakeCorteCajaGateway()..corteActivo = null;
+        final gestion = GestionCorteCaja(fake);
+        var ventasRegistradas = 0;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CorteCajaPage(
-            gestion: gestion,
-            sucursalId: 1,
-            sucursalNombre: 'Centro',
-            esPropietario: true,
-            onRegistrarVenta: (_) async {
-              ventasRegistradas++;
-              return true;
-            },
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CorteCajaPage(
+              gestion: gestion,
+              sucursalId: 1,
+              sucursalNombre: 'Centro',
+              esPropietario: true,
+              onRegistrarVenta: (_) async {
+                ventasRegistradas++;
+                return true;
+              },
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Caja cerrada'), findsOneWidget);
-      expect(find.text('Abrir turno de caja'), findsOneWidget);
-      expect(find.text('Registrar venta'), findsNothing);
+        expect(find.text('Caja cerrada'), findsOneWidget);
+        expect(find.text('Abrir turno de caja'), findsOneWidget);
+        expect(find.text('Registrar venta'), findsNothing);
 
-      // Abre el turno
-      final botonAbrir = find.text('Abrir turno de caja');
-      await tester.ensureVisible(botonAbrir);
-      await tester.tap(botonAbrir);
-      await tester.pumpAndSettle();
+        // Abre el turno
+        final botonAbrir = find.text('Abrir turno de caja');
+        await tester.ensureVisible(botonAbrir);
+        await tester.tap(botonAbrir);
+        await tester.pumpAndSettle();
 
-      expect(fake.abrirCorteLlamadas, 1);
-      expect(find.text('Corte de caja'), findsOneWidget);
-      final accesoVentas = find.text('Registrar venta');
-      await tester.ensureVisible(accesoVentas);
-      await tester.tap(accesoVentas);
-      await tester.pumpAndSettle();
+        expect(fake.abrirCorteLlamadas, 1);
+        expect(find.text('Corte de caja'), findsOneWidget);
+        final accesoVentas = find.text('Registrar venta');
+        await tester.ensureVisible(accesoVentas);
+        await tester.tap(accesoVentas);
+        await tester.pumpAndSettle();
 
-      expect(ventasRegistradas, 1);
-      expect(fake.consultasCorteActivo, 2);
-    });
+        expect(ventasRegistradas, 1);
+        expect(fake.consultasCorteActivo, 2);
+      },
+    );
 
-    testWidgets(
+    testWidgetsConNotificaciones(
       'Muestra resumen del día, revisión de efectivo y badge de diferencia en corte activo',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1400);
@@ -298,79 +300,84 @@ void main() {
       },
     );
 
-    testWidgets('el empleado registra ventas desde su caja (HU-05)', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      var abiertas = 0;
-      final fake = FakeCorteCajaGateway()..corteActivo = _crearCorteEjemplo();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CorteCajaPage(
-            gestion: GestionCorteCaja(fake),
-            sucursalId: 1,
-            sucursalNombre: 'Centro',
-            esPropietario: false,
-            onRegistrarVenta: (_) async {
-              abiertas++;
-              return false;
-            },
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final boton = find.text('Registrar venta');
-      expect(boton, findsOneWidget);
-      await tester.ensureVisible(boton);
-      await tester.pumpAndSettle();
-      await tester.tap(boton);
-      await tester.pumpAndSettle();
-      expect(abiertas, 1);
-    });
-
-    testWidgets('el historial de cortes solo lo ve el propietario', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      Future<void> abrir({required bool propietario, CorteCaja? corte}) async {
-        final fake = FakeCorteCajaGateway()..corteActivo = corte;
+    testWidgetsConNotificaciones(
+      'el empleado registra ventas desde su caja (HU-05)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var abiertas = 0;
+        final fake = FakeCorteCajaGateway()..corteActivo = _crearCorteEjemplo();
         await tester.pumpWidget(
           MaterialApp(
             home: CorteCajaPage(
-              key: UniqueKey(),
               gestion: GestionCorteCaja(fake),
               sucursalId: 1,
               sucursalNombre: 'Centro',
-              esPropietario: propietario,
+              esPropietario: false,
+              onRegistrarVenta: (_) async {
+                abiertas++;
+                return false;
+              },
             ),
           ),
         );
         await tester.pumpAndSettle();
-      }
 
-      // Caja cerrada: ni el ícono ni el botón de historial para el empleado.
-      await abrir(propietario: false);
-      expect(find.byIcon(Icons.history), findsNothing);
-      expect(find.text('Ver historial de cortes anteriores'), findsNothing);
-      // Con turno abierto, el empleado sigue pudiendo hacer el corte.
-      await abrir(propietario: false, corte: _crearCorteEjemplo());
-      expect(find.byIcon(Icons.history), findsNothing);
-      expect(find.text('Realizar corte'), findsOneWidget);
+        final boton = find.text('Registrar venta');
+        expect(boton, findsOneWidget);
+        await tester.ensureVisible(boton);
+        await tester.pumpAndSettle();
+        await tester.tap(boton);
+        await tester.pumpAndSettle();
+        expect(abiertas, 1);
+      },
+    );
 
-      await abrir(propietario: true);
-      expect(find.byIcon(Icons.history), findsOneWidget);
-      expect(find.text('Ver historial de cortes anteriores'), findsOneWidget);
-    });
+    testWidgetsConNotificaciones(
+      'el historial de cortes solo lo ve el propietario',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-    testWidgets(
+        Future<void> abrir({
+          required bool propietario,
+          CorteCaja? corte,
+        }) async {
+          final fake = FakeCorteCajaGateway()..corteActivo = corte;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: CorteCajaPage(
+                key: UniqueKey(),
+                gestion: GestionCorteCaja(fake),
+                sucursalId: 1,
+                sucursalNombre: 'Centro',
+                esPropietario: propietario,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+        }
+
+        // Caja cerrada: ni el ícono ni el botón de historial para el empleado.
+        await abrir(propietario: false);
+        expect(find.byIcon(Icons.history), findsNothing);
+        expect(find.text('Ver historial de cortes anteriores'), findsNothing);
+        // Con turno abierto, el empleado sigue pudiendo hacer el corte.
+        await abrir(propietario: false, corte: _crearCorteEjemplo());
+        expect(find.byIcon(Icons.history), findsNothing);
+        expect(find.text('Realizar corte'), findsOneWidget);
+
+        await abrir(propietario: true);
+        expect(find.byIcon(Icons.history), findsOneWidget);
+        expect(find.text('Ver historial de cortes anteriores'), findsOneWidget);
+      },
+    );
+
+    testWidgetsConNotificaciones(
       'DetalleMovimientosPage muestra productos y alerta de cancelación',
       (tester) async {
         final corte = _crearCorteEjemplo();
@@ -396,32 +403,33 @@ void main() {
       },
     );
 
-    testWidgets('CorteRealizadoPage muestra el respaldo contable del corte', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgetsConNotificaciones(
+      'CorteRealizadoPage muestra el respaldo contable del corte',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      final corte = _crearCorteEjemplo();
+        final corte = _crearCorteEjemplo();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CorteRealizadoPage(corte: corte, esPropietario: true),
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CorteRealizadoPage(corte: corte, esPropietario: true),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Corte realizado'), findsOneWidget);
-      expect(find.text('Tu respaldo contable está listo'), findsOneWidget);
-      expect(find.text('Ventas directas'), findsOneWidget);
-      expect(find.text('Anticipos de pedidos'), findsOneWidget);
-      expect(find.text('Liquidaciones de pedidos'), findsOneWidget);
-      expect(find.text('Cancelaciones'), findsOneWidget);
-      expect(find.text('Efectivo neto'), findsOneWidget);
-      expect(find.text('Tarjeta'), findsOneWidget);
-      expect(find.text('Volver a caja'), findsOneWidget);
-    });
+        expect(find.text('Corte realizado'), findsOneWidget);
+        expect(find.text('Tu respaldo contable está listo'), findsOneWidget);
+        expect(find.text('Ventas directas'), findsOneWidget);
+        expect(find.text('Anticipos de pedidos'), findsOneWidget);
+        expect(find.text('Liquidaciones de pedidos'), findsOneWidget);
+        expect(find.text('Cancelaciones'), findsOneWidget);
+        expect(find.text('Efectivo neto'), findsOneWidget);
+        expect(find.text('Tarjeta'), findsOneWidget);
+        expect(find.text('Volver a caja'), findsOneWidget);
+      },
+    );
   });
 }

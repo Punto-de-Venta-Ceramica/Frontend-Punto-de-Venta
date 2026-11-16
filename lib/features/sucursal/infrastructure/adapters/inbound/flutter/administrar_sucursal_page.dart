@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../domain/sucursal.dart';
 import 'sucursal_widgets.dart';
 
@@ -52,8 +53,9 @@ class AdministrarSucursalPage extends StatelessWidget {
   }
 
   void _noDisponible(BuildContext context, String modulo) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('El módulo de $modulo aún no está disponible.')),
+      NotificacionServicio.info(
+        context,
+        'El módulo de $modulo aún no está disponible.',
       );
 
   Widget _opcion(

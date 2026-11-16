@@ -14,6 +14,7 @@ import 'notificaciones_page.dart';
 import 'pedido_widgets.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 
 class PedidosPage extends StatefulWidget {
   const PedidosPage({
@@ -121,9 +122,7 @@ class _PedidosPageState extends State<PedidosPage> {
       });
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
+        NotificacionServicio.error(context, e.message);
       }
     } finally {
       if (mounted && carga == _carga) setState(() => _cargandoMas = false);
@@ -202,9 +201,7 @@ class _PedidosPageState extends State<PedidosPage> {
       if (mounted) await _cargar();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
+        NotificacionServicio.error(context, e.message);
       }
     }
   }

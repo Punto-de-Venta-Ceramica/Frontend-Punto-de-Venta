@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
-import 'package:punto_de_venta/features/notificaciones/infrastructure/boton_notificaciones.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 
 class IconoFalso implements IndicadorIcono {
   final valores = <int>[];
@@ -76,9 +76,7 @@ void main() {
     final conteo = ValueNotifier<int?>(0);
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: BotonNotificaciones(conteo: conteo, onPressed: () {}),
-        ),
+        home: Scaffold(body: BarroHeader(conteoNotificaciones: conteo)),
       ),
     );
     expect(find.text('0'), findsNothing);
@@ -88,7 +86,6 @@ void main() {
     conteo.value = 143;
     await tester.pump();
     expect(find.text('99+'), findsOneWidget);
-    expect(find.byTooltip('Notificaciones: 143 sin leer'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     conteo.dispose();
   });

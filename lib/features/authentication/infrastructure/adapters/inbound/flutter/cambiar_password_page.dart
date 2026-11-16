@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
 import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
@@ -93,10 +93,9 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
       );
 
       if (!mounted) return;
-      AlertaServicio.actualizacion(
+      NotificacionServicio.actualizacion(
         context,
-        'Contraseña',
-        detalle: 'Tu contraseña se cambió correctamente.',
+        'Tu contraseña se cambió correctamente.',
       );
       widget.onExito?.call();
       if (!widget.obligatorio) {

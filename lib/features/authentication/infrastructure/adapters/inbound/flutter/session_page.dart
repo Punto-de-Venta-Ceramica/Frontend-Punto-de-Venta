@@ -6,6 +6,7 @@ import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
 import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
 import 'package:punto_de_venta/features/authentication/infrastructure/adapters/inbound/flutter/cambiar_password_dialog.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 
 class SessionPage extends StatefulWidget {
   const SessionPage({
@@ -96,10 +97,9 @@ class _SessionPageState extends State<SessionPage> with WidgetsBindingObserver {
     widget.clearSession();
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
     if (expired) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tu sesión expiró. Inicia sesión de nuevo.'),
-        ),
+      NotificacionServicio.advertencia(
+        context,
+        'Tu sesión expiró. Inicia sesión de nuevo.',
       );
     }
   }

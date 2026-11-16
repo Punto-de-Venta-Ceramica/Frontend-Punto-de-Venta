@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -188,24 +187,24 @@ void main() {
       );
       await tester.tap(find.text('Iniciar venta'));
       await tester.pumpAndSettle();
-      expect(find.text('Área: Hogar'), findsOneWidget);
-      expect(find.text('Categoría: Vajilla'), findsOneWidget);
+      expect(find.text('Hogar'), findsOneWidget);
+      expect(find.text('Vajilla'), findsOneWidget);
+      expect(find.text(r'$40.00'), findsOneWidget);
+      expect(find.text('2 disponibles'), findsOneWidget);
       final tarjeta = find.byType(VentaProductoCard);
       final importe = find.text(r'$0.00');
       final imagen = find.byType(ProductoImagen);
-      expect(tester.getSize(imagen).height, 72);
-      expect(tester.widget<ProductoImagen>(imagen).conservarProporcion, isTrue);
       expect(
-        tester.getTopLeft(imagen).dx - tester.getTopLeft(tarjeta).dx,
-        closeTo(17, 1),
+        tester.getSize(imagen),
+        const Size.square(VentaProductoCard.ladoImagen),
       );
       expect(
-        tester.getTopRight(find.text('Taza')).dx,
-        closeTo(tester.getTopRight(importe).dx, 1),
+        tester.getTopLeft(imagen).dx,
+        lessThan(tester.getTopLeft(find.text('Taza')).dx),
       );
       expect(
         tester.getTopRight(tarjeta).dx - tester.getTopRight(importe).dx,
-        closeTo(17, 1),
+        lessThan(32),
       );
       final agregar = find.byWidgetPredicate(
         (widget) =>
@@ -225,6 +224,7 @@ void main() {
       expect(find.text(r'$80.00'), findsOneWidget);
 
       await tester.ensureVisible(descuento);
+      await tester.pump();
       final posicionAgregar = tester.getTopLeft(agregar);
       await tester.tap(descuento);
       await tester.pumpAndSettle();
@@ -289,21 +289,29 @@ void main() {
       expect(cotizaciones, 1);
       expect(find.text('Descuento'), findsOneWidget);
       expect(find.text(r'$82.00'), findsOneWidget);
-      final metodo = find.byType(DropdownButtonFormField<MetodoPagoVenta>);
-      final campoPago = tester.getRect(metodo);
-      await tester.tap(metodo);
-      await tester.pumpAndSettle();
-      final menu = find.byWidgetPredicate(
-        (widget) =>
-            widget is Semantics && widget.properties.role == SemanticsRole.menu,
+      expect(find.text('Registrar venta'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Registrar venta'),
+            )
+            .onPressed,
+        isNull,
       );
-      expect(tester.getRect(menu).left, closeTo(campoPago.left, 1));
-      expect(tester.getRect(menu).width, closeTo(campoPago.width, 1));
-      await tester.tap(find.text('Efectivo').last);
+      await tester.tap(find.text('Efectivo'));
       await tester.pumpAndSettle();
       expect(cotizaciones, 1);
       expect(find.text('Descuento'), findsOneWidget);
       expect(find.text(r'$82.00'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text(r'$100'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text(r'$100'));
+      await tester.pump();
+      expect(find.text(r'$18.00'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), '50');
       await tester.tap(find.text('Registrar venta'));

@@ -9,7 +9,6 @@ import '../../../../domain/negocio.dart';
 class MisNegociosPage extends StatelessWidget {
   const MisNegociosPage({
     this.negocios = const [],
-    this.mensajeExito,
     this.cargando = false,
     this.error,
     this.onRegistrar,
@@ -23,7 +22,6 @@ class MisNegociosPage extends StatelessWidget {
   });
 
   final List<Negocio> negocios;
-  final String? mensajeExito;
   final bool cargando;
   final String? error;
   final VoidCallback? onRegistrar;
@@ -46,32 +44,6 @@ class MisNegociosPage extends StatelessWidget {
             label: const Text('Cerrar sesión'),
           ),
     children: [
-      if (mensajeExito != null) ...[
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFECF7F1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                size: 18,
-                color: BarroTheme.success,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  mensajeExito!,
-                  style: BarroTheme.type(12, 18, color: BarroTheme.success),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
       Text(
         'Mis negocios',
         style: BarroTheme.type(30, 36, weight: FontWeight.w700),

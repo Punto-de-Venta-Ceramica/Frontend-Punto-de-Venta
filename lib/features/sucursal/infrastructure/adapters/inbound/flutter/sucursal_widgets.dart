@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../domain/sucursal.dart';
 
 const sucursalSuave = Color(0xFFF7E7DF);
@@ -242,12 +243,9 @@ class SucursalNavegacion extends StatelessWidget {
                         onMas!();
                         return;
                       }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'El módulo de ${item.$2.toLowerCase()} aún no está disponible.',
-                          ),
-                        ),
+                      NotificacionServicio.info(
+                        context,
+                        'El módulo de ${item.$2.toLowerCase()} aún no está disponible.',
                       );
                     },
                     icon: Icon(item.$1, size: 25),

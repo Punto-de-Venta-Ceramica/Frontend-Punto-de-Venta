@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'notificaciones_test_utils.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:punto_de_venta/main.dart';
@@ -8,7 +9,7 @@ import 'memory_session_store.dart';
 
 void main() {
   for (final rechazar in [false, true]) {
-    testWidgets(
+    testWidgetsConNotificaciones(
       'Login → sucursales con JWT${rechazar ? ' → 401 vuelve al login' : ''}',
       (tester) async {
         tester.view.physicalSize = const Size(430, 932);

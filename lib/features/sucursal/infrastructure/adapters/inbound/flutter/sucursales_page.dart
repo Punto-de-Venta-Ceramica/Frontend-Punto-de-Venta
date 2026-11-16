@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/areas_categorias/infrastructure/adapters/inbound/flutter/widgets/acceso_areas_categorias.dart';
 import '../../../../application/ports/inbound/gestion_sucursales_use_case.dart';
@@ -42,7 +42,6 @@ class _SucursalesPageState extends State<SucursalesPage> {
   List<Sucursal> _sucursales = [];
   bool _busy = true;
   String? _error;
-  String? _mensaje;
   int _carga = 0;
   bool _registroAbierto = false;
   @override
@@ -103,7 +102,6 @@ class _SucursalesPageState extends State<SucursalesPage> {
       _sucursales = [];
       _busy = true;
       _error = null;
-      _mensaje = null;
     });
     try {
       final sucursales = await widget.gestion.listar(negocio.id);
@@ -133,19 +131,26 @@ class _SucursalesPageState extends State<SucursalesPage> {
     setState(() {
       if (resultado.eliminada) {
         _sucursales = _sucursales.where((s) => s.id != sucursal!.id).toList();
-        _mensaje = null;
-        AlertaServicio.eliminacion(context, 'Sucursal');
+        NotificacionServicio.eliminacion(
+          context,
+          'Sucursal eliminada correctamente.',
+        );
       } else {
         final guardada = resultado.sucursal!;
         _sucursales = [
           ..._sucursales.where((s) => s.id != guardada.id),
           guardada,
         ]..sort((a, b) => a.id.compareTo(b.id));
-        _mensaje = null;
         if (sucursal == null) {
-          AlertaServicio.registro(context, 'Sucursal');
+          NotificacionServicio.registro(
+            context,
+            'Sucursal registrada correctamente.',
+          );
         } else {
-          AlertaServicio.actualizacion(context, 'Sucursal');
+          NotificacionServicio.actualizacion(
+            context,
+            'Cambios guardados correctamente.',
+          );
         }
       }
     });
@@ -361,10 +366,6 @@ class _SucursalesPageState extends State<SucursalesPage> {
                       ),
                     ],
                     const SizedBox(height: 28),
-                  ],
-                  if (_mensaje != null) ...[
-                    SucursalAviso(_mensaje!),
-                    const SizedBox(height: 20),
                   ],
                   Text(
                     'Sucursales',

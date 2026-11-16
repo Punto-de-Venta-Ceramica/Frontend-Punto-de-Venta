@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
 import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
@@ -34,7 +35,6 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
   bool _paso2 = false; // false = paso 1; true = paso 2
   bool _busy = false;
   String? _error;
-  String? _mensajeExito;
 
   @override
   void dispose() {
@@ -59,16 +59,16 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
     setState(() {
       _busy = true;
       _error = null;
-      _mensajeExito = null;
     });
     try {
       await widget.gateway.solicitarCodigo(correo);
       if (!mounted) return;
-      setState(() {
-        _paso2 = true;
-        _mensajeExito =
-            'Código enviado a $correo. Revisa tu bandeja de entrada (y la carpeta de spam).';
-      });
+      setState(() => _paso2 = true);
+      NotificacionServicio.info(
+        context,
+        'Código enviado a $correo. Revisa tu bandeja de entrada (y la carpeta de spam).',
+        titulo: 'Código enviado',
+      );
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
@@ -103,7 +103,6 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
     setState(() {
       _busy = true;
       _error = null;
-      _mensajeExito = null;
     });
     try {
       await widget.gateway.restablecerPassword(
@@ -114,13 +113,11 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
       );
       if (!mounted) return;
       // Regresar al login con mensaje de éxito
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Contraseña restablecida. Ya puedes iniciar sesión.'),
-          backgroundColor: Color(0xFF388E3C),
-        ),
+      NotificacionServicio.exito(
+        context,
+        'Contraseña restablecida. Ya puedes iniciar sesión.',
       );
+      Navigator.of(context).pop();
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
@@ -159,25 +156,6 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
                   const SizedBox(height: 28),
 
                   if (!_paso2) ..._paso1() else ..._paso2Widgets(),
-
-                  // Mensaje de éxito
-                  if (_mensajeExito != null)
-                    Container(
-                      margin: const EdgeInsets.only(top: 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF81C784)),
-                      ),
-                      child: Text(
-                        _mensajeExito!,
-                        style: const TextStyle(
-                          color: Color(0xFF388E3C),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
 
                   // Mensaje de error
                   if (_error != null)
@@ -240,7 +218,6 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
                               : () => setState(() {
                                   _paso2 = false;
                                   _error = null;
-                                  _mensajeExito = null;
                                   _codigoCtrl.clear();
                                   _nuevaCtrl.clear();
                                   _confirmarCtrl.clear();

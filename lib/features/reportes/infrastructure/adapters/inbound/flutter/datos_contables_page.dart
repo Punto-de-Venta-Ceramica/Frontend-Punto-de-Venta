@@ -3,6 +3,7 @@ import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import 'package:punto_de_venta/features/sucursal/application/ports/inbound/gestion_sucursales_use_case.dart';
 import 'package:punto_de_venta/features/sucursal/domain/sucursal.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 
 import '../../../../application/ports/inbound/gestion_reportes_use_case.dart';
 import '../../../../domain/reporte_contable.dart';
@@ -135,23 +136,18 @@ class _DatosContablesPageState extends State<DatosContablesPage> {
     setState(() => _exportando = true);
     try {
       final guardado = await widget.reportes.exportar(consulta);
-      if (mounted && guardado) _avisar('Reporte exportado a Excel.');
+      if (mounted && guardado)
+        NotificacionServicio.exito(context, 'Reporte exportado a Excel.');
     } on ReporteFailure catch (error) {
       if (!mounted) return;
       if (error.sesionExpirada) {
         widget.onSesionExpirada();
       } else {
-        _avisar(error.mensaje);
+        NotificacionServicio.error(context, error.mensaje);
       }
     } finally {
       if (mounted) setState(() => _exportando = false);
     }
-  }
-
-  void _avisar(String mensaje) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   @override

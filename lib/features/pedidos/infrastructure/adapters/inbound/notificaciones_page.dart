@@ -5,6 +5,7 @@ import 'package:punto_de_venta/features/productos/infrastructure/adapters/inboun
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 
 class NotificacionesPage extends StatefulWidget {
   const NotificacionesPage({
@@ -60,9 +61,7 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
       }
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
+        NotificacionServicio.error(context, e.message);
       }
     }
   }

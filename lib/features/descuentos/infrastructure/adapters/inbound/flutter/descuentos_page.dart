@@ -220,7 +220,7 @@ class _DescuentosPageState extends State<DescuentosPage> {
         ),
         const SizedBox(height: 20),
         if (_descuentos.isEmpty)
-          const ProductoAviso('Aún no tienes descuentos registrados.')
+          const _SinDescuentos()
         else ...[
           Text(
             '${_descuentos.length} ${_descuentos.length == 1 ? 'descuento registrado' : 'descuentos registrados'}',
@@ -238,5 +238,78 @@ class _DescuentosPageState extends State<DescuentosPage> {
         ),
       ),
     ],
+  );
+}
+
+/// Estado vacío: el negocio todavía no tiene descuentos registrados.
+class _SinDescuentos extends StatelessWidget {
+  const _SinDescuentos();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('descuentos-vacio'),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: BarroTheme.border),
+      borderRadius: BorderRadius.circular(21),
+    ),
+    child: Column(
+      children: [
+        SizedBox(
+          width: 96,
+          height: 96,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: const BoxDecoration(
+                  color: productoSuave,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const Icon(
+                Icons.local_offer_outlined,
+                size: 44,
+                color: BarroTheme.primary,
+              ),
+              Positioned(
+                right: 6,
+                bottom: 6,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: BarroTheme.border),
+                  ),
+                  child: const Icon(
+                    Icons.percent_rounded,
+                    size: 17,
+                    color: BarroTheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Aún no tienes descuentos registrados.',
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(16, 23, weight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Registra uno para ofrecer precios especiales por cantidad.',
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+        ),
+      ],
+    ),
   );
 }

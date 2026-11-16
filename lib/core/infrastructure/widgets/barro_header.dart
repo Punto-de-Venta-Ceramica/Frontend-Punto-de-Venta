@@ -46,7 +46,7 @@ class BarroHeader extends StatelessWidget {
   final VoidCallback? onPerfil;
   final VoidCallback? onNotificaciones;
 
-  /// Si se indica, el punto rojo solo aparece cuando hay notificaciones sin leer.
+  /// Si se indica, la campana muestra cuántas notificaciones hay sin leer.
   final ValueListenable<int?>? conteoNotificaciones;
 
   @override
@@ -131,28 +131,19 @@ class _Campana extends StatelessWidget {
   final VoidCallback? onPressed;
   final ValueListenable<int?>? conteo;
 
-  Widget _icono(bool punto) => Stack(
-    clipBehavior: Clip.none,
-    children: [
-      const Icon(
-        Icons.notifications_none_rounded,
-        size: 28,
-        color: BarroTheme.text,
-      ),
-      if (punto)
-        Positioned(
-          right: 1,
-          top: 0,
-          child: Container(
-            width: 10,
-            height: 10,
-            decoration: const BoxDecoration(
-              color: BarroTheme.error,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-    ],
+  /// Campana con el número de notificaciones sin leer; desde 100 muestra "99+".
+  Widget _icono(int? n) => Badge(
+    key: const ValueKey('contador-notificaciones'),
+    isLabelVisible: n != null && n > 0,
+    backgroundColor: BarroTheme.error,
+    textColor: Colors.white,
+    offset: const Offset(6, -4),
+    label: Text(n != null && n > 99 ? '99+' : '${n ?? 0}'),
+    child: const Icon(
+      Icons.notifications_none_rounded,
+      size: 28,
+      color: BarroTheme.text,
+    ),
   );
 
   @override
@@ -162,10 +153,10 @@ class _Campana extends StatelessWidget {
       tooltip: 'Notificaciones',
       onPressed: onPressed,
       child: listenable == null
-          ? _icono(false)
+          ? _icono(null)
           : ValueListenableBuilder<int?>(
               valueListenable: listenable,
-              builder: (_, n, _) => _icono(n != null && n > 0),
+              builder: (_, n, _) => _icono(n),
             ),
     );
   }

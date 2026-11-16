@@ -62,17 +62,6 @@ class HttpEmpleadoGateway implements EmpleadoGateway {
   }
 
   @override
-  Future<List<NegocioEmpleado>> negocios() => _seguro(
-    () async => _lista(await _api.requestJson('GET', 'api/negocios'), (data) {
-      final json = _map(data);
-      return NegocioEmpleado(
-        id: _id(json['id']),
-        nombre: _texto(json['nombre']),
-      );
-    }),
-  );
-
-  @override
   Future<List<SucursalEmpleado>> sucursales(int negocioId) => _seguro(
     () async => _lista(
       await _api.requestJson(

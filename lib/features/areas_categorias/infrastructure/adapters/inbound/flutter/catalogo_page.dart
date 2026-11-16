@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:punto_de_venta/core/infrastructure/services/alerta_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../application/ports/inbound/gestion_catalogo_use_case.dart';
 import '../../../../domain/catalogo.dart';
 import 'area_detalle_controller_page.dart';
@@ -29,7 +29,6 @@ class _CatalogoPageState extends State<CatalogoPage> {
   bool _sesionFinalizada = false;
   String _filtro = '';
   String? _error;
-  String? _mensaje;
   int _carga = 0;
 
   @override
@@ -50,13 +49,12 @@ class _CatalogoPageState extends State<CatalogoPage> {
     widget.onSesionExpirada();
   }
 
-  Future<void> _cargar({String? mensaje}) async {
+  Future<void> _cargar() async {
     if (_sesionFinalizada) return;
     final carga = ++_carga;
     setState(() {
       _cargando = true;
       _error = null;
-      _mensaje = mensaje;
     });
     try {
       final areas = await widget.gestion.listarAreas(widget.negocio.id);
@@ -74,19 +72,17 @@ class _CatalogoPageState extends State<CatalogoPage> {
     }
   }
 
-  Future<bool?> _detalle(AreaCatalogo area, {String? mensaje}) =>
-      Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AreaDetalleControllerPage(
-            negocio: widget.negocio,
-            area: area,
-            gestion: widget.gestion,
-            onSesionExpirada: _expirarSesion,
-            mensaje: mensaje,
-          ),
-        ),
-      );
+  Future<bool?> _detalle(AreaCatalogo area) => Navigator.push<bool>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AreaDetalleControllerPage(
+        negocio: widget.negocio,
+        area: area,
+        gestion: widget.gestion,
+        onSesionExpirada: _expirarSesion,
+      ),
+    ),
+  );
 
   Future<void> _registrar() async {
     if (_cargando || _navegando || _error != null) return;
@@ -103,13 +99,13 @@ class _CatalogoPageState extends State<CatalogoPage> {
         ),
       );
       if (!mounted) return;
-      if (resultado != null) {
-        AlertaServicio.registro(context, 'Área');
-      }
       if (resultado != null && resultado.abrirDetalle) {
         final eliminada = await _detalle(resultado.area);
         if (eliminada == true && mounted) {
-          AlertaServicio.eliminacion(context, 'Área');
+          NotificacionServicio.eliminacion(
+            context,
+            'Área eliminada correctamente.',
+          );
         }
       }
       if (mounted) await _cargar();
@@ -126,7 +122,10 @@ class _CatalogoPageState extends State<CatalogoPage> {
       final eliminada = await _detalle(area);
       if (mounted) {
         if (eliminada == true) {
-          AlertaServicio.eliminacion(context, 'Área');
+          NotificacionServicio.eliminacion(
+            context,
+            'Área eliminada correctamente.',
+          );
         }
         await _cargar();
       }
@@ -155,7 +154,6 @@ class _CatalogoPageState extends State<CatalogoPage> {
             categorias: r.numeroCategorias,
           ),
       ],
-      mensaje: _mensaje,
       cargando: _cargando,
       error: _error,
       filtrando: filtro.isNotEmpty,
