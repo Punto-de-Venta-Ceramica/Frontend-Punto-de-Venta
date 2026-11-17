@@ -2,14 +2,27 @@ import '../domain/pedido.dart';
 import 'ports/pedidos_gateway.dart';
 
 class GestionPedidos {
-  const GestionPedidos(this._gateway);
+  const GestionPedidos(this._gateway, {PedidosEnMemoria? memoria})
+    : _memoria = memoria;
   final PedidosGateway _gateway;
+  final PedidosEnMemoria? _memoria;
+
   Future<PaginaPedidos> listar(
     int sucursal, {
     String? estado,
     int pagina = 0,
   }) => _gateway.listar(sucursal, estado: estado, pagina: pagina);
   Future<Pedido> obtener(int id) => _gateway.obtener(id);
+
+  /// Primera página guardada de ese filtro, para mostrarla mientras se
+  /// consulta la fresca con [listar].
+  PaginaPedidos? listadoGuardado(int sucursal, {String? estado}) =>
+      _memoria?.listadoGuardado(sucursal, estado);
+
+  /// Último detalle guardado, para mostrarlo mientras se consulta el fresco
+  /// con [obtener].
+  Pedido? pedidoGuardado(int id) => _memoria?.pedidoGuardado(id);
+
   Future<List<ProductoPedido>> productos(int sucursal) =>
       _gateway.productos(sucursal);
 

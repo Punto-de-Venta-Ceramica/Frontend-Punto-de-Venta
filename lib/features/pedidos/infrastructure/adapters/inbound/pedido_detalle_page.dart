@@ -58,8 +58,22 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     _cargar();
   }
 
+  /// Si lo que se ve llegó del servidor en esta pantalla (no es lo guardado).
+  bool _fresco = false;
+
+  /// Mientras carga, lo que se ve puede ser lo guardado (atrasado): cobrar,
+  /// cancelar, editar o cambiar el estado esperan a la versión fresca. Si la
+  /// consulta falla, siguen deshabilitados hasta que se recargue (deslizando).
+  bool get _bloqueado => _busy || _cargando || !_fresco;
+
   Future<void> _cargar() async {
     setState(() {
+      // Se muestra al instante el último detalle recibido; la consulta lo
+      // reemplaza en cuanto llega.
+      _pedido ??= widget.gestion.pedidoGuardado(widget.pedidoId);
+      // Hasta que esta carga termine bien, lo que se ve puede estar
+      // atrasado (p. ej. tras registrar un pago que aún no se refleja).
+      _fresco = false;
       _cargando = true;
       _error = null;
     });
@@ -72,6 +86,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
         setState(() {
           _pedido = pedido;
           _cajaAbierta = cajaAbierta;
+          _fresco = true;
         });
       }
     } on ApiException catch (e) {
@@ -287,7 +302,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                   PedidoEstadoSelector(
                     estado: pedido.estado,
                     esPropietario: widget.esPropietario,
-                    habilitado: !_busy,
+                    habilitado: !_bloqueado,
                     onCambiar: (estado) => _accion(
                       () => widget.gestion.cambiarEstado(pedido.id, estado),
                       'Estado actualizado a ${EstadosPedido.etiqueta(estado).toLowerCase()}.',
@@ -314,7 +329,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _busy ? null : () => _editar(pedido),
+                    onPressed: _bloqueado ? null : () => _editar(pedido),
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     label: const Text('Editar datos del pedido'),
                     style: OutlinedButton.styleFrom(
@@ -350,7 +365,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                   texto: 'Registrar pago',
                   // Solo gira con su propia acción, no al imprimir.
                   busy: _busy && !_imprimiendo,
-                  onPressed: _busy || !_cajaAbierta
+                  onPressed: _bloqueado || !_cajaAbierta
                       ? null
                       : () => _pagar(pedido),
                 ),
@@ -358,7 +373,7 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                 const SizedBox(height: 12),
                 ProductoBotonPeligro(
                   texto: 'Cancelar pedido',
-                  onPressed: _busy || (!_cajaAbierta && pedido.pagado > 0)
+                  onPressed: _bloqueado || (!_cajaAbierta && pedido.pagado > 0)
                       ? null
                       : () => _cancelar(pedido),
                 ),
@@ -488,11 +503,12 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
     children: [
       for (final (i, d) in pedido.productos.indexed) ...[
         if (i > 0) const Divider(height: 24, color: BarroTheme.border),
-        // Misma imagen que en el apartado de productos (Cloudinary, con caché).
+        // Mismo recuadro que la tarjeta del listado de productos: la foto se
+        // ve completa y, si su forma no encaja, sobre un fondo difuminado.
         ProductoImagen(
           key: ValueKey('pedido-producto-imagen-$i'),
           size: 180,
-          ancho: double.infinity,
+          proporcion: 4 / 3,
           url: d.imagenUrl,
         ),
         const SizedBox(height: 12),

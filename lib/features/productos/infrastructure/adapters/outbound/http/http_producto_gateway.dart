@@ -1,11 +1,19 @@
+import 'package:punto_de_venta/core/infrastructure/cache/consultas_compartidas.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import '../../../../application/ports/outbound/producto_gateway.dart';
 import '../../../../domain/producto.dart';
 
 /// Habla solo con el catálogo; las existencias van por [HttpExistenciasGateway].
 class HttpProductoGateway implements ProductoGateway {
-  const HttpProductoGateway(this._api, {this.sucursalEmpleado});
+  const HttpProductoGateway(
+    this._api, {
+    this.sucursalEmpleado,
+    ConsultasCompartidas? compartidas,
+  }) : _compartidas = compartidas;
   final ApiClient _api;
+
+  /// Caché de negocios y sucursales que comparten los módulos.
+  final ConsultasCompartidas? _compartidas;
 
   /// Sucursal del empleado: el backend solo le permite consultar el catálogo
   /// de una sucursal a la que está asignado.
@@ -101,13 +109,17 @@ class HttpProductoGateway implements ProductoGateway {
 
   @override
   Future<List<NegocioProducto>> negocios() => _seguro(
-    () async => _lista(await _api.requestJson('GET', 'api/negocios'), (data) {
-      final json = _map(data);
-      return NegocioProducto(
-        id: _id(json['id']),
-        nombre: _texto(json['nombre']),
-      );
-    }),
+    () async => _lista(
+      await (_compartidas?.negocios() ??
+          _api.requestJson('GET', 'api/negocios')),
+      (data) {
+        final json = _map(data);
+        return NegocioProducto(
+          id: _id(json['id']),
+          nombre: _texto(json['nombre']),
+        );
+      },
+    ),
   );
 
   @override
@@ -146,11 +158,12 @@ class HttpProductoGateway implements ProductoGateway {
   @override
   Future<List<SucursalProducto>> sucursales(int negocioId) => _seguro(
     () async => _lista(
-      await _api.requestJson(
-        'POST',
-        'api/sucursales/consultar',
-        body: {'negocioId': negocioId},
-      ),
+      await (_compartidas?.sucursales(negocioId) ??
+          _api.requestJson(
+            'POST',
+            'api/sucursales/consultar',
+            body: {'negocioId': negocioId},
+          )),
       (data) {
         final json = _map(data);
         return SucursalProducto(

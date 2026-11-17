@@ -11,10 +11,16 @@ class GestionProductos implements GestionProductosUseCase {
     this._gateway,
     this._existencias, {
     ProductosEnCache? cache,
-  }) : _cache = cache;
+    void Function()? alDescartarCache,
+  }) : _cache = cache,
+       _alDescartarCache = alDescartarCache;
   final ProductoGateway _gateway;
   final ExistenciasGateway _existencias;
   final ProductosEnCache? _cache;
+
+  /// Otras cachés que también se descartan con [descartarCache] (p. ej. la
+  /// de negocios y sucursales compartida entre módulos).
+  final void Function()? _alDescartarCache;
 
   /// Producto y existencias en paralelo: son endpoints independientes.
   /// Si falla el producto, su error es el que se informa y el de las
@@ -35,7 +41,10 @@ class GestionProductos implements GestionProductosUseCase {
   Producto? detalleGuardado(int id) => _cache?.detalleGuardado(id);
 
   @override
-  void descartarCache() => _cache?.descartar();
+  void descartarCache() {
+    _cache?.descartar();
+    _alDescartarCache?.call();
+  }
 
   void _validarId(int id) {
     if (id <= 0) {

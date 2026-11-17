@@ -1749,11 +1749,7 @@ class _QuitarSucursalDialog extends StatelessWidget {
                                   'Si lo vuelves a asignar, indica de nuevo '
                                   'su existencia.'
                             : 'Puedes volver a asignarlo cuando quieras.',
-                        style: BarroTheme.type(
-                          12,
-                          18,
-                          color: BarroTheme.error,
-                        ),
+                        style: BarroTheme.type(12, 18, color: BarroTheme.error),
                       ),
                     ),
                   ],

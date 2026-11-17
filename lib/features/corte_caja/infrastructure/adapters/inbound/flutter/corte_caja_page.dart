@@ -868,7 +868,10 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         children: [
           Row(
             children: [
-              const CorteIcono(Icons.account_balance_wallet_outlined, tamano: 42),
+              const CorteIcono(
+                Icons.account_balance_wallet_outlined,
+                tamano: 42,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
