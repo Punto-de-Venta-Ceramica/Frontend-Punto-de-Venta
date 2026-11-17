@@ -5,7 +5,12 @@ import 'package:material_ui/material_ui.dart'
 import 'package:http/http.dart' as http;
 import 'package:toastification/toastification.dart';
 import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
+import 'core/infrastructure/cache/consultas_compartidas.dart';
 import 'core/infrastructure/widgets/barro_header.dart';
+import 'features/areas_categorias/infrastructure/adapters/outbound/cache/cached_catalogo_gateway.dart';
+import 'features/corte_caja/infrastructure/adapters/outbound/cache/cached_corte_caja_gateway.dart';
+import 'features/empleados/infrastructure/adapters/outbound/cache/cached_empleado_gateway.dart';
+import 'features/pedidos/infrastructure/adapters/outbound/pedidos_con_memoria.dart';
 import 'features/authentication/infrastructure/adapters/inbound/flutter/perfil_usuario_page.dart';
 import 'features/authentication/application/services/authentication_services.dart';
 import 'features/authentication/domain/auth_session.dart';
@@ -102,6 +107,21 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   late final ContadorNotificaciones _contador;
   late final CacheProductos _productos;
 
+  /// Negocios y sucursales, compartidos por todos los módulos: 30 min.
+  late final ConsultasCompartidas _compartidas;
+
+  /// Áreas y categorías (módulo de clasificación): 30 min.
+  late final CachedCatalogoGateway _catalogo;
+
+  /// Empleados: 10 min.
+  late final CachedEmpleadoGateway _empleados;
+
+  /// Pedidos: siempre se consultan; lo último recibido se muestra mientras.
+  late final PedidosConMemoria _pedidos;
+
+  /// Detalle de cortes cerrados: toda la sesión.
+  late final CachedCorteCajaGateway _cortes;
+
   /// Descuentos del propietario: lista 5 min, catálogo para asignar 10 min.
   late final CachedDescuentoGateway _descuentos;
 
@@ -157,10 +177,20 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _authentication = HttpAuthenticationGateway(_api);
     _imagenesProducto = crearImagenesProducto();
     _contador = ContadorNotificaciones(_api, IndicadorIconoMovil());
+    _compartidas = ConsultasCompartidas(_api);
     _productos = CacheProductos(
-      HttpProductoGateway(_api),
+      HttpProductoGateway(_api, compartidas: _compartidas),
       HttpExistenciasGateway(_api),
     );
+    _catalogo = CachedCatalogoGateway(HttpCatalogoGateway(_api));
+    _empleados = CachedEmpleadoGateway(
+      HttpEmpleadoGateway(_api, compartidas: _compartidas),
+    );
+    // Los listados de empleados muestran sus sucursales asignadas: dar de
+    // baja o renombrar una sucursal los deja atrasados.
+    _compartidas.escucharCambiosSucursales(_empleados.sucursalesCambiaron);
+    _pedidos = PedidosConMemoria(HttpPedidosGateway(_api));
+    _cortes = CachedCorteCajaGateway(HttpCorteCajaGateway(_api));
     _descuentos = CachedDescuentoGateway(HttpDescuentoGateway(_api));
     BarroHeader.accionPerfilGlobal = (ctx) => Navigator.of(ctx).push(
       PerfilUsuarioPage.route(
@@ -175,7 +205,27 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _productos.productos,
     _productos.existencias,
     cache: _productos,
+    // Deslizar para actualizar también vuelve a pedir negocios y sucursales.
+    alDescartarCache: _compartidas.descartar,
   );
+
+  GestionPedidos get _gestionPedidos =>
+      GestionPedidos(_pedidos, memoria: _pedidos);
+
+  GestionSucursales get _gestionSucursales =>
+      GestionSucursales(HttpSucursalGateway(_api, compartidas: _compartidas));
+
+  /// Al cerrar sesión: todo lo guardado pertenece al usuario anterior.
+  void _descartarCaches() {
+    _compartidas.descartar();
+    _productos.descartar();
+    _descuentos.descartar();
+    _catalogo.descartar();
+    _empleados.descartar();
+    _pedidos.descartar();
+    _cortes.descartar();
+    _productosEmpleado.clear();
+  }
 
   @override
   void dispose() {
@@ -200,9 +250,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _api.cerrarSesion();
     _sesionActual = null;
     _contador.cerrarSesion();
-    _productos.descartar();
-    _descuentos.descartar();
-    _productosEmpleado.clear();
+    _descartarCaches();
     _rol = '';
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
@@ -215,7 +263,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   }) => Navigator.of(context).push<void>(
     MaterialPageRoute(
       builder: (_) => SucursalesPage(
-        gestion: GestionSucursales(HttpSucursalGateway(_api)),
+        gestion: _gestionSucursales,
         negocioInicial: NegocioSucursal(id: negocio.id, nombre: negocio.nombre),
         registrarAlAbrir: registrar,
         onSesionExpirada: () => _cerrarSesion(context),
@@ -239,7 +287,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       builder: (reportesContext) => DatosContablesPage(
         negocio: negocio,
         sucursalInicialId: sucursalInicialId,
-        sucursales: GestionSucursales(HttpSucursalGateway(_api)),
+        sucursales: _gestionSucursales,
         reportes: GestionReportes(
           HttpReportesGateway(_api),
           const ExportadorXlsx(),
@@ -258,7 +306,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
                   id: negocio.id,
                   nombre: negocio.nombre,
                 ),
-                gestion: GestionCatalogo(HttpCatalogoGateway(_api)),
+                gestion: GestionCatalogo(_catalogo),
                 onSesionExpirada: () => _cerrarSesion(context),
               ),
             ),
@@ -298,7 +346,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   ) => Navigator.of(context).push<void>(
     MaterialPageRoute(
       builder: (empleadosContext) => EmpleadosPage(
-        gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
+        gestion: GestionEmpleados(_empleados),
         negocioInicial: NegocioEmpleado(id: negocio.id, nombre: negocio.nombre),
         onSesionExpirada: () => _cerrarSesion(empleadosContext),
       ),
@@ -313,7 +361,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   }) {
     final ruta = MaterialPageRoute<void>(
       builder: (cajaContext) => CorteCajaPage(
-        gestion: GestionCorteCaja(HttpCorteCajaGateway(_api)),
+        gestion: GestionCorteCaja(_cortes),
         sucursalId: sucursal.id,
         sucursalNombre: sucursal.nombre,
         negocioNombre: negocio.nombre,
@@ -400,7 +448,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           sucursal,
           reemplazar: true,
         ),
-        gestion: GestionEmpleados(HttpEmpleadoGateway(_api)),
+        gestion: GestionEmpleados(_empleados),
         negocioInicial: NegocioEmpleado(id: negocio.id, nombre: negocio.nombre),
         sucursalNombre: sucursal.nombre,
         sucursalId: sucursal.id,
@@ -488,7 +536,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   }) {
     final ruta = MaterialPageRoute<void>(
       builder: (pedidosContext) => PedidosPage(
-        gestion: GestionPedidos(HttpPedidosGateway(_api)),
+        gestion: _gestionPedidos,
         sucursalId: sucursal.id,
         sucursalNombre: sucursal.nombre,
         negocio: NegocioProducto(id: negocio.id, nombre: negocio.nombre),
@@ -526,7 +574,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ];
     },
     construirPedidos: (s) => PedidosPage(
-      gestion: GestionPedidos(HttpPedidosGateway(_api)),
+      gestion: _gestionPedidos,
       sucursalId: s.sucursalId,
       sucursalNombre: s.sucursal,
       negocio: NegocioProducto(id: s.negocioId, nombre: s.negocio),
@@ -534,7 +582,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       contador: _contador,
     ),
     construirCaja: (s) => CorteCajaPage(
-      gestion: GestionCorteCaja(HttpCorteCajaGateway(_api)),
+      gestion: GestionCorteCaja(_cortes),
       sucursalId: s.sucursalId,
       sucursalNombre: s.sucursal,
       negocioNombre: s.negocio,
@@ -576,10 +624,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     conteoNotificaciones: _contador,
     onNotificaciones: () => Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => NotificacionesPage(
-          gestion: GestionPedidos(HttpPedidosGateway(_api)),
-          contador: _contador,
-        ),
+        builder: (_) =>
+            NotificacionesPage(gestion: _gestionPedidos, contador: _contador),
       ),
     ),
   );
@@ -592,10 +638,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     if (_sesionActual == null) return;
     _navegador.currentState?.push(
       MaterialPageRoute<void>(
-        builder: (_) => NotificacionesPage(
-          gestion: GestionPedidos(HttpPedidosGateway(_api)),
-          contador: _contador,
-        ),
+        builder: (_) =>
+            NotificacionesPage(gestion: _gestionPedidos, contador: _contador),
       ),
     );
   }
@@ -631,6 +675,9 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           // Este builder se ejecuta en cada reconstrucción: instalar la sesión solo una
           // vez para no pisar los tokens ya renovados con los del inicio de sesión.
           if (!identical(_sesionActual, session)) {
+            // Si entra otro usuario sin pasar por cerrar sesión (p. ej. una
+            // sesión restaurada), nada de lo guardado debe verse.
+            if (_sesionActual?.userId != session.userId) _descartarCaches();
             _sesionActual = session;
             widget.sessionStore.guardar(session);
             _api.iniciarSesion(
@@ -653,21 +700,22 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
               _api.cerrarSesion();
               _sesionActual = null;
               _contador.cerrarSesion();
-              _productos.descartar();
-              _productosEmpleado.clear();
+              _descartarCaches();
             },
             conteoNotificaciones: _contador,
             openNotifications: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => NotificacionesPage(
-                  gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                  gestion: _gestionPedidos,
                   contador: _contador,
                 ),
               ),
             ),
             home: session.role == 'PROPIETARIO'
                 ? NegociosPage(
-                    gestion: GestionNegocios(HttpNegocioGateway(_api)),
+                    gestion: GestionNegocios(
+                      HttpNegocioGateway(_api, compartidas: _compartidas),
+                    ),
                     selectorLogo: const FileSelectorLogo(),
                     onSesionExpirada: () => _cerrarSesion(context),
                     onAdministrar: (negocio) =>
@@ -679,7 +727,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
                     onNotificaciones: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => NotificacionesPage(
-                          gestion: GestionPedidos(HttpPedidosGateway(_api)),
+                          gestion: _gestionPedidos,
                           contador: _contador,
                         ),
                       ),

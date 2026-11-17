@@ -59,6 +59,21 @@ class _PedidosPageState extends State<PedidosPage> {
   /// Descarta respuestas de una carga anterior (p. ej. al cambiar de filtro rápido).
   int _carga = 0;
 
+  /// Filtro al que corresponden los pedidos en pantalla. Mientras recarga el
+  /// mismo filtro (al volver del detalle o al deslizar) se siguen mostrando;
+  /// si cambió, se muestra lo guardado de ese filtro o nada.
+  String? _estadoMostrado;
+  bool _hayMostrados = false;
+
+  void _mostrar(PaginaPedidos pagina) {
+    _pedidos = pagina.pedidos;
+    _pagina = pagina.pagina;
+    _ultima = pagina.ultima;
+    _total = pagina.total;
+    _estadoMostrado = _estado;
+    _hayMostrados = true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +86,19 @@ class _PedidosPageState extends State<PedidosPage> {
     unawaited(widget.contador.actualizar());
     final carga = ++_carga;
     setState(() {
+      // Se muestra al instante lo último recibido; la consulta lo reemplaza.
+      if (!_hayMostrados || _estadoMostrado != _estado) {
+        final guardado = widget.gestion.listadoGuardado(
+          widget.sucursalId,
+          estado: _estado,
+        );
+        if (guardado != null) {
+          _mostrar(guardado);
+        } else {
+          _pedidos = [];
+          _hayMostrados = false;
+        }
+      }
       _cargando = true;
       _cargandoMas = false;
       _error = null;
@@ -81,12 +109,7 @@ class _PedidosPageState extends State<PedidosPage> {
         estado: _estado,
       );
       if (!mounted || carga != _carga) return;
-      setState(() {
-        _pedidos = pagina.pedidos;
-        _pagina = pagina.pagina;
-        _ultima = pagina.ultima;
-        _total = pagina.total;
-      });
+      setState(() => _mostrar(pagina));
     } on ApiException catch (e) {
       if (mounted && carga == _carga) setState(() => _error = e.message);
     } catch (_) {
@@ -327,7 +350,8 @@ class _PedidosPageState extends State<PedidosPage> {
                     ),
                     if (p.estado == 'ENTREGADO')
                       FilledButton.icon(
-                        onPressed: () => _terminar(p),
+                        // Mientras se actualiza, la tarjeta puede estar atrasada.
+                        onPressed: _cargando ? null : () => _terminar(p),
                         icon: const Icon(Icons.check_circle_outline, size: 18),
                         label: const Text('Terminar pedido'),
                       ),
@@ -461,10 +485,14 @@ class _PedidosPageState extends State<PedidosPage> {
         const SizedBox(height: 14),
         ProductoBoton(texto: '+ Nuevo pedido', onPressed: _nuevo),
         const SizedBox(height: 20),
-        if (_cargando)
+        // Con pedidos ya en pantalla (guardados o de la carga anterior) se
+        // siguen mostrando y una barra indica que se están actualizando.
+        if (_cargando && !_hayMostrados)
           const Center(child: CircularProgressIndicator())
         else if (_error != null)
           ProductoAviso(_error!, error: true)
+        else if (_cargando && visibles.isEmpty)
+          const LinearProgressIndicator()
         else if (visibles.isEmpty)
           Center(
             child: Padding(
@@ -478,6 +506,10 @@ class _PedidosPageState extends State<PedidosPage> {
             ),
           )
         else ...[
+          if (_cargando) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+          ],
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(

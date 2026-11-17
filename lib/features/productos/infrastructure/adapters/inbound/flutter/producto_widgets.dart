@@ -12,6 +12,7 @@ import 'package:punto_de_venta/core/infrastructure/services/notificacion_servici
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 import '../../../../domain/producto.dart';
+import '../../outbound/imagenes/cache_imagenes_producto.dart';
 import '../../outbound/imagenes/cloudinary_url.dart';
 
 const productoSuave = Color(0xFFF7E7DF);
@@ -271,6 +272,7 @@ class ProductoImagen extends StatelessWidget {
             math.max(ancho, size) * MediaQuery.devicePixelRatioOf(context);
         return CachedNetworkImage(
           imageUrl: urlImagenCloudinary(direccion, ladoPx),
+          cacheManager: cacheImagenesProducto,
           fit: _ajuste,
           alignment: _alineacion,
           placeholder: (_, _) => _placeholder(cargando: true),
@@ -302,6 +304,7 @@ class ProductoImagen extends StatelessWidget {
             MediaQuery.devicePixelRatioOf(context);
         proveedor = CachedNetworkImageProvider(
           urlImagenCloudinary(direccion, ladoPx),
+          cacheManager: cacheImagenesProducto,
         );
       }
       return _ImagenAjustada(
@@ -485,6 +488,7 @@ class _VisorImagenProducto extends StatelessWidget {
                   url,
                   tamaniosImagenCloudinary.last.toDouble(),
                 ),
+                cacheManager: cacheImagenesProducto,
                 fit: BoxFit.contain,
                 placeholder: (_, _) => const SizedBox(
                   width: 28,

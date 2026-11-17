@@ -24,3 +24,14 @@ abstract interface class PedidosGateway {
   Future<List<AvisoPedido>> notificaciones();
   Future<void> marcarLeida(int id);
 }
+
+/// Lo último que se recibió del servidor, para mostrarlo al instante mientras
+/// llega la versión fresca. Nunca sustituye a la consulta: los pedidos los
+/// cambian varias personas a la vez (pagos, estados, cancelaciones).
+abstract interface class PedidosEnMemoria {
+  /// Primera página del listado de la sucursal con ese filtro de [estado].
+  PaginaPedidos? listadoGuardado(int sucursalId, String? estado);
+
+  /// Último detalle recibido del pedido.
+  Pedido? pedidoGuardado(int pedidoId);
+}

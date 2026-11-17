@@ -65,7 +65,10 @@ V _recordar<K, V>(Map<K, V> mapa, K clave, V valor) {
   return valor;
 }
 
-/// - Negocios, áreas, categorías y sucursales: casi no cambian ([vigenciaCatalogos]).
+/// - Áreas y categorías: casi no cambian ([vigenciaCatalogos]).
+/// - Negocios y sucursales: pasan directo al gateway de origen, que usa la
+///   caché compartida entre módulos (así, editar un negocio en su módulo se
+///   ve también aquí).
 /// - Páginas del listado: [vigenciaListado]; cualquier alta, edición o baja las
 ///   descarta todas (el orden por nombre puede mover productos de página).
 /// - Detalle: [consultar] siempre va al servidor; lo guardado solo sirve para
@@ -83,10 +86,8 @@ class CachedProductoGateway implements ProductoGateway {
   final Duration vigenciaListado;
   final DateTime Function() _ahora;
 
-  final _negocios = <int, _Entrada<List<NegocioProducto>>>{};
   final _areas = <int, _Entrada<List<AreaProducto>>>{};
   final _categorias = <int, _Entrada<List<CategoriaProducto>>>{};
-  final _sucursales = <int, _Entrada<List<SucursalProducto>>>{};
   final _paginas = <String, _Entrada<PaginaProductos>>{};
   final _detalles = <int, Producto>{};
 
@@ -125,17 +126,14 @@ class CachedProductoGateway implements ProductoGateway {
   void descartarListados() => _paginas.clear();
 
   void descartar() {
-    _negocios.clear();
     _areas.clear();
     _categorias.clear();
-    _sucursales.clear();
     _paginas.clear();
     _detalles.clear();
   }
 
   @override
-  Future<List<NegocioProducto>> negocios() =>
-      _vigenteO(_negocios, 0, vigenciaCatalogos, _origen.negocios);
+  Future<List<NegocioProducto>> negocios() => _origen.negocios();
 
   @override
   Future<List<AreaProducto>> areas(int negocioId) => _vigenteO(
@@ -154,12 +152,8 @@ class CachedProductoGateway implements ProductoGateway {
   );
 
   @override
-  Future<List<SucursalProducto>> sucursales(int negocioId) => _vigenteO(
-    _sucursales,
-    negocioId,
-    vigenciaCatalogos,
-    () => _origen.sucursales(negocioId),
-  );
+  Future<List<SucursalProducto>> sucursales(int negocioId) =>
+      _origen.sucursales(negocioId);
 
   @override
   Future<PaginaProductos> listar(

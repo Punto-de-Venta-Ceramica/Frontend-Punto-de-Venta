@@ -1,11 +1,16 @@
+import 'package:punto_de_venta/core/infrastructure/cache/consultas_compartidas.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import '../../../../application/ports/outbound/empleado_gateway.dart';
 import '../../../../domain/empleado.dart';
 
 class HttpEmpleadoGateway implements EmpleadoGateway {
-  const HttpEmpleadoGateway(this._api);
+  const HttpEmpleadoGateway(this._api, {ConsultasCompartidas? compartidas})
+    : _compartidas = compartidas;
 
   final ApiClient _api;
+
+  /// Caché de negocios y sucursales que comparten los módulos.
+  final ConsultasCompartidas? _compartidas;
 
   Future<T> _seguro<T>(Future<T> Function() operacion) async {
     try {
@@ -64,11 +69,12 @@ class HttpEmpleadoGateway implements EmpleadoGateway {
   @override
   Future<List<SucursalEmpleado>> sucursales(int negocioId) => _seguro(
     () async => _lista(
-      await _api.requestJson(
-        'POST',
-        'api/sucursales/consultar',
-        body: {'negocioId': negocioId},
-      ),
+      await (_compartidas?.sucursales(negocioId) ??
+          _api.requestJson(
+            'POST',
+            'api/sucursales/consultar',
+            body: {'negocioId': negocioId},
+          )),
       (data) {
         final json = _map(data);
         return SucursalEmpleado(
