@@ -27,6 +27,7 @@ class PedidosPage extends StatefulWidget {
     this.onInventario,
     this.sucursalNombre,
     this.onCaja,
+    this.onDatosContables,
     super.key,
   });
   final GestionPedidos gestion;
@@ -37,6 +38,7 @@ class PedidosPage extends StatefulWidget {
   final ContadorNotificaciones contador;
   final VoidCallback? onInventario;
   final VoidCallback? onCaja;
+  final VoidCallback? onDatosContables;
   @override
   State<PedidosPage> createState() => _PedidosPageState();
 }
@@ -193,6 +195,7 @@ class _PedidosPageState extends State<PedidosPage> {
             onInicio: () => Navigator.of(context).maybePop(),
             onCaja: widget.onCaja,
             onInventario: widget.onInventario,
+            onDatosContables: widget.onDatosContables,
           ),
         ),
       ),
@@ -460,6 +463,7 @@ class _PedidosPageState extends State<PedidosPage> {
               onPedidos: () {},
               onInventario: widget.onInventario,
               onCaja: widget.onCaja,
+              onDatosContables: widget.onDatosContables,
             )
           : null,
       rol: widget.esPropietario ? 'Propietario' : 'Empleado',

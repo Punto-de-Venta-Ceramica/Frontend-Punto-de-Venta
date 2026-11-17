@@ -22,6 +22,7 @@ class ProductosPage extends StatefulWidget {
     this.onInicio,
     this.onPedidos,
     this.onCaja,
+    this.onDatosContables,
     this.descuentos,
     this.imagenes,
     this.soloLectura = false,
@@ -53,6 +54,7 @@ class ProductosPage extends StatefulWidget {
   final VoidCallback? onInicio;
   final VoidCallback? onPedidos;
   final VoidCallback? onCaja;
+  final VoidCallback? onDatosContables;
   @override
   State<ProductosPage> createState() => _ProductosPageState();
 }
@@ -711,6 +713,7 @@ class _ProductosPageState extends State<ProductosPage> {
                   widget.onInicio ?? () => Navigator.of(context).maybePop(),
               onPedidos: widget.onPedidos,
               onCaja: widget.onCaja,
+              onDatosContables: widget.onDatosContables,
             ),
       onRefresh: _busy
           ? () async {}

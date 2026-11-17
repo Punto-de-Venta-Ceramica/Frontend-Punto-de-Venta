@@ -12,12 +12,17 @@ class GestionVentas {
     int sucursalId, {
     required String buscar,
     required int pagina,
+    FiltroProductosVenta filtros = const FiltroProductosVenta(),
   }) => _gateway.listarProductos(
     sucursalId,
     buscar: buscar,
     pagina: pagina,
     tamanio: productosPorPagina,
+    filtros: filtros,
   );
+
+  Future<List<CategoriaFiltroVenta>> cargarCategorias(int sucursalId) =>
+      _gateway.cargarCategorias(sucursalId);
 
   Future<CotizacionVenta> preparar({
     required int sucursalId,

@@ -229,7 +229,7 @@ class SucursalNavegacion extends StatelessWidget {
     this.onPedidos,
     this.onInicio,
     this.onCaja,
-    this.onMas,
+    this.onDatosContables,
     this.esEmpleado = false,
     this.seleccionada = 'Inicio',
     super.key,
@@ -238,11 +238,38 @@ class SucursalNavegacion extends StatelessWidget {
   final VoidCallback? onPedidos;
   final VoidCallback? onInicio;
   final VoidCallback? onCaja;
-  final VoidCallback? onMas;
+  final VoidCallback? onDatosContables;
 
   /// El empleado solo ve Pedidos, Caja e Inventario.
   final bool esEmpleado;
   final String seleccionada;
+
+  Future<void> _abrirMas(BuildContext context) async {
+    final abrirReporte = onDatosContables;
+    if (abrirReporte == null) return;
+    final elegido = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 480),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: ListTile(
+            leading: const Icon(
+              Icons.bar_chart_rounded,
+              color: BarroTheme.primary,
+            ),
+            title: const Text('Datos contables'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(sheetContext).pop(true),
+          ),
+        ),
+      ),
+    );
+    if (context.mounted && elegido == true) abrirReporte();
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     color: Colors.white,
@@ -318,8 +345,8 @@ class SucursalNavegacion extends StatelessWidget {
                         onCaja!();
                         return;
                       }
-                      if (item.$2 == 'Más' && onMas != null) {
-                        onMas!();
+                      if (item.$2 == 'Más' && onDatosContables != null) {
+                        _abrirMas(context);
                         return;
                       }
                       NotificacionServicio.info(

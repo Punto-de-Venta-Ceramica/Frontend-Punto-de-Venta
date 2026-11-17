@@ -6,7 +6,10 @@ abstract interface class VentasGateway {
     required String buscar,
     required int pagina,
     required int tamanio,
+    FiltroProductosVenta filtros = const FiltroProductosVenta(),
   });
+
+  Future<List<CategoriaFiltroVenta>> cargarCategorias(int sucursalId);
 
   Future<CotizacionVenta> preparar({
     required int sucursalId,

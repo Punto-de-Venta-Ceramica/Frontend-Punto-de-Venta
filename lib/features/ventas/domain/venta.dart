@@ -15,7 +15,9 @@ class ProductoVenta {
     required this.precio,
     required this.existencia,
     this.imagenUrl,
+    this.areaId,
     this.areaNombre,
+    this.categoriaId,
     this.categoriaNombre,
     this.descuentos = const [],
   });
@@ -25,7 +27,9 @@ class ProductoVenta {
   final num precio;
   final int existencia;
   final String? imagenUrl;
+  final int? areaId;
   final String? areaNombre;
+  final int? categoriaId;
   final String? categoriaNombre;
   final List<RangoDescuentoVenta> descuentos;
 
@@ -40,6 +44,46 @@ class ProductoVenta {
     }
     return aplicable;
   }
+}
+
+class FiltroProductosVenta {
+  const FiltroProductosVenta({
+    this.areaId,
+    this.categoriaId,
+    this.precioMinimo,
+    this.precioMaximo,
+  });
+
+  final int? areaId;
+  final int? categoriaId;
+  final num? precioMinimo;
+  final num? precioMaximo;
+
+  bool get activo =>
+      areaId != null ||
+      categoriaId != null ||
+      precioMinimo != null ||
+      precioMaximo != null;
+
+  bool coincide(ProductoVenta producto) =>
+      (areaId == null || producto.areaId == areaId) &&
+      (categoriaId == null || producto.categoriaId == categoriaId) &&
+      (precioMinimo == null || producto.precio >= precioMinimo!) &&
+      (precioMaximo == null || producto.precio <= precioMaximo!);
+}
+
+class CategoriaFiltroVenta {
+  const CategoriaFiltroVenta({
+    required this.id,
+    required this.nombre,
+    required this.areaId,
+    required this.area,
+  });
+
+  final int id;
+  final String nombre;
+  final int areaId;
+  final String area;
 }
 
 class RangoDescuentoVenta {
