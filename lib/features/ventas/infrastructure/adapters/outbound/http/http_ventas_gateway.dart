@@ -14,6 +14,7 @@ class HttpVentasGateway implements VentasGateway {
     required String buscar,
     required int pagina,
     required int tamanio,
+    FiltroProductosVenta filtros = const FiltroProductosVenta(),
   }) => _solicitar(() async {
     final ruta = Uri(
       path: 'api/ventas/productos',
@@ -22,6 +23,10 @@ class HttpVentasGateway implements VentasGateway {
         'page': '$pagina',
         'size': '$tamanio',
         if (buscar.isNotEmpty) 'buscar': buscar,
+        if (filtros.areaId case final id?) 'areaId': '$id',
+        if (filtros.categoriaId case final id?) 'categoriaId': '$id',
+        if (filtros.precioMinimo case final precio?) 'precioMinimo': '$precio',
+        if (filtros.precioMaximo case final precio?) 'precioMaximo': '$precio',
       },
     );
     final respuesta = await _api.getJson(ruta.toString());
@@ -34,7 +39,9 @@ class HttpVentasGateway implements VentasGateway {
             precio: producto['precioUnitario'] as num,
             existencia: producto['existencia'] as int,
             imagenUrl: producto['imagenUrl'] as String?,
+            areaId: producto['areaId'] as int?,
             areaNombre: producto['areaNombre'] as String?,
+            categoriaId: producto['categoriaId'] as int?,
             categoriaNombre: producto['categoriaNombre'] as String?,
             descuentos: [
               for (final rango in _lista(producto['descuentos'] ?? const []))
@@ -51,6 +58,25 @@ class HttpVentasGateway implements VentasGateway {
       ultima: respuesta['ultima'] as bool,
     );
   });
+
+  @override
+  Future<List<CategoriaFiltroVenta>> cargarCategorias(int sucursalId) =>
+      _solicitar(() async {
+        final ruta = Uri(
+          path: 'api/productos/opciones/categorias',
+          queryParameters: {'sucursalId': '$sucursalId'},
+        );
+        final respuesta = await _api.requestJson('GET', ruta.toString());
+        return [
+          for (final categoria in _lista(respuesta))
+            CategoriaFiltroVenta(
+              id: categoria['id'] as int,
+              nombre: categoria['nombre'] as String,
+              areaId: categoria['areaId'] as int,
+              area: categoria['area'] as String,
+            ),
+        ];
+      });
 
   @override
   Future<CotizacionVenta> preparar({

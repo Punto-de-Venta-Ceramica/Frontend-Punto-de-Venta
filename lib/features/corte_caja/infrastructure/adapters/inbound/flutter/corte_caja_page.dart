@@ -25,6 +25,7 @@ class CorteCajaPage extends StatefulWidget {
     this.onInicio,
     this.onPedidos,
     this.onInventario,
+    this.onDatosContables,
     this.onRegistrarVenta,
     super.key,
   });
@@ -39,6 +40,7 @@ class CorteCajaPage extends StatefulWidget {
   final VoidCallback? onInicio;
   final VoidCallback? onPedidos;
   final VoidCallback? onInventario;
+  final VoidCallback? onDatosContables;
   final Future<bool> Function(BuildContext context)? onRegistrarVenta;
 
   @override
@@ -289,6 +291,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
             onInicio: widget.onInicio ?? () => Navigator.of(context).maybePop(),
             onPedidos: widget.onPedidos,
             onInventario: widget.onInventario,
+            onDatosContables: widget.onDatosContables,
             onCaja: () {},
           )
         : null,

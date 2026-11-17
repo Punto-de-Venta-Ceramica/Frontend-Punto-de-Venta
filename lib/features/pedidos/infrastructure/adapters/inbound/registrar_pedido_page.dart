@@ -20,6 +20,7 @@ class RegistrarPedidoPage extends StatefulWidget {
     this.onInicio,
     this.onCaja,
     this.onInventario,
+    this.onDatosContables,
     super.key,
   });
   final GestionPedidos gestion;
@@ -31,6 +32,7 @@ class RegistrarPedidoPage extends StatefulWidget {
   /// Destinos de la barra inferior. Se llaman después de cerrar esta pantalla,
   /// desde el listado de pedidos que la abrió.
   final VoidCallback? onInicio, onCaja, onInventario;
+  final VoidCallback? onDatosContables;
   @override
   State<RegistrarPedidoPage> createState() => _RegistrarPedidoPageState();
 }
@@ -1828,6 +1830,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
               onPedidos: () => _salir(null),
               onCaja: () => _salir(widget.onCaja),
               onInventario: () => _salir(widget.onInventario),
+              onDatosContables: widget.onDatosContables,
             )
           : null,
       rol: widget.esPropietario ? 'Propietario' : 'Empleado',

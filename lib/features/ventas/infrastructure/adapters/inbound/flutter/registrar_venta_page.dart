@@ -10,6 +10,7 @@ import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets
 import '../../../../application/services/gestion_ventas.dart';
 import '../../../../domain/venta.dart';
 import 'confirmar_venta_page.dart';
+import 'filtros_productos_venta.dart';
 import 'ventas_widgets.dart';
 
 class RegistrarVentaPage extends StatefulWidget {
@@ -42,6 +43,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   int _solicitud = 0;
   int _paginaSolicitada = 0;
   String _busqueda = '';
+  FiltroProductosVenta _filtros = const FiltroProductosVenta();
   String? _error;
   bool _cargando = true;
   bool _abriendoPago = false;
@@ -63,20 +65,33 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   void _buscar(String texto) {
     final busqueda = texto.trim();
     if (busqueda == _busqueda) return;
+    _reiniciarListado(
+      busqueda: busqueda,
+      espera: const Duration(milliseconds: 300),
+    );
+  }
+
+  void _reiniciarListado({
+    String? busqueda,
+    FiltroProductosVenta? filtros,
+    Duration? espera,
+  }) {
     _esperaBusqueda?.cancel();
     _solicitud++;
     setState(() {
-      _busqueda = busqueda;
+      _busqueda = busqueda ?? _busqueda;
+      _filtros = filtros ?? _filtros;
       _pagina = null;
       _paginaSolicitada = 0;
       _error = null;
       _cargando = !_soloSeleccionados;
     });
     if (_soloSeleccionados) return;
-    _esperaBusqueda = Timer(
-      const Duration(milliseconds: 300),
-      () => _cargar(0),
-    );
+    if (espera == null) {
+      _cargar(0);
+    } else {
+      _esperaBusqueda = Timer(espera, () => _cargar(0));
+    }
   }
 
   void _limpiarBusqueda() {
@@ -103,6 +118,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
       final pagina = await widget.gestion.listarProductos(
         widget.sucursalId,
         buscar: _busqueda,
+        filtros: _filtros,
         pagina: indice,
       );
       if (!mounted || solicitud != _solicitud) return;
@@ -202,8 +218,9 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     final productos = _soloSeleccionados
         ? [
             for (final linea in seleccion)
-              if (linea.producto.nombre.toLowerCase().contains(consulta) ||
-                  linea.producto.id == idBuscado)
+              if (_filtros.coincide(linea.producto) &&
+                  (linea.producto.nombre.toLowerCase().contains(consulta) ||
+                      linea.producto.id == idBuscado))
                 linea.producto,
           ]
         : pagina?.productos ?? const <ProductoVenta>[];
@@ -311,6 +328,13 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
             ),
           ),
         ),
+        FiltrosProductosVenta(
+          aplicados: _filtros,
+          cargarCategorias: () =>
+              widget.gestion.cargarCategorias(widget.sucursalId),
+          onAplicar: (filtros) => _reiniciarListado(filtros: filtros),
+          onSesionExpirada: widget.onSesionExpirada,
+        ),
         if (!_soloSeleccionados &&
             pagina != null &&
             (pagina.pagina > 0 || !pagina.ultima)) ...[
@@ -367,7 +391,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
             mensaje: _mensajeSinProductos(seleccion.isEmpty),
             icono: _soloSeleccionados
                 ? Icons.remove_shopping_cart_outlined
-                : _busqueda.isEmpty
+                : _busqueda.isEmpty && !_filtros.activo
                 ? Icons.inventory_2_outlined
                 : Icons.search_off_rounded,
           )
@@ -381,8 +405,11 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     if (_soloSeleccionados) {
       return carritoVacio
           ? 'Aún no has seleccionado productos.'
+          : _filtros.activo
+          ? 'Ningún producto seleccionado coincide con los filtros.'
           : 'Ningún producto seleccionado coincide con la búsqueda.';
     }
+    if (_filtros.activo) return 'No hay productos con estos filtros.';
     return _busqueda.isEmpty
         ? 'Esta sucursal no tiene productos disponibles.'
         : 'No se encontraron productos.';

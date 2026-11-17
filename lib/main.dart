@@ -380,6 +380,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             _abrirPedidos(cajaContext, negocio, sucursal, reemplazar: true),
         onInventario: () =>
             _abrirProductos(cajaContext, negocio, sucursal, reemplazar: true),
+        onDatosContables: () => _abrirDatosContables(
+          cajaContext,
+          negocio,
+          sucursalInicialId: sucursal.id,
+        ),
       ),
     );
     final navigator = Navigator.of(context);
@@ -522,6 +527,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           sucursal,
           reemplazar: true,
         ),
+        onDatosContables: () => _abrirDatosContables(
+          productosContext,
+          negocio,
+          sucursalInicialId: sucursal.id,
+        ),
       ),
     );
     final navigator = Navigator.of(context);
@@ -553,6 +563,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
           negocio,
           sucursal,
           reemplazar: true,
+        ),
+        onDatosContables: () => _abrirDatosContables(
+          pedidosContext,
+          negocio,
+          sucursalInicialId: sucursal.id,
         ),
       ),
     );
