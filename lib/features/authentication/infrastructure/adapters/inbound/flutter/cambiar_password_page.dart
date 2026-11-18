@@ -45,7 +45,8 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
   bool _ocultarNueva = true;
   bool _ocultarConfirmar = true;
   bool _busy = false;
-  String? _error;
+  String? _generalError;
+  final Map<String, String> _fieldErrors = {};
 
   @override
   void dispose() {
@@ -58,31 +59,63 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
     super.dispose();
   }
 
+  Map<String, String> _validar(String actual, String nueva, String confirmar) {
+    final errores = <String, String>{};
+
+    if (actual.trim().isEmpty) {
+      errores['actual'] = 'Ingresa tu contraseña actual.';
+    }
+
+    final passwordErrors = <String>[];
+    if (nueva.isEmpty) {
+      passwordErrors.add('La contraseña es obligatoria.');
+    } else {
+      if (nueva.runes.length < 8) {
+        passwordErrors.add('Debe contener al menos 8 caracteres.');
+      }
+      if (nueva.length > 128) {
+        passwordErrors.add('La contraseña debe contener entre 8 y 128 caracteres.');
+      }
+      if (!RegExp(r'[a-zA-ZÀ-ÖØ-öø-ÿ]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener letras.');
+      }
+      if (!RegExp(r'[0-9]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener al menos un número.');
+      }
+    }
+    if (passwordErrors.isNotEmpty) {
+      errores['nueva'] = passwordErrors.join('\n');
+    }
+
+    if (confirmar.isEmpty) {
+      errores['confirmar'] = 'Confirma tu contraseña.';
+    } else if (nueva.isNotEmpty && nueva != confirmar) {
+      errores['confirmar'] = 'Las contraseñas no coinciden.';
+    }
+
+    return errores;
+  }
+
   Future<void> _submit() async {
     final actual = _actualCtrl.text.trim();
     final nueva = _nuevaCtrl.text;
     final confirmar = _confirmarCtrl.text;
 
-    if (actual.isEmpty || nueva.isEmpty || confirmar.isEmpty) {
-      setState(() => _error = 'Todos los campos son obligatorios.');
-      return;
-    }
-    if (nueva.length < 8) {
-      setState(
-        () => _error = 'La nueva contraseña debe tener al menos 8 caracteres.',
-      );
-      return;
-    }
-    if (nueva != confirmar) {
-      setState(
-        () => _error = 'La nueva contraseña y su confirmación no coinciden.',
-      );
+    final errores = _validar(actual, nueva, confirmar);
+    if (errores.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errores);
+        _generalError = null;
+      });
       return;
     }
 
     setState(() {
       _busy = true;
-      _error = null;
+      _fieldErrors.clear();
+      _generalError = null;
     });
 
     try {
@@ -102,10 +135,28 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
         Navigator.of(context).pop();
       }
     } on AuthenticationFailure catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      final msg = e.message;
+      final msgLower = msg.toLowerCase();
+      setState(() {
+        if (msgLower.contains('actual') ||
+            msgLower.contains('incorrecta') ||
+            msgLower.contains('credenciales')) {
+          _fieldErrors['actual'] = msg;
+        } else if (msgLower.contains('coinciden')) {
+          _fieldErrors['confirmar'] = msg;
+        } else if (msgLower.contains('nueva') ||
+            msgLower.contains('caracteres') ||
+            msgLower.contains('contraseña')) {
+          _fieldErrors['nueva'] = msg;
+        } else {
+          _generalError = msg;
+        }
+      });
     } catch (_) {
-      if (mounted)
-        setState(() => _error = 'Error inesperado al cambiar contraseña.');
+      if (mounted) {
+        setState(() => _generalError = 'Error inesperado al cambiar contraseña.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -120,7 +171,10 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
     required VoidCallback onToggle,
     TextInputAction action = TextInputAction.next,
     VoidCallback? onSubmitted,
+    String? errorText,
+    ValueChanged<String>? onChanged,
   }) {
+    final hasError = errorText != null && errorText.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -138,18 +192,21 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: focusNode.hasFocus
-                  ? BarroTheme.primary
-                  : BarroTheme.border,
+              color: hasError
+                  ? BarroTheme.error
+                  : (focusNode.hasFocus
+                      ? BarroTheme.primary
+                      : BarroTheme.border),
+              width: hasError ? 1.2 : 1.0,
             ),
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.lock_outline_rounded,
-                color: BarroTheme.secondary,
+                color: hasError ? BarroTheme.error : BarroTheme.secondary,
                 size: 20,
               ),
               const SizedBox(width: 10),
@@ -160,6 +217,7 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                   obscureText: ocultar,
                   textInputAction: action,
                   onSubmitted: (_) => onSubmitted?.call(),
+                  onChanged: onChanged,
                   decoration: InputDecoration(
                     hintText: hint,
                     hintStyle: BarroTheme.type(
@@ -187,6 +245,17 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
             ],
           ),
         ),
+        if (hasError) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText,
+            style: BarroTheme.type(
+              12,
+              17,
+              color: BarroTheme.error,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -279,43 +348,22 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                           ],
                         ),
                         const SizedBox(height: 22),
-                        if (_error != null)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFDE8E8),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: BarroTheme.error.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: BarroTheme.error,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _error!,
-                                    style: const TextStyle(
-                                      color: BarroTheme.error,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         _campo(
                           label: 'Contraseña actual',
                           hint: 'Ingresa tu contraseña actual',
                           controller: _actualCtrl,
                           focusNode: _actualFocus,
                           ocultar: _ocultarActual,
+                          errorText: _fieldErrors['actual'],
+                          onChanged: (_) {
+                            if (_fieldErrors.containsKey('actual') ||
+                                _generalError != null) {
+                              setState(() {
+                                _fieldErrors.remove('actual');
+                                _generalError = null;
+                              });
+                            }
+                          },
                           onToggle: () =>
                               setState(() => _ocultarActual = !_ocultarActual),
                         ),
@@ -326,6 +374,16 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                           controller: _nuevaCtrl,
                           focusNode: _nuevaFocus,
                           ocultar: _ocultarNueva,
+                          errorText: _fieldErrors['nueva'],
+                          onChanged: (_) {
+                            if (_fieldErrors.containsKey('nueva') ||
+                                _generalError != null) {
+                              setState(() {
+                                _fieldErrors.remove('nueva');
+                                _generalError = null;
+                              });
+                            }
+                          },
                           onToggle: () =>
                               setState(() => _ocultarNueva = !_ocultarNueva),
                         ),
@@ -336,12 +394,33 @@ class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
                           controller: _confirmarCtrl,
                           focusNode: _confirmarFocus,
                           ocultar: _ocultarConfirmar,
+                          errorText: _fieldErrors['confirmar'],
                           action: TextInputAction.done,
                           onSubmitted: _submit,
+                          onChanged: (_) {
+                            if (_fieldErrors.containsKey('confirmar') ||
+                                _generalError != null) {
+                              setState(() {
+                                _fieldErrors.remove('confirmar');
+                                _generalError = null;
+                              });
+                            }
+                          },
                           onToggle: () => setState(
                             () => _ocultarConfirmar = !_ocultarConfirmar,
                           ),
                         ),
+                        if (_generalError != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _generalError!,
+                            style: BarroTheme.type(
+                              14,
+                              20,
+                              color: BarroTheme.error,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         FilledButton(
                           onPressed: _busy ? null : _submit,

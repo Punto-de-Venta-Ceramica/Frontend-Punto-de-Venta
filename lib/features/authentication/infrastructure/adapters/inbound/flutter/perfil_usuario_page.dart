@@ -35,11 +35,13 @@ class PerfilUsuarioPage extends StatefulWidget {
 }
 
 class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
+  final _correoCtrl = TextEditingController();
   final _nombreCtrl = TextEditingController();
   final _paternoCtrl = TextEditingController();
   final _maternoCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
 
+  final _correoFocus = FocusNode();
   final _nombreFocus = FocusNode();
   final _paternoFocus = FocusNode();
   final _maternoFocus = FocusNode();
@@ -47,7 +49,8 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
 
   bool _cargando = true;
   bool _guardando = false;
-  String? _error;
+  String? _generalError;
+  final Map<String, String> _fieldErrors = {};
   String _correo = '';
   String _rol = '';
 
@@ -59,11 +62,13 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
 
   @override
   void dispose() {
+    _correoCtrl.dispose();
     _nombreCtrl.dispose();
     _paternoCtrl.dispose();
     _maternoCtrl.dispose();
     _telefonoCtrl.dispose();
 
+    _correoFocus.dispose();
     _nombreFocus.dispose();
     _paternoFocus.dispose();
     _maternoFocus.dispose();
@@ -74,7 +79,7 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   Future<void> _cargarPerfil() async {
     setState(() {
       _cargando = true;
-      _error = null;
+      _generalError = null;
     });
 
     try {
@@ -82,11 +87,12 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       if (res is Map<String, dynamic>) {
         if (!mounted) return;
         setState(() {
+          _correoCtrl.text = res['correo']?.toString() ?? '';
           _nombreCtrl.text = res['nombre']?.toString() ?? '';
           _paternoCtrl.text = res['apellidoPaterno']?.toString() ?? '';
           _maternoCtrl.text = res['apellidoMaterno']?.toString() ?? '';
           _telefonoCtrl.text = res['telefono']?.toString() ?? '';
-          _correo = res['correo']?.toString() ?? '';
+          _correo = _correoCtrl.text;
           _rol = res['rol']?.toString() ?? '';
           _cargando = false;
         });
@@ -96,41 +102,138 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'No se pudo cargar la información del perfil.';
+        _generalError = 'No se pudo cargar la información del perfil.';
         _cargando = false;
       });
     }
   }
 
+  Map<String, String> _validar() {
+    final errores = <String, String>{};
+    final correo = _correoCtrl.text;
+    final nombre = _nombreCtrl.text;
+    final paterno = _paternoCtrl.text;
+    final materno = _maternoCtrl.text;
+    final telefono = _telefonoCtrl.text;
+
+    // 1. Correo electrónico
+    if (correo.trim().isEmpty) {
+      errores['correo'] = 'El correo electrónico es obligatorio y no puede contener solo espacios.';
+    } else if (correo.contains(' ')) {
+      errores['correo'] = 'El correo electrónico no debe contener espacios en blanco.';
+    } else if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(correo.trim())) {
+      errores['correo'] = 'El correo electrónico no tiene un formato válido.';
+    } else if (correo.trim().length > 254) {
+      errores['correo'] = 'El correo electrónico no debe superar 254 caracteres.';
+    }
+
+    // 2. Nombre
+    if (nombre.trim().isEmpty) {
+      errores['nombre'] = 'El nombre es obligatorio y no puede contener solo espacios.';
+    } else if (RegExp(r'[0-9]').hasMatch(nombre)) {
+      errores['nombre'] = 'El nombre no debe contener números.';
+    } else if (nombre.trim().length > 100) {
+      errores['nombre'] = 'El nombre no debe superar 100 caracteres.';
+    } else if (nombre != nombre.trim()) {
+      errores['nombre'] = 'El nombre no debe tener espacios al inicio ni al final.';
+    }
+
+    // 3. Apellido paterno
+    if (paterno.trim().isEmpty) {
+      errores['apellidoPaterno'] = 'El apellido paterno es obligatorio y no puede contener solo espacios.';
+    } else if (RegExp(r'[0-9]').hasMatch(paterno)) {
+      errores['apellidoPaterno'] = 'El apellido paterno no debe contener números.';
+    } else if (paterno.trim().length > 100) {
+      errores['apellidoPaterno'] = 'El apellido paterno no debe superar 100 caracteres.';
+    } else if (paterno != paterno.trim()) {
+      errores['apellidoPaterno'] = 'El apellido paterno no debe tener espacios al inicio ni al final.';
+    }
+
+    // 4. Apellido materno (opcional)
+    if (materno.isNotEmpty) {
+      if (materno.trim().isEmpty) {
+        errores['apellidoMaterno'] = 'El apellido materno no puede contener solo espacios.';
+      } else if (RegExp(r'[0-9]').hasMatch(materno)) {
+        errores['apellidoMaterno'] = 'El apellido materno no debe contener números.';
+      } else if (materno.trim().length > 100) {
+        errores['apellidoMaterno'] = 'El apellido materno no debe superar 100 caracteres.';
+      } else if (materno != materno.trim()) {
+        errores['apellidoMaterno'] = 'El apellido materno no debe tener espacios al inicio ni al final.';
+      }
+    }
+
+    // 5. Teléfono
+    if (telefono.trim().isEmpty) {
+      errores['telefono'] = 'El teléfono es obligatorio y no puede contener solo espacios.';
+    } else if (telefono.contains(' ')) {
+      errores['telefono'] = 'El teléfono no debe contener espacios en blanco.';
+    } else if (!RegExp(r'^[0-9]{10}$').hasMatch(telefono.trim())) {
+      errores['telefono'] = 'El teléfono debe contener exactamente 10 dígitos numéricos.';
+    }
+
+    return errores;
+  }
+
   Future<void> _guardar() async {
-    final nombre = _nombreCtrl.text.trim();
-    if (nombre.isEmpty) {
-      setState(() => _error = 'El nombre es obligatorio.');
+    final errores = _validar();
+    if (errores.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errores);
+        _generalError = null;
+      });
       return;
     }
 
     setState(() {
       _guardando = true;
-      _error = null;
+      _fieldErrors.clear();
+      _generalError = null;
     });
 
     try {
-      await widget.api.putJson('api/usuarios/perfil', {
-        'nombre': nombre,
+      final res = await widget.api.putJson('api/usuarios/perfil', {
+        'nombre': _nombreCtrl.text.trim(),
         'apellidoPaterno': _paternoCtrl.text.trim(),
-        'apellidoMaterno': _maternoCtrl.text.trim(),
+        'apellidoMaterno': _maternoCtrl.text.trim().isEmpty
+            ? null
+            : _maternoCtrl.text.trim(),
         'telefono': _telefonoCtrl.text.trim(),
+        'correo': _correoCtrl.text.trim(),
       });
 
       if (!mounted) return;
+      setState(() {
+        _correo = res['correo']?.toString() ?? _correoCtrl.text.trim();
+      });
       NotificacionServicio.actualizacion(
         context,
         'Tus datos de perfil se actualizaron con éxito.',
       );
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      setState(() {
+        if (e.fieldErrors.isNotEmpty) {
+          _fieldErrors.addAll(e.fieldErrors);
+        } else {
+          final msg = e.message;
+          final msgLower = msg.toLowerCase();
+          if (msgLower.contains('correo') || msgLower.contains('email')) {
+            _fieldErrors['correo'] = msg;
+          } else if (msgLower.contains('nombre')) {
+            _fieldErrors['nombre'] = msg;
+          } else if (msgLower.contains('apellido')) {
+            _fieldErrors['apellidoPaterno'] = msg;
+          } else if (msgLower.contains('teléfono') || msgLower.contains('telefono')) {
+            _fieldErrors['telefono'] = msg;
+          } else {
+            _generalError = msg;
+          }
+        }
+      });
     } catch (_) {
-      if (mounted) setState(() => _error = 'Error al actualizar el perfil.');
+      if (mounted) setState(() => _generalError = 'Error al actualizar el perfil.');
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -150,7 +253,10 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
     required FocusNode focusNode,
     bool readOnly = false,
     TextInputType? keyboardType,
+    String? errorText,
+    ValueChanged<String>? onChanged,
   }) {
+    final hasError = errorText != null && errorText.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -168,9 +274,12 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
           decoration: BoxDecoration(
             color: readOnly ? const Color(0xFFF7F4F2) : Colors.white,
             border: Border.all(
-              color: focusNode.hasFocus
-                  ? BarroTheme.primary
-                  : BarroTheme.border,
+              color: hasError
+                  ? BarroTheme.error
+                  : (focusNode.hasFocus
+                      ? BarroTheme.primary
+                      : BarroTheme.border),
+              width: hasError ? 1.2 : 1.0,
             ),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -179,7 +288,9 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
             children: [
               Icon(
                 icon,
-                color: readOnly ? BarroTheme.placeholder : BarroTheme.secondary,
+                color: hasError
+                    ? BarroTheme.error
+                    : (readOnly ? BarroTheme.placeholder : BarroTheme.secondary),
                 size: 20,
               ),
               const SizedBox(width: 10),
@@ -189,6 +300,14 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                   focusNode: focusNode,
                   readOnly: readOnly,
                   keyboardType: keyboardType,
+                  onChanged: (val) {
+                    if (hasError) {
+                      setState(() {
+                        _fieldErrors.removeWhere((k, v) => v == errorText);
+                      });
+                    }
+                    onChanged?.call(val);
+                  },
                   decoration: InputDecoration(
                     hintText: hint,
                     hintStyle: BarroTheme.type(
@@ -205,6 +324,13 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
             ],
           ),
         ),
+        if (hasError) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText,
+            style: BarroTheme.type(12, 16, color: BarroTheme.error),
+          ),
+        ],
       ],
     );
   }
@@ -327,38 +453,6 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                         ],
                         const SizedBox(height: 24),
 
-                        if (_error != null)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFDE8E8),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: BarroTheme.error.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: BarroTheme.error,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _error!,
-                                    style: const TextStyle(
-                                      color: BarroTheme.error,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
                         // Tarjeta de Datos Personales
                         Container(
                           decoration: BoxDecoration(
@@ -397,14 +491,18 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                               ),
                               const SizedBox(height: 18),
                               _campo(
-                                label: 'Correo electrónico',
+                                label: 'Correo electrónico *',
                                 hint: 'correo@ejemplo.com',
                                 icon: Icons.email_outlined,
-                                controller: TextEditingController(
-                                  text: _correo,
-                                ),
-                                focusNode: FocusNode(),
-                                readOnly: true,
+                                controller: _correoCtrl,
+                                focusNode: _correoFocus,
+                                keyboardType: TextInputType.emailAddress,
+                                errorText: _fieldErrors['correo'],
+                                onChanged: (_) {
+                                  if (_fieldErrors.containsKey('correo')) {
+                                    setState(() => _fieldErrors.remove('correo'));
+                                  }
+                                },
                               ),
                               const SizedBox(height: 14),
                               _campo(
@@ -413,14 +511,26 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                 icon: Icons.person_outline,
                                 controller: _nombreCtrl,
                                 focusNode: _nombreFocus,
+                                errorText: _fieldErrors['nombre'],
+                                onChanged: (_) {
+                                  if (_fieldErrors.containsKey('nombre')) {
+                                    setState(() => _fieldErrors.remove('nombre'));
+                                  }
+                                },
                               ),
                               const SizedBox(height: 14),
                               _campo(
-                                label: 'Apellido paterno',
+                                label: 'Apellido paterno *',
                                 hint: 'Primer apellido',
                                 icon: Icons.person_outline,
                                 controller: _paternoCtrl,
                                 focusNode: _paternoFocus,
+                                errorText: _fieldErrors['apellidoPaterno'],
+                                onChanged: (_) {
+                                  if (_fieldErrors.containsKey('apellidoPaterno')) {
+                                    setState(() => _fieldErrors.remove('apellidoPaterno'));
+                                  }
+                                },
                               ),
                               const SizedBox(height: 14),
                               _campo(
@@ -429,16 +539,40 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                                 icon: Icons.person_outline,
                                 controller: _maternoCtrl,
                                 focusNode: _maternoFocus,
+                                errorText: _fieldErrors['apellidoMaterno'],
+                                onChanged: (_) {
+                                  if (_fieldErrors.containsKey('apellidoMaterno')) {
+                                    setState(() => _fieldErrors.remove('apellidoMaterno'));
+                                  }
+                                },
                               ),
                               const SizedBox(height: 14),
                               _campo(
-                                label: 'Teléfono',
-                                hint: '10 dígitos',
+                                label: 'Teléfono *',
+                                hint: '10 dígitos numéricos',
                                 icon: Icons.phone_outlined,
                                 controller: _telefonoCtrl,
                                 focusNode: _telefonoFocus,
                                 keyboardType: TextInputType.phone,
+                                errorText: _fieldErrors['telefono'],
+                                onChanged: (_) {
+                                  if (_fieldErrors.containsKey('telefono')) {
+                                    setState(() => _fieldErrors.remove('telefono'));
+                                  }
+                                },
                               ),
+                              if (_generalError != null) ...[
+                                const SizedBox(height: 14),
+                                Text(
+                                  _generalError!,
+                                  style: BarroTheme.type(
+                                    13,
+                                    18,
+                                    color: BarroTheme.error,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                               const SizedBox(height: 22),
                               FilledButton.icon(
                                 onPressed: _guardando ? null : _guardar,

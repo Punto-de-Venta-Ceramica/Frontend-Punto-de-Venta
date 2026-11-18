@@ -72,8 +72,9 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -121,8 +122,9 @@ class _RecuperarPasswordPageState extends State<RecuperarPasswordPage> {
     } on AuthenticationFailure catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

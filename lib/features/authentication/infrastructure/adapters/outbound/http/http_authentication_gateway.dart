@@ -60,7 +60,7 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
           'El servidor no devolvió una sesión válida.',
         );
       }
-      return AuthSession(
+      final session = AuthSession(
         token: data['token'] as String,
         expiresAt: expiry,
         refreshToken: data['refreshToken'] as String,
@@ -69,6 +69,13 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
         role: data['rol'] as String,
         forcePasswordChange: data['forcePasswordChange'] == true,
       );
+      _api.iniciarSesion(
+        token: session.token,
+        expiresAt: session.expiresAt,
+        refreshToken: session.refreshToken,
+        refreshExpiresAt: session.refreshExpiresAt,
+      );
+      return session;
     } on ApiException catch (error) {
       throw _failure(error);
     }
