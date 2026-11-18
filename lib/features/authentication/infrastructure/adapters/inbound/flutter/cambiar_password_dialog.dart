@@ -37,7 +37,8 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
   bool _ocultarNueva = true;
   bool _ocultarConfirmar = true;
   bool _busy = false;
-  String? _error;
+  String? _generalError;
+  final Map<String, String> _fieldErrors = {};
 
   @override
   void dispose() {
@@ -50,31 +51,63 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
     super.dispose();
   }
 
+  Map<String, String> _validar(String actual, String nueva, String confirmar) {
+    final errores = <String, String>{};
+
+    if (actual.trim().isEmpty) {
+      errores['actual'] = 'Ingresa tu contraseña actual.';
+    }
+
+    final passwordErrors = <String>[];
+    if (nueva.isEmpty) {
+      passwordErrors.add('La contraseña es obligatoria.');
+    } else {
+      if (nueva.runes.length < 8) {
+        passwordErrors.add('Debe contener al menos 8 caracteres.');
+      }
+      if (nueva.length > 128) {
+        passwordErrors.add('La contraseña debe contener entre 8 y 128 caracteres.');
+      }
+      if (!RegExp(r'[a-zA-ZÀ-ÖØ-öø-ÿ]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener letras.');
+      }
+      if (!RegExp(r'[0-9]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener al menos un número.');
+      }
+    }
+    if (passwordErrors.isNotEmpty) {
+      errores['nueva'] = passwordErrors.join('\n');
+    }
+
+    if (confirmar.isEmpty) {
+      errores['confirmar'] = 'Confirma tu contraseña.';
+    } else if (nueva.isNotEmpty && nueva != confirmar) {
+      errores['confirmar'] = 'Las contraseñas no coinciden.';
+    }
+
+    return errores;
+  }
+
   Future<void> _submit() async {
     final actual = _actualCtrl.text.trim();
     final nueva = _nuevaCtrl.text;
     final confirmar = _confirmarCtrl.text;
 
-    if (actual.isEmpty || nueva.isEmpty || confirmar.isEmpty) {
-      setState(() => _error = 'Todos los campos son obligatorios.');
-      return;
-    }
-    if (nueva.length < 8) {
-      setState(
-        () => _error = 'La nueva contraseña debe tener al menos 8 caracteres.',
-      );
-      return;
-    }
-    if (nueva != confirmar) {
-      setState(
-        () => _error = 'La nueva contraseña y su confirmación no coinciden.',
-      );
+    final errores = _validar(actual, nueva, confirmar);
+    if (errores.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errores);
+        _generalError = null;
+      });
       return;
     }
 
     setState(() {
       _busy = true;
-      _error = null;
+      _fieldErrors.clear();
+      _generalError = null;
     });
 
     try {
@@ -87,10 +120,28 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
       Navigator.of(context).pop();
       widget.onExito?.call();
     } on AuthenticationFailure catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      final msg = e.message;
+      final msgLower = msg.toLowerCase();
+      setState(() {
+        if (msgLower.contains('actual') ||
+            msgLower.contains('incorrecta') ||
+            msgLower.contains('credenciales')) {
+          _fieldErrors['actual'] = msg;
+        } else if (msgLower.contains('coinciden')) {
+          _fieldErrors['confirmar'] = msg;
+        } else if (msgLower.contains('nueva') ||
+            msgLower.contains('caracteres') ||
+            msgLower.contains('contraseña')) {
+          _fieldErrors['nueva'] = msg;
+        } else {
+          _generalError = msg;
+        }
+      });
     } catch (_) {
-      if (mounted)
-        setState(() => _error = 'Error inesperado. Inténtalo de nuevo.');
+      if (mounted) {
+        setState(() => _generalError = 'Error inesperado. Inténtalo de nuevo.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -129,6 +180,15 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                 focusNode: _actualFocus,
                 label: 'Contraseña actual',
                 ocultar: _ocultarActual,
+                errorText: _fieldErrors['actual'],
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('actual') || _generalError != null) {
+                    setState(() {
+                      _fieldErrors.remove('actual');
+                      _generalError = null;
+                    });
+                  }
+                },
                 onToggle: () =>
                     setState(() => _ocultarActual = !_ocultarActual),
                 onSubmitted: () => _nuevaFocus.requestFocus(),
@@ -139,6 +199,15 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                 focusNode: _nuevaFocus,
                 label: 'Nueva contraseña',
                 ocultar: _ocultarNueva,
+                errorText: _fieldErrors['nueva'],
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('nueva') || _generalError != null) {
+                    setState(() {
+                      _fieldErrors.remove('nueva');
+                      _generalError = null;
+                    });
+                  }
+                },
                 onToggle: () => setState(() => _ocultarNueva = !_ocultarNueva),
                 onSubmitted: () => _confirmarFocus.requestFocus(),
               ),
@@ -148,18 +217,28 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
                 focusNode: _confirmarFocus,
                 label: 'Confirmar nueva contraseña',
                 ocultar: _ocultarConfirmar,
+                errorText: _fieldErrors['confirmar'],
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('confirmar') || _generalError != null) {
+                    setState(() {
+                      _fieldErrors.remove('confirmar');
+                      _generalError = null;
+                    });
+                  }
+                },
                 onToggle: () =>
                     setState(() => _ocultarConfirmar = !_ocultarConfirmar),
                 onSubmitted: _busy ? null : _submit,
               ),
-              if (_error != null)
+              if (_generalError != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
-                    _error!,
-                    style: const TextStyle(
+                    _generalError!,
+                    style: BarroTheme.type(
+                      13,
+                      18,
                       color: BarroTheme.error,
-                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -200,15 +279,19 @@ class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
     required String label,
     required bool ocultar,
     required VoidCallback onToggle,
+    String? errorText,
+    ValueChanged<String>? onChanged,
     void Function()? onSubmitted,
   }) => TextField(
     controller: controller,
     focusNode: focusNode,
     obscureText: ocultar,
+    onChanged: onChanged,
     onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
+      errorText: errorText,
       suffixIcon: IconButton(
         icon: Icon(ocultar ? Icons.visibility_off : Icons.visibility),
         onPressed: onToggle,

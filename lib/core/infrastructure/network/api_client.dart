@@ -346,6 +346,7 @@ class ApiClient {
         String? detail;
         if (response.statusCode == 400 ||
             response.statusCode == 401 ||
+            response.statusCode == 403 ||
             response.statusCode == 404 ||
             response.statusCode == 409) {
           try {
@@ -354,6 +355,9 @@ class ApiClient {
               final textoDetalle = problem['detail'];
               if (textoDetalle is String && textoDetalle.trim().isNotEmpty) {
                 detail = textoDetalle.trim();
+                if (response.statusCode == 403 || response.statusCode == 401) {
+                  message = detail;
+                }
               }
               final codigo = problem['codigo'];
               if (codigo is String) code = codigo;
