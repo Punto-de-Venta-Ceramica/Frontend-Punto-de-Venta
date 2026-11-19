@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'widgets/negocio_card.dart';
@@ -8,64 +9,41 @@ import '../../../../domain/negocio.dart';
 class MisNegociosPage extends StatelessWidget {
   const MisNegociosPage({
     this.negocios = const [],
-    this.mensajeExito,
     this.cargando = false,
     this.error,
     this.onRegistrar,
     this.onAdministrar,
     this.onEditar,
     this.onReintentar,
-    this.onVolver,
+    this.onCerrarSesion,
+    this.onNotificaciones,
+    this.conteoNotificaciones,
     super.key,
   });
 
   final List<Negocio> negocios;
-  final String? mensajeExito;
   final bool cargando;
   final String? error;
   final VoidCallback? onRegistrar;
   final ValueChanged<Negocio>? onAdministrar;
   final ValueChanged<Negocio>? onEditar;
   final VoidCallback? onReintentar;
-  final VoidCallback? onVolver;
+  final VoidCallback? onCerrarSesion;
+  final VoidCallback? onNotificaciones;
+  final ValueListenable<int?>? conteoNotificaciones;
 
   @override
   Widget build(BuildContext context) => NegociosScaffold(
-    footer: onVolver == null
+    onNotificaciones: onNotificaciones,
+    conteoNotificaciones: conteoNotificaciones,
+    footer: onCerrarSesion == null
         ? null
-        : Center(
-            child: NegociosTextButton(
-              label: 'Volver a mi sesión',
-              onPressed: onVolver,
-            ),
+        : OutlinedButton.icon(
+            onPressed: onCerrarSesion,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Cerrar sesión'),
           ),
     children: [
-      if (mensajeExito != null) ...[
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFECF7F1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                size: 18,
-                color: BarroTheme.success,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  mensajeExito!,
-                  style: BarroTheme.type(12, 18, color: BarroTheme.success),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
       Text(
         'Mis negocios',
         style: BarroTheme.type(30, 36, weight: FontWeight.w700),

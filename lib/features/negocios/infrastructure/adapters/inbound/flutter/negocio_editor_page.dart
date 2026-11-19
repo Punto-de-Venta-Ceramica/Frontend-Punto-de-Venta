@@ -26,6 +26,7 @@ class NegocioEditorPage extends StatefulWidget {
 
 class _NegocioEditorPageState extends State<NegocioEditorPage> {
   late String _nombre;
+  late String _eslogan;
   LogoNegocio? _logo;
   bool _eliminarLogo = false;
   bool _ocupado = false;
@@ -37,6 +38,7 @@ class _NegocioEditorPageState extends State<NegocioEditorPage> {
   void initState() {
     super.initState();
     _nombre = widget.negocio?.nombre ?? '';
+    _eslogan = widget.negocio?.eslogan ?? '';
   }
 
   void _fallo(NegocioFailure e) {
@@ -76,6 +78,7 @@ class _NegocioEditorPageState extends State<NegocioEditorPage> {
       nombre: _nombre,
       logo: _logo,
       eliminarLogo: _eliminarLogo,
+      eslogan: _eslogan,
     );
     final errores = datos.validar();
     setState(() {
@@ -140,6 +143,13 @@ class _NegocioEditorPageState extends State<NegocioEditorPage> {
       ocupado: _ocupado,
       error: _error,
       errorNombre: _errores['nombre'],
+      esloganInicial: widget.negocio?.eslogan ?? '',
+      errorEslogan: _errores['eslogan'],
+      onEsloganChanged: (eslogan) => setState(() {
+        _eslogan = eslogan;
+        _errores.remove('eslogan');
+        _error = null;
+      }),
       errorLogo: _errores['logo'],
       onNombreChanged: (nombre) => setState(() {
         _nombre = nombre;

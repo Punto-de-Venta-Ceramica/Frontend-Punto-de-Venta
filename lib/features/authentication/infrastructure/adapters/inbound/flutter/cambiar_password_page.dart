@@ -1,0 +1,487 @@
+import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
+import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
+import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
+
+/// Pantalla completa para cambiar la contraseña del usuario autenticado.
+class CambiarPasswordPage extends StatefulWidget {
+  const CambiarPasswordPage({
+    required this.gateway,
+    this.obligatorio = false,
+    this.onExito,
+    super.key,
+  });
+
+  final AuthenticationGateway gateway;
+  final bool obligatorio;
+  final VoidCallback? onExito;
+
+  static MaterialPageRoute<void> route({
+    required AuthenticationGateway gateway,
+    bool obligatorio = false,
+    VoidCallback? onExito,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => CambiarPasswordPage(
+      gateway: gateway,
+      obligatorio: obligatorio,
+      onExito: onExito,
+    ),
+  );
+
+  @override
+  State<CambiarPasswordPage> createState() => _CambiarPasswordPageState();
+}
+
+class _CambiarPasswordPageState extends State<CambiarPasswordPage> {
+  final _actualCtrl = TextEditingController();
+  final _nuevaCtrl = TextEditingController();
+  final _confirmarCtrl = TextEditingController();
+  final _actualFocus = FocusNode();
+  final _nuevaFocus = FocusNode();
+  final _confirmarFocus = FocusNode();
+
+  bool _ocultarActual = true;
+  bool _ocultarNueva = true;
+  bool _ocultarConfirmar = true;
+  bool _busy = false;
+  String? _generalError;
+  final Map<String, String> _fieldErrors = {};
+
+  @override
+  void dispose() {
+    _actualCtrl.dispose();
+    _nuevaCtrl.dispose();
+    _confirmarCtrl.dispose();
+    _actualFocus.dispose();
+    _nuevaFocus.dispose();
+    _confirmarFocus.dispose();
+    super.dispose();
+  }
+
+  Map<String, String> _validar(String actual, String nueva, String confirmar) {
+    final errores = <String, String>{};
+
+    if (actual.trim().isEmpty) {
+      errores['actual'] = 'Ingresa tu contraseña actual.';
+    }
+
+    final passwordErrors = <String>[];
+    if (nueva.isEmpty) {
+      passwordErrors.add('La contraseña es obligatoria.');
+    } else {
+      if (nueva.runes.length < 8) {
+        passwordErrors.add('Debe contener al menos 8 caracteres.');
+      }
+      if (nueva.length > 128) {
+        passwordErrors.add('La contraseña debe contener entre 8 y 128 caracteres.');
+      }
+      if (!RegExp(r'[a-zA-ZÀ-ÖØ-öø-ÿ]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener letras.');
+      }
+      if (!RegExp(r'[0-9]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener al menos un número.');
+      }
+    }
+    if (passwordErrors.isNotEmpty) {
+      errores['nueva'] = passwordErrors.join('\n');
+    }
+
+    if (confirmar.isEmpty) {
+      errores['confirmar'] = 'Confirma tu contraseña.';
+    } else if (nueva.isNotEmpty && nueva != confirmar) {
+      errores['confirmar'] = 'Las contraseñas no coinciden.';
+    }
+
+    return errores;
+  }
+
+  Future<void> _submit() async {
+    final actual = _actualCtrl.text.trim();
+    final nueva = _nuevaCtrl.text;
+    final confirmar = _confirmarCtrl.text;
+
+    final errores = _validar(actual, nueva, confirmar);
+    if (errores.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errores);
+        _generalError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _fieldErrors.clear();
+      _generalError = null;
+    });
+
+    try {
+      await widget.gateway.cambiarPassword(
+        passwordActual: actual,
+        nuevaPassword: nueva,
+        confirmarPassword: confirmar,
+      );
+
+      if (!mounted) return;
+      NotificacionServicio.actualizacion(
+        context,
+        'Tu contraseña se cambió correctamente.',
+      );
+      widget.onExito?.call();
+      if (!widget.obligatorio) {
+        Navigator.of(context).pop();
+      }
+    } on AuthenticationFailure catch (e) {
+      if (!mounted) return;
+      final msg = e.message;
+      final msgLower = msg.toLowerCase();
+      setState(() {
+        if (msgLower.contains('actual') ||
+            msgLower.contains('incorrecta') ||
+            msgLower.contains('credenciales')) {
+          _fieldErrors['actual'] = msg;
+        } else if (msgLower.contains('coinciden')) {
+          _fieldErrors['confirmar'] = msg;
+        } else if (msgLower.contains('nueva') ||
+            msgLower.contains('caracteres') ||
+            msgLower.contains('contraseña')) {
+          _fieldErrors['nueva'] = msg;
+        } else {
+          _generalError = msg;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _generalError = 'Error inesperado al cambiar contraseña.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _campo({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required bool ocultar,
+    required VoidCallback onToggle,
+    TextInputAction action = TextInputAction.next,
+    VoidCallback? onSubmitted,
+    String? errorText,
+    ValueChanged<String>? onChanged,
+  }) {
+    final hasError = errorText != null && errorText.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: BarroTheme.type(
+            13,
+            18,
+            weight: FontWeight.w600,
+            color: BarroTheme.text,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(
+              color: hasError
+                  ? BarroTheme.error
+                  : (focusNode.hasFocus
+                      ? BarroTheme.primary
+                      : BarroTheme.border),
+              width: hasError ? 1.2 : 1.0,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              Icon(
+                Icons.lock_outline_rounded,
+                color: hasError ? BarroTheme.error : BarroTheme.secondary,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  obscureText: ocultar,
+                  textInputAction: action,
+                  onSubmitted: (_) => onSubmitted?.call(),
+                  onChanged: onChanged,
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: BarroTheme.type(
+                      13,
+                      18,
+                      color: BarroTheme.placeholder,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  ocultar
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 20,
+                  color: BarroTheme.secondary,
+                ),
+                onPressed: onToggle,
+                splashRadius: 20,
+              ),
+            ],
+          ),
+        ),
+        if (hasError) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText,
+            style: BarroTheme.type(
+              12,
+              17,
+              color: BarroTheme.error,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: BarroTheme.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: widget.obligatorio
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: BarroTheme.primary,
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+        title: Text(
+          'Cambiar Contraseña',
+          style: BarroTheme.type(20, 26, weight: FontWeight.w700),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: BarroTheme.border),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxStyle.shadow],
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF7E7DF),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.lock_reset_rounded,
+                                color: BarroTheme.primary,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.obligatorio
+                                        ? 'Cambio de contraseña requerido'
+                                        : 'Actualizar contraseña',
+                                    style: BarroTheme.type(
+                                      17,
+                                      22,
+                                      weight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.obligatorio
+                                        ? 'Por seguridad debes definir tu contraseña definitiva.'
+                                        : 'Ingresa tu contraseña actual y la nueva que deseas usar.',
+                                    style: BarroTheme.type(
+                                      12,
+                                      17,
+                                      color: BarroTheme.secondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 22),
+                        _campo(
+                          label: 'Contraseña actual',
+                          hint: 'Ingresa tu contraseña actual',
+                          controller: _actualCtrl,
+                          focusNode: _actualFocus,
+                          ocultar: _ocultarActual,
+                          errorText: _fieldErrors['actual'],
+                          onChanged: (_) {
+                            if (_fieldErrors.containsKey('actual') ||
+                                _generalError != null) {
+                              setState(() {
+                                _fieldErrors.remove('actual');
+                                _generalError = null;
+                              });
+                            }
+                          },
+                          onToggle: () =>
+                              setState(() => _ocultarActual = !_ocultarActual),
+                        ),
+                        const SizedBox(height: 16),
+                        _campo(
+                          label: 'Nueva contraseña',
+                          hint: 'Mínimo 8 caracteres',
+                          controller: _nuevaCtrl,
+                          focusNode: _nuevaFocus,
+                          ocultar: _ocultarNueva,
+                          errorText: _fieldErrors['nueva'],
+                          onChanged: (_) {
+                            if (_fieldErrors.containsKey('nueva') ||
+                                _generalError != null) {
+                              setState(() {
+                                _fieldErrors.remove('nueva');
+                                _generalError = null;
+                              });
+                            }
+                          },
+                          onToggle: () =>
+                              setState(() => _ocultarNueva = !_ocultarNueva),
+                        ),
+                        const SizedBox(height: 16),
+                        _campo(
+                          label: 'Confirmar nueva contraseña',
+                          hint: 'Repite la contraseña',
+                          controller: _confirmarCtrl,
+                          focusNode: _confirmarFocus,
+                          ocultar: _ocultarConfirmar,
+                          errorText: _fieldErrors['confirmar'],
+                          action: TextInputAction.done,
+                          onSubmitted: _submit,
+                          onChanged: (_) {
+                            if (_fieldErrors.containsKey('confirmar') ||
+                                _generalError != null) {
+                              setState(() {
+                                _fieldErrors.remove('confirmar');
+                                _generalError = null;
+                              });
+                            }
+                          },
+                          onToggle: () => setState(
+                            () => _ocultarConfirmar = !_ocultarConfirmar,
+                          ),
+                        ),
+                        if (_generalError != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _generalError!,
+                            style: BarroTheme.type(
+                              14,
+                              20,
+                              color: BarroTheme.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        FilledButton(
+                          onPressed: _busy ? null : _submit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: BarroTheme.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _busy
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Guardar contraseña',
+                                  style: BarroTheme.type(
+                                    15,
+                                    20,
+                                    weight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                        if (!widget.obligatorio) ...[
+                          const SizedBox(height: 10),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(
+                              'Cancelar',
+                              style: BarroTheme.type(
+                                14,
+                                18,
+                                color: BarroTheme.secondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BoxStyle {
+  static final shadow = BoxShadow(
+    color: Colors.black.withValues(alpha: 0.04),
+    blurRadius: 10,
+    offset: const Offset(0, 4),
+  );
+}

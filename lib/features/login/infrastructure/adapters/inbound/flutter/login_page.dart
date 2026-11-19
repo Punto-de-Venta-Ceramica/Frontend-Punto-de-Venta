@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/core/infrastructure/widgets/barro_input.dart';
+import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
+import 'package:punto_de_venta/features/authentication/infrastructure/adapters/inbound/flutter/cambiar_password_dialog.dart';
+import 'package:punto_de_venta/features/authentication/infrastructure/adapters/inbound/flutter/recuperar_password_page.dart';
 import 'package:punto_de_venta/features/login/application/ports/inbound/validate_login_use_case.dart';
 import 'package:punto_de_venta/features/login/domain/login_input.dart';
 import 'package:punto_de_venta/features/authentication/application/ports/inbound/authentication_use_cases.dart';
@@ -11,11 +14,13 @@ class LoginPage extends StatefulWidget {
   const LoginPage({
     required this.validateLogin,
     required this.signIn,
+    required this.gateway,
     this.initialEmail = '',
     super.key,
   });
   final ValidateLoginUseCase validateLogin;
   final SignInUseCase signIn;
+  final AuthenticationGateway gateway;
   final String initialEmail;
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -64,20 +69,11 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _recoveryNotice() {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Recuperar contraseña'),
-        content: const Text(
-          'La recuperación de contraseña estará disponible próximamente.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Entendido'),
-          ),
-        ],
+  void _abrirRecuperacion() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => RecuperarPasswordPage(gateway: widget.gateway),
       ),
     );
   }
@@ -107,6 +103,16 @@ class _LoginPageState extends State<LoginPage> {
       );
       if (!mounted) return;
       _password.clear();
+      if (session.forcePasswordChange) {
+        // Empleado con contraseña temporal: mostrar diálogo obligatorio antes de navegar
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) =>
+              CambiarPasswordDialog(gateway: widget.gateway, obligatorio: true),
+        );
+        if (!mounted) return;
+      }
       Navigator.of(
         context,
       ).pushNamedAndRemoveUntil('/session', (_) => false, arguments: session);
@@ -153,7 +159,7 @@ class _LoginPageState extends State<LoginPage> {
             constraints: const BoxConstraints(maxWidth: 390),
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.fromLTRB(28, 40, 28, 32),
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
               child: AbsorbPointer(
                 absorbing: _busy,
                 child: AutofillGroup(
@@ -241,7 +247,7 @@ class _LoginPageState extends State<LoginPage> {
                         alignment: Alignment.centerLeft,
                         child: _link(
                           '¿Olvidaste tu contraseña?',
-                          _recoveryNotice,
+                          _abrirRecuperacion,
                         ),
                       ),
                       const SizedBox(height: 24),

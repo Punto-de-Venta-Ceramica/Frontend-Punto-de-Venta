@@ -1,0 +1,270 @@
+import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
+import '../../../../application/ports/outbound/descuento_gateway.dart';
+import '../../../../domain/descuento.dart';
+
+class HttpDescuentoGateway implements DescuentoGateway {
+  const HttpDescuentoGateway(this._api);
+  final ApiClient _api;
+
+  Future<T> _seguro<T>(Future<T> Function() operacion) async {
+    try {
+      return await operacion();
+    } on ApiException catch (e) {
+      throw DescuentoFailure(
+        _mensaje(e),
+        fieldErrors: e.fieldErrors,
+        sesionExpirada: e.statusCode == 401,
+        traslape: e.code == 'DESCUENTO_TRASLAPADO',
+      );
+    } on FormatException {
+      throw const DescuentoFailure(
+        'El servidor devolvió datos de descuento no válidos.',
+      );
+    }
+  }
+
+  /// El backend explica en `detail` por qué rechazó un descuento (rango cruzado,
+  /// destino dado de baja, etc.); se muestra tal cual. Con errores por campo o
+  /// sin detalle se conserva el mensaje genérico.
+  String _mensaje(ApiException e) {
+    final detalle = e.detail;
+    if (detalle == null) return e.message;
+    return switch (e.statusCode) {
+      409 => detalle,
+      400 when e.fieldErrors.isEmpty => detalle,
+      404 => detalle,
+      _ => e.message,
+    };
+  }
+
+  Map<String, dynamic> _map(Object? data) {
+    if (data is! Map<String, dynamic>) throw const FormatException();
+    return data;
+  }
+
+  int _entero(Object? value) {
+    if (value is! int || value <= 0) throw const FormatException();
+    return value;
+  }
+
+  List<int> _ids(Object? value) {
+    if (value is! List) throw const FormatException();
+    return value.map(_entero).toList(growable: false);
+  }
+
+  Descuento _descuento(Object? data) {
+    final json = _map(data);
+    final nombre = json['nombre'];
+    final porcentaje = json['porcentaje'];
+    final activo = json['activo'];
+    final maximo = json['cantidadMaxima'];
+    if (nombre is! String ||
+        porcentaje is! num ||
+        activo is! bool ||
+        (maximo != null && (maximo is! int || maximo <= 0))) {
+      throw const FormatException();
+    }
+    return Descuento(
+      id: _entero(json['id']),
+      nombre: nombre,
+      cantidadMinima: _entero(json['cantidadMinima']),
+      cantidadMaxima: maximo as int?,
+      porcentaje: porcentaje.toDouble(),
+      activo: activo,
+      productoIds: _ids(json['productoIds']),
+      categoriaIds: _ids(json['categoriaIds']),
+      areaIds: _ids(json['areaIds']),
+    );
+  }
+
+  String _ruta(int negocioId, [int? id, String? resto]) =>
+      'api/negocios/$negocioId/descuentos${id == null ? '' : '/$id'}${resto == null ? '' : '/$resto'}';
+
+  Map<String, dynamic> _cuerpo(DatosDescuento datos) => {
+    'nombre': datos.nombre.trim(),
+    'cantidadMinima': datos.cantidadMinimaNumero,
+    'cantidadMaxima': datos.cantidadMaximaNumero,
+    'porcentaje': datos.porcentajeNumero,
+  };
+
+  List<Object?> _lista(Object? data) {
+    if (data is! List) throw const FormatException();
+    return data;
+  }
+
+  String _texto(Object? value) {
+    if (value is! String) throw const FormatException();
+    return value;
+  }
+
+  /// Producto con su área y categoría, para filtrarlo en el selector.
+  ElementoCatalogo _producto(
+    Map<String, dynamic> json,
+    ElementoCatalogo? categoria,
+  ) {
+    final imagen = json['imagenUrl'];
+    return ElementoCatalogo(
+      id: _entero(json['id']),
+      nombre: _texto(json['nombre']),
+      contexto: [
+        categoria?.area,
+        categoria?.nombre,
+      ].whereType<String>().where((t) => t.isNotEmpty).join(' · '),
+      areaId: categoria?.areaId,
+      area: categoria?.area,
+      categoriaId: categoria?.id,
+      categoria: categoria?.nombre,
+      imagenUrl: imagen is String && imagen.trim().isNotEmpty ? imagen : null,
+    );
+  }
+
+  @override
+  Future<List<Descuento>> listar(int negocioId) => _seguro(() async {
+    final data = await _api.requestJson('GET', _ruta(negocioId));
+    return _lista(data).map(_descuento).toList(growable: false);
+  });
+
+  @override
+  Future<List<Descuento>> deProducto(int negocioId, int productoId) =>
+      _seguro(() async {
+        final data = await _api.requestJson(
+          'GET',
+          '${_ruta(negocioId)}?productoId=$productoId',
+        );
+        return _lista(data).map(_descuento).toList(growable: false);
+      });
+
+  @override
+  Future<List<Descuento>> guardarDeProducto(
+    int negocioId,
+    int productoId, {
+    required List<DescuentoAGuardar> lineas,
+    required Set<int> eliminar,
+  }) => _seguro(() async {
+    final data = await _api.requestJson(
+      'PUT',
+      _ruta(negocioId, null, 'productos/$productoId'),
+      body: {
+        'eliminar': eliminar.toList(),
+        'lineas': [
+          for (final l in lineas)
+            {
+              'id': l.id,
+              'nombre': l.nombre,
+              'cantidadMinima': l.cantidadMinima,
+              'cantidadMaxima': l.cantidadMaxima,
+              'porcentaje': l.porcentaje,
+              'activo': l.activo,
+            },
+        ],
+      },
+    );
+    return _lista(data).map(_descuento).toList(growable: false);
+  });
+
+  @override
+  Future<Descuento> crear(int negocioId, DatosDescuento datos) => _seguro(
+    () async => _descuento(
+      await _api.requestJson('POST', _ruta(negocioId), body: _cuerpo(datos)),
+    ),
+  );
+
+  @override
+  Future<Descuento> editar(int negocioId, int id, DatosDescuento datos) =>
+      _seguro(
+        () async => _descuento(
+          await _api.requestJson(
+            'PUT',
+            _ruta(negocioId, id),
+            body: _cuerpo(datos),
+          ),
+        ),
+      );
+
+  @override
+  Future<void> eliminar(int negocioId, int id) => _seguro(() async {
+    await _api.requestJson('DELETE', _ruta(negocioId, id));
+  });
+
+  @override
+  Future<Descuento> cambiarEstado(
+    int negocioId,
+    int id, {
+    required bool activo,
+  }) => _seguro(
+    () async => _descuento(
+      await _api.requestJson(
+        'PATCH',
+        _ruta(negocioId, id, activo ? 'activar' : 'desactivar'),
+      ),
+    ),
+  );
+
+  @override
+  Future<Descuento> asignar(
+    int negocioId,
+    int id,
+    DestinoDescuento destino,
+    int destinoId,
+  ) => _seguro(
+    () async => _descuento(
+      await _api.requestJson(
+        'PUT',
+        _ruta(negocioId, id, '${destino.segmento}/$destinoId'),
+      ),
+    ),
+  );
+
+  @override
+  Future<Descuento> quitar(
+    int negocioId,
+    int id,
+    DestinoDescuento destino,
+    int destinoId,
+  ) => _seguro(
+    () async => _descuento(
+      await _api.requestJson(
+        'DELETE',
+        _ruta(negocioId, id, '${destino.segmento}/$destinoId'),
+      ),
+    ),
+  );
+
+  /// Productos, áreas y categorías son independientes: se piden a la vez.
+  @override
+  Future<CatalogoDescuento> catalogo(int negocioId) => _seguro(() async {
+    final respuestas = await Future.wait([
+      _api.requestJson('GET', 'api/productos/catalogo?negocioId=$negocioId'),
+      _api.requestJson('GET', 'api/negocios/$negocioId/areas'),
+      _api.requestJson('GET', 'api/negocios/$negocioId/categorias'),
+    ]);
+    final productosJson = _lista(respuestas[0]);
+    final areas = [
+      for (final a in _lista(respuestas[1]))
+        ElementoCatalogo(
+          id: _entero(_map(a)['id']),
+          nombre: _texto(_map(a)['nombre']),
+        ),
+    ];
+    final nombreArea = {for (final a in areas) a.id: a.nombre};
+    final categorias = [
+      for (final c in _lista(respuestas[2]))
+        ElementoCatalogo(
+          id: _entero(_map(c)['id']),
+          nombre: _texto(_map(c)['nombre']),
+          contexto: nombreArea[_map(c)['areaId']] ?? '',
+          areaId: _map(c)['areaId'] as int?,
+          area: nombreArea[_map(c)['areaId']],
+        ),
+    ];
+    final categoriaPorId = {for (final c in categorias) c.id: c};
+    return CatalogoDescuento(
+      productos: [
+        for (final p in productosJson.map(_map))
+          _producto(p, categoriaPorId[p['categoriaId']]),
+      ],
+      categorias: categorias,
+      areas: areas,
+    );
+  });
+}

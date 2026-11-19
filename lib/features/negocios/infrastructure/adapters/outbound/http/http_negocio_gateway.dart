@@ -1,12 +1,18 @@
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:punto_de_venta/core/infrastructure/cache/consultas_compartidas.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import '../../../../application/ports/outbound/negocio_gateway.dart';
 import '../../../../domain/negocio.dart';
 
 class HttpNegocioGateway implements NegocioGateway {
-  const HttpNegocioGateway(this._api);
+  const HttpNegocioGateway(this._api, {ConsultasCompartidas? compartidas})
+    : _compartidas = compartidas;
   final ApiClient _api;
+
+  /// Caché de negocios y sucursales que comparten los módulos. Crear, editar
+  /// o eliminar un negocio la descarta.
+  final ConsultasCompartidas? _compartidas;
 
   Future<T> _seguro<T>(Future<T> Function() operacion) async {
     try {
@@ -29,13 +35,15 @@ class HttpNegocioGateway implements NegocioGateway {
         data['id'] is! int ||
         (data['id'] as int) <= 0 ||
         data['nombre'] is! String ||
-        (data['logo'] != null && data['logo'] is! String)) {
+        (data['logo'] != null && data['logo'] is! String) ||
+        (data['eslogan'] != null && data['eslogan'] is! String)) {
       throw const FormatException();
     }
     return Negocio(
       id: data['id'] as int,
       nombre: data['nombre'] as String,
       logo: data['logo'] as String?,
+      eslogan: data['eslogan'] as String?,
     );
   }
 
@@ -51,6 +59,7 @@ class HttpNegocioGateway implements NegocioGateway {
         ruta,
         fields: {
           'nombre': datos.nombre.trim(),
+          'eslogan': datos.eslogan.trim(),
           if (edicion) 'eliminarLogo': datos.eliminarLogo.toString(),
         },
         files: [
@@ -68,7 +77,9 @@ class HttpNegocioGateway implements NegocioGateway {
 
   @override
   Future<List<Negocio>> listar() => _seguro(() async {
-    final data = await _api.requestJson('GET', 'api/negocios');
+    final data =
+        await (_compartidas?.negocios() ??
+            _api.requestJson('GET', 'api/negocios'));
     if (data is! List) throw const FormatException();
     return data.map(_negocio).toList(growable: false);
   });
@@ -77,13 +88,29 @@ class HttpNegocioGateway implements NegocioGateway {
     () async => _negocio(await _api.requestJson('GET', 'api/negocios/$id')),
   );
   @override
-  Future<Negocio> crear(DatosNegocio datos) =>
-      _guardar('POST', 'api/negocios', datos);
+  Future<Negocio> crear(DatosNegocio datos) async {
+    final negocio = await _guardar('POST', 'api/negocios', datos);
+    _compartidas?.descartarNegocios();
+    return negocio;
+  }
+
   @override
-  Future<Negocio> editar(int id, DatosNegocio datos) =>
-      _guardar('PUT', 'api/negocios/$id', datos, edicion: true);
+  Future<Negocio> editar(int id, DatosNegocio datos) async {
+    final negocio = await _guardar(
+      'PUT',
+      'api/negocios/$id',
+      datos,
+      edicion: true,
+    );
+    _compartidas?.descartarNegocios();
+    return negocio;
+  }
+
   @override
   Future<void> eliminar(int id) => _seguro(() async {
     await _api.requestJson('DELETE', 'api/negocios/$id');
+    _compartidas
+      ?..descartarNegocios()
+      ..descartarSucursales(id);
   });
 }

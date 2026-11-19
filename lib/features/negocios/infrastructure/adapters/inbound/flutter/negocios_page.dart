@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import '../../../../application/ports/inbound/gestion_negocios_use_case.dart';
 import '../../../../application/ports/outbound/selector_logo.dart';
 import '../../../../domain/negocio.dart';
@@ -12,8 +14,14 @@ class NegociosPage extends StatefulWidget {
     required this.onSesionExpirada,
     required this.onAdministrar,
     required this.onNegocioCreado,
+    this.onCerrarSesion,
+    this.onNotificaciones,
+    this.conteoNotificaciones,
     super.key,
   });
+  final VoidCallback? onCerrarSesion;
+  final VoidCallback? onNotificaciones;
+  final ValueListenable<int?>? conteoNotificaciones;
   final GestionNegociosUseCase gestion;
   final SelectorLogo selectorLogo;
   final VoidCallback onSesionExpirada;
@@ -27,8 +35,6 @@ class _NegociosPageState extends State<NegociosPage> {
   List<Negocio> _negocios = [];
   bool _ocupado = true;
   String? _error;
-  String? _mensaje;
-
   @override
   void initState() {
     super.initState();
@@ -63,7 +69,6 @@ class _NegociosPageState extends State<NegociosPage> {
     setState(() {
       _ocupado = true;
       _error = null;
-      _mensaje = null;
     });
     try {
       final detalle = original == null
@@ -85,7 +90,10 @@ class _NegociosPageState extends State<NegociosPage> {
       setState(() {
         if (resultado.eliminado) {
           _negocios = _negocios.where((n) => n.id != original!.id).toList();
-          _mensaje = 'Negocio eliminado correctamente.';
+          NotificacionServicio.eliminacion(
+            context,
+            'Negocio eliminado correctamente.',
+          );
         } else {
           final guardado = resultado.negocio!;
           _negocios = [..._negocios.where((n) => n.id != guardado.id), guardado]
@@ -95,9 +103,17 @@ class _NegociosPageState extends State<NegociosPage> {
               );
               return nombre == 0 ? a.id.compareTo(b.id) : nombre;
             });
-          _mensaje = original == null
-              ? 'Negocio registrado correctamente.'
-              : 'Cambios guardados correctamente.';
+          if (original == null) {
+            NotificacionServicio.registro(
+              context,
+              'Negocio registrado correctamente.',
+            );
+          } else {
+            NotificacionServicio.actualizacion(
+              context,
+              'Cambios guardados correctamente.',
+            );
+          }
         }
       });
       if (original == null && !resultado.eliminado) {
@@ -125,11 +141,12 @@ class _NegociosPageState extends State<NegociosPage> {
     negocios: _negocios,
     cargando: _ocupado,
     error: _error,
-    mensajeExito: _mensaje,
     onRegistrar: _ocupado ? null : () => _formulario(),
     onEditar: _ocupado ? null : _formulario,
     onAdministrar: _ocupado ? null : _administrar,
     onReintentar: _ocupado ? null : _cargar,
-    onVolver: () => Navigator.pop(context),
+    onCerrarSesion: widget.onCerrarSesion,
+    onNotificaciones: widget.onNotificaciones,
+    conteoNotificaciones: widget.conteoNotificaciones,
   );
 }

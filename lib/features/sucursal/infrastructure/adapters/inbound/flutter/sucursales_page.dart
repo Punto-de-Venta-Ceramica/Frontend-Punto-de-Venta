@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/areas_categorias/infrastructure/adapters/inbound/flutter/widgets/acceso_areas_categorias.dart';
 import '../../../../application/ports/inbound/gestion_sucursales_use_case.dart';
 import '../../../../domain/sucursal.dart';
 import 'sucursal_form_page.dart';
@@ -11,12 +13,25 @@ class SucursalesPage extends StatefulWidget {
     required this.onSesionExpirada,
     this.negocioInicial,
     this.registrarAlAbrir = false,
+    this.onAdministrar,
+    this.onAreasCategorias,
+    this.onProductos,
+    this.onDescuentos,
+    this.onEmpleados,
+    this.onDatosContables,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
   final VoidCallback onSesionExpirada;
+  final void Function(NegocioSucursal negocio)? onAreasCategorias;
+  final void Function(NegocioSucursal negocio)? onProductos;
+  final void Function(NegocioSucursal negocio)? onDescuentos;
+  final void Function(NegocioSucursal negocio)? onEmpleados;
+  final ValueChanged<NegocioSucursal>? onDatosContables;
   final NegocioSucursal? negocioInicial;
   final bool registrarAlAbrir;
+  final void Function(NegocioSucursal negocio, Sucursal sucursal)?
+  onAdministrar;
   @override
   State<SucursalesPage> createState() => _SucursalesPageState();
 }
@@ -27,7 +42,6 @@ class _SucursalesPageState extends State<SucursalesPage> {
   List<Sucursal> _sucursales = [];
   bool _busy = true;
   String? _error;
-  String? _mensaje;
   int _carga = 0;
   bool _registroAbierto = false;
   @override
@@ -88,7 +102,6 @@ class _SucursalesPageState extends State<SucursalesPage> {
       _sucursales = [];
       _busy = true;
       _error = null;
-      _mensaje = null;
     });
     try {
       final sucursales = await widget.gestion.listar(negocio.id);
@@ -118,16 +131,27 @@ class _SucursalesPageState extends State<SucursalesPage> {
     setState(() {
       if (resultado.eliminada) {
         _sucursales = _sucursales.where((s) => s.id != sucursal!.id).toList();
-        _mensaje = 'Sucursal eliminada correctamente.';
+        NotificacionServicio.eliminacion(
+          context,
+          'Sucursal eliminada correctamente.',
+        );
       } else {
         final guardada = resultado.sucursal!;
         _sucursales = [
           ..._sucursales.where((s) => s.id != guardada.id),
           guardada,
         ]..sort((a, b) => a.id.compareTo(b.id));
-        _mensaje = sucursal == null
-            ? 'Sucursal registrada correctamente.'
-            : 'Cambios guardados correctamente.';
+        if (sucursal == null) {
+          NotificacionServicio.registro(
+            context,
+            'Sucursal registrada correctamente.',
+          );
+        } else {
+          NotificacionServicio.actualizacion(
+            context,
+            'Cambios guardados correctamente.',
+          );
+        }
       }
     });
   }
@@ -246,7 +270,9 @@ class _SucursalesPageState extends State<SucursalesPage> {
           children: [
             TextButton(
               style: TextButton.styleFrom(padding: EdgeInsets.zero),
-              onPressed: () => _detalles(sucursal),
+              onPressed: () => widget.onAdministrar == null
+                  ? _detalles(sucursal)
+                  : widget.onAdministrar!(_negocio!, sucursal),
               child: const Text('Administrar'),
             ),
             TextButton(
@@ -261,10 +287,10 @@ class _SucursalesPageState extends State<SucursalesPage> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    bottomNavigationBar: const SucursalNavegacion(),
     body: SafeArea(
       bottom: false,
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: RefreshIndicator(
@@ -283,11 +309,63 @@ class _SucursalesPageState extends State<SucursalesPage> {
                       negocios: _negocios,
                       onChanged: _busy ? null : _cargar,
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                  if (_mensaje != null) ...[
-                    SucursalAviso(_mensaje!),
                     const SizedBox(height: 20),
+                    Text(
+                      'Catálogo del negocio',
+                      style: BarroTheme.type(
+                        13,
+                        20,
+                        weight: FontWeight.w600,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    AccesoAreasCategorias(
+                      onPressed: widget.onAreasCategorias == null
+                          ? null
+                          : () => widget.onAreasCategorias!(_negocio!),
+                    ),
+                    const SizedBox(height: 12),
+                    AccesoAreasCategorias(
+                      icono: Icons.inventory_2_outlined,
+                      titulo: 'Productos',
+                      descripcion:
+                          'Registra productos y gestiona su existencia en todas las sucursales.',
+                      onPressed: widget.onProductos == null
+                          ? null
+                          : () => widget.onProductos!(_negocio!),
+                    ),
+                    const SizedBox(height: 12),
+                    AccesoAreasCategorias(
+                      icono: Icons.percent,
+                      titulo: 'Descuentos',
+                      descripcion:
+                          'Consulta los descuentos por cantidad de tu negocio.',
+                      onPressed: widget.onDescuentos == null
+                          ? null
+                          : () => widget.onDescuentos!(_negocio!),
+                    ),
+                    const SizedBox(height: 12),
+                    AccesoAreasCategorias(
+                      icono: Icons.people_outline_rounded,
+                      titulo: 'Empleados',
+                      descripcion:
+                          'Gestiona a todo tu equipo y asígnalo a una o varias sucursales.',
+                      onPressed: widget.onEmpleados == null
+                          ? null
+                          : () => widget.onEmpleados!(_negocio!),
+                    ),
+                    if (widget.onDatosContables != null) ...[
+                      const SizedBox(height: 20),
+                      AccesoAreasCategorias(
+                        icono: Icons.bar_chart_rounded,
+                        titulo: 'Datos contables',
+                        descripcion:
+                            'Consulta y exporta reportes por sucursal.',
+                        onPressed: () => widget.onDatosContables!(_negocio!),
+                      ),
+                    ],
+                    const SizedBox(height: 28),
                   ],
                   Text(
                     'Sucursales',

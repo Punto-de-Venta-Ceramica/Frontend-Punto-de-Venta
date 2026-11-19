@@ -85,7 +85,9 @@ void main() {
                 'errores': {'correo': message},
               }),
               status,
-                headers: {'content-type': 'application/problem+json; charset=utf-8'},
+              headers: {
+                'content-type': 'application/problem+json; charset=utf-8',
+              },
             ),
           ),
         );
@@ -123,8 +125,8 @@ void main() {
               'correo': 'El correo electrónico no tiene un formato válido.',
             },
           }),
-                400,
-                headers: {'content-type': 'application/problem+json; charset=utf-8'},
+          400,
+          headers: {'content-type': 'application/problem+json; charset=utf-8'},
         ),
       ),
     );

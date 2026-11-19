@@ -1,0 +1,301 @@
+import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/features/authentication/application/ports/outbound/authentication_gateway.dart';
+import 'package:punto_de_venta/features/authentication/domain/auth_session.dart';
+
+/// Diálogo para cambiar la contraseña del usuario autenticado.
+/// Puede ser obligatorio (primer login) o voluntario.
+class CambiarPasswordDialog extends StatefulWidget {
+  const CambiarPasswordDialog({
+    required this.gateway,
+    this.obligatorio = false,
+    this.onExito,
+    super.key,
+  });
+
+  final AuthenticationGateway gateway;
+
+  /// Si es verdadero el usuario no puede cerrar el diálogo sin cambiar la contraseña.
+  final bool obligatorio;
+
+  /// Callback ejecutado cuando la contraseña se cambia con éxito.
+  final VoidCallback? onExito;
+
+  @override
+  State<CambiarPasswordDialog> createState() => _CambiarPasswordDialogState();
+}
+
+class _CambiarPasswordDialogState extends State<CambiarPasswordDialog> {
+  final _actualCtrl = TextEditingController();
+  final _nuevaCtrl = TextEditingController();
+  final _confirmarCtrl = TextEditingController();
+  final _actualFocus = FocusNode();
+  final _nuevaFocus = FocusNode();
+  final _confirmarFocus = FocusNode();
+
+  bool _ocultarActual = true;
+  bool _ocultarNueva = true;
+  bool _ocultarConfirmar = true;
+  bool _busy = false;
+  String? _generalError;
+  final Map<String, String> _fieldErrors = {};
+
+  @override
+  void dispose() {
+    _actualCtrl.dispose();
+    _nuevaCtrl.dispose();
+    _confirmarCtrl.dispose();
+    _actualFocus.dispose();
+    _nuevaFocus.dispose();
+    _confirmarFocus.dispose();
+    super.dispose();
+  }
+
+  Map<String, String> _validar(String actual, String nueva, String confirmar) {
+    final errores = <String, String>{};
+
+    if (actual.trim().isEmpty) {
+      errores['actual'] = 'Ingresa tu contraseña actual.';
+    }
+
+    final passwordErrors = <String>[];
+    if (nueva.isEmpty) {
+      passwordErrors.add('La contraseña es obligatoria.');
+    } else {
+      if (nueva.runes.length < 8) {
+        passwordErrors.add('Debe contener al menos 8 caracteres.');
+      }
+      if (nueva.length > 128) {
+        passwordErrors.add('La contraseña debe contener entre 8 y 128 caracteres.');
+      }
+      if (!RegExp(r'[a-zA-ZÀ-ÖØ-öø-ÿ]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener letras.');
+      }
+      if (!RegExp(r'[0-9]').hasMatch(nueva)) {
+        passwordErrors.add('Debe contener al menos un número.');
+      }
+    }
+    if (passwordErrors.isNotEmpty) {
+      errores['nueva'] = passwordErrors.join('\n');
+    }
+
+    if (confirmar.isEmpty) {
+      errores['confirmar'] = 'Confirma tu contraseña.';
+    } else if (nueva.isNotEmpty && nueva != confirmar) {
+      errores['confirmar'] = 'Las contraseñas no coinciden.';
+    }
+
+    return errores;
+  }
+
+  Future<void> _submit() async {
+    final actual = _actualCtrl.text.trim();
+    final nueva = _nuevaCtrl.text;
+    final confirmar = _confirmarCtrl.text;
+
+    final errores = _validar(actual, nueva, confirmar);
+    if (errores.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errores);
+        _generalError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _fieldErrors.clear();
+      _generalError = null;
+    });
+
+    try {
+      await widget.gateway.cambiarPassword(
+        passwordActual: actual,
+        nuevaPassword: nueva,
+        confirmarPassword: confirmar,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onExito?.call();
+    } on AuthenticationFailure catch (e) {
+      if (!mounted) return;
+      final msg = e.message;
+      final msgLower = msg.toLowerCase();
+      setState(() {
+        if (msgLower.contains('actual') ||
+            msgLower.contains('incorrecta') ||
+            msgLower.contains('credenciales')) {
+          _fieldErrors['actual'] = msg;
+        } else if (msgLower.contains('coinciden')) {
+          _fieldErrors['confirmar'] = msg;
+        } else if (msgLower.contains('nueva') ||
+            msgLower.contains('caracteres') ||
+            msgLower.contains('contraseña')) {
+          _fieldErrors['nueva'] = msg;
+        } else {
+          _generalError = msg;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _generalError = 'Error inesperado. Inténtalo de nuevo.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !widget.obligatorio,
+      child: AlertDialog(
+        title: Text(
+          widget.obligatorio ? 'Crea tu contraseña' : 'Cambiar contraseña',
+          style: BarroTheme.type(20, 28, weight: FontWeight.w700),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.obligatorio)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFFC107)),
+                  ),
+                  child: const Text(
+                    'Por seguridad, debes cambiar tu contraseña temporal antes de continuar.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              _campoPassword(
+                controller: _actualCtrl,
+                focusNode: _actualFocus,
+                label: 'Contraseña actual',
+                ocultar: _ocultarActual,
+                errorText: _fieldErrors['actual'],
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('actual') || _generalError != null) {
+                    setState(() {
+                      _fieldErrors.remove('actual');
+                      _generalError = null;
+                    });
+                  }
+                },
+                onToggle: () =>
+                    setState(() => _ocultarActual = !_ocultarActual),
+                onSubmitted: () => _nuevaFocus.requestFocus(),
+              ),
+              const SizedBox(height: 12),
+              _campoPassword(
+                controller: _nuevaCtrl,
+                focusNode: _nuevaFocus,
+                label: 'Nueva contraseña',
+                ocultar: _ocultarNueva,
+                errorText: _fieldErrors['nueva'],
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('nueva') || _generalError != null) {
+                    setState(() {
+                      _fieldErrors.remove('nueva');
+                      _generalError = null;
+                    });
+                  }
+                },
+                onToggle: () => setState(() => _ocultarNueva = !_ocultarNueva),
+                onSubmitted: () => _confirmarFocus.requestFocus(),
+              ),
+              const SizedBox(height: 12),
+              _campoPassword(
+                controller: _confirmarCtrl,
+                focusNode: _confirmarFocus,
+                label: 'Confirmar nueva contraseña',
+                ocultar: _ocultarConfirmar,
+                errorText: _fieldErrors['confirmar'],
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('confirmar') || _generalError != null) {
+                    setState(() {
+                      _fieldErrors.remove('confirmar');
+                      _generalError = null;
+                    });
+                  }
+                },
+                onToggle: () =>
+                    setState(() => _ocultarConfirmar = !_ocultarConfirmar),
+                onSubmitted: _busy ? null : _submit,
+              ),
+              if (_generalError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    _generalError!,
+                    style: BarroTheme.type(
+                      13,
+                      18,
+                      color: BarroTheme.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          if (!widget.obligatorio)
+            TextButton(
+              onPressed: _busy ? null : () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+          FilledButton(
+            onPressed: _busy ? null : _submit,
+            style: FilledButton.styleFrom(
+              backgroundColor: BarroTheme.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: _busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _campoPassword({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String label,
+    required bool ocultar,
+    required VoidCallback onToggle,
+    String? errorText,
+    ValueChanged<String>? onChanged,
+    void Function()? onSubmitted,
+  }) => TextField(
+    controller: controller,
+    focusNode: focusNode,
+    obscureText: ocultar,
+    onChanged: onChanged,
+    onSubmitted: onSubmitted == null ? null : (_) => onSubmitted(),
+    decoration: InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      errorText: errorText,
+      suffixIcon: IconButton(
+        icon: Icon(ocultar ? Icons.visibility_off : Icons.visibility),
+        onPressed: onToggle,
+      ),
+    ),
+  );
+}

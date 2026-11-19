@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -8,10 +9,16 @@ class ApiException implements Exception {
     this.message, {
     this.statusCode,
     this.fieldErrors = const {},
+    this.code,
+    this.detail,
   });
   final String message;
   final int? statusCode;
   final Map<String, String> fieldErrors;
+  final String? code;
+
+  /// Texto `detail` del problema que envió el servidor (400, 404 o 409), si lo hay.
+  final String? detail;
   @override
   String toString() => message;
 }
@@ -35,8 +42,165 @@ class ApiClient {
   static const timeout = Duration(seconds: 10);
   String? bearerToken;
 
+  // --- Sesión renovable -----------------------------------------------------
+  // El token de acceso es corto; con el de renovación se obtiene uno nuevo en
+  // segundo plano. Solo si la renovación falla de forma definitiva (token de
+  // renovación vencido o rechazado) se avisa por [onSessionExpired].
+  static const _margenRenovacion = Duration(seconds: 30);
+  DateTime? _accessExpiresAt;
+  String? _refreshToken;
+  DateTime? _refreshExpiresAt;
+  Future<bool>? _renovando;
+
+  /// Se llama una sola vez cuando la sesión terminó y hay que volver al login.
+  void Function()? onSessionExpired;
+
+  /// Se llama tras cada renovación exitosa con los tokens vigentes (para persistirlos).
+  void Function({
+    required String token,
+    required DateTime expiresAt,
+    required String refreshToken,
+    required DateTime refreshExpiresAt,
+  })?
+  onSessionRenewed;
+
+  /// Vencimiento actual del token de renovación (cambia con cada renovación).
+  DateTime? get refreshExpiresAt => _refreshExpiresAt;
+
+  void iniciarSesion({
+    required String token,
+    required DateTime expiresAt,
+    required String refreshToken,
+    required DateTime refreshExpiresAt,
+  }) {
+    bearerToken = token;
+    _accessExpiresAt = expiresAt;
+    _refreshToken = refreshToken;
+    _refreshExpiresAt = refreshExpiresAt;
+  }
+
+  void cerrarSesion() {
+    bearerToken = null;
+    _accessExpiresAt = null;
+    _refreshToken = null;
+    _refreshExpiresAt = null;
+  }
+
+  bool get _puedeRenovar => _refreshToken != null;
+
+  bool get _accesoPorVencer =>
+      _accessExpiresAt != null &&
+      !_accessExpiresAt!.isAfter(DateTime.now().add(_margenRenovacion));
+
+  void _terminarSesion() {
+    final avisar = onSessionExpired;
+    cerrarSesion();
+    avisar?.call();
+  }
+
+  /// Renueva el token de acceso. Varias peticiones simultáneas comparten una sola
+  /// renovación. Devuelve `false` si la sesión terminó (ya se avisó al usuario);
+  /// lanza [ApiException] si falla por red o servidor sin que la sesión termine.
+  Future<bool> _renovar() =>
+      _renovando ??= _renovarAhora().whenComplete(() => _renovando = null);
+
+  Future<bool> _renovarAhora() async {
+    final refresh = _refreshToken;
+    final vence = _refreshExpiresAt;
+    if (refresh == null) return false;
+    if (vence != null && !vence.isAfter(DateTime.now())) {
+      _terminarSesion();
+      return false;
+    }
+    try {
+      final request = http.Request('POST', _resolve('api/auth/refresh'))
+        ..headers['Content-Type'] = 'application/json; charset=utf-8'
+        ..headers['Accept'] = 'application/json'
+        ..body = jsonEncode({'refreshToken': refresh});
+      final response = await (() async {
+        final stream = await _client.send(request);
+        return http.Response.fromStream(stream);
+      })().timeout(timeout);
+      // La sesión se cerró o cambió mientras se renovaba: se descarta el resultado.
+      if (_refreshToken != refresh) return false;
+      if (response.statusCode == 400 ||
+          response.statusCode == 401 ||
+          response.statusCode == 403) {
+        _terminarSesion();
+        return false;
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(
+          'El servidor respondió HTTP ${response.statusCode}. Inténtalo más tarde.',
+          statusCode: response.statusCode,
+        );
+      }
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      final expiry = data is Map && data['expiraEn'] is String
+          ? DateTime.tryParse(data['expiraEn'] as String)
+          : null;
+      if (data is! Map ||
+          data['token'] is! String ||
+          (data['token'] as String).isEmpty ||
+          expiry == null) {
+        throw const ApiException(
+          'La respuesta del servidor no contiene una sesión válida.',
+        );
+      }
+      bearerToken = data['token'] as String;
+      _accessExpiresAt = expiry;
+      // Renovación deslizante: el servidor puede entregar un nuevo token de renovación.
+      final nuevoRefresh = data['refreshToken'];
+      final nuevoVence = data['refreshExpiraEn'] is String
+          ? DateTime.tryParse(data['refreshExpiraEn'] as String)
+          : null;
+      if (nuevoRefresh is String &&
+          nuevoRefresh.isNotEmpty &&
+          nuevoVence != null) {
+        _refreshToken = nuevoRefresh;
+        _refreshExpiresAt = nuevoVence;
+      }
+      onSessionRenewed?.call(
+        token: bearerToken!,
+        expiresAt: expiry,
+        refreshToken: _refreshToken!,
+        refreshExpiresAt: _refreshExpiresAt ?? expiry,
+      );
+      return true;
+    } on TimeoutException {
+      throw const ApiException('El servidor tardó demasiado en responder.');
+    } on http.ClientException {
+      throw const ApiException(
+        'No se pudo contactar al backend. Revisa que esté iniciado, la URL y CORS.',
+      );
+    } on FormatException {
+      throw const ApiException(
+        'La respuesta del servidor no contiene JSON válido.',
+      );
+    }
+  }
+
+  Uri _resolve(String path) =>
+      _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
+
   Future<Map<String, dynamic>> getJson(String path) async =>
       _object(await requestJson('GET', path));
+
+  Future<Uint8List> getBytes(String path, {required String contentType}) =>
+      _send(
+        () => http.Request('GET', _resolve(path)),
+        path,
+        accept: contentType,
+        requestTimeout: const Duration(seconds: 30),
+        decode: (response) {
+          final tipo = response.headers['content-type']?.split(';').first;
+          if (tipo?.trim().toLowerCase() != contentType.toLowerCase() ||
+              response.bodyBytes.isEmpty) {
+            throw const ApiException('La API no devolvió el archivo esperado.');
+          }
+          return response.bodyBytes;
+        },
+      );
 
   Future<Map<String, dynamic>> postJson(
     String path,
@@ -45,6 +209,22 @@ class ApiClient {
   }) async => _object(
     await requestJson('POST', path, body: body, authenticated: authenticated),
   );
+
+  Future<Map<String, dynamic>> putJson(
+    String path,
+    Map<String, dynamic> body, {
+    bool authenticated = true,
+  }) async => _object(
+    await requestJson('PUT', path, body: body, authenticated: authenticated),
+  );
+
+  Future<void> patchJson(
+    String path,
+    Map<String, dynamic> body, {
+    bool authenticated = true,
+  }) async {
+    await requestJson('PATCH', path, body: body, authenticated: authenticated);
+  }
 
   Map<String, dynamic> _object(Object? data) {
     if (data is! Map<String, dynamic>) {
@@ -57,15 +237,24 @@ class ApiClient {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String> headers = const {},
     bool authenticated = true,
   }) async {
-    final uri = _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
-    final request = http.Request(method, uri);
-    if (body != null) {
-      request.headers['Content-Type'] = 'application/json; charset=utf-8';
-      request.body = jsonEncode(body);
-    }
-    return _send(request, path, authenticated: authenticated);
+    final uri = _resolve(path);
+    return _send(
+      () {
+        final request = http.Request(method, uri);
+        request.headers.addAll(headers);
+        if (body != null) {
+          request.headers['Content-Type'] = 'application/json; charset=utf-8';
+          request.body = jsonEncode(body);
+        }
+        return request;
+      },
+      path,
+      authenticated: authenticated,
+      decode: _decodeJson,
+    );
   }
 
   Future<Object?> requestMultipart(
@@ -74,29 +263,67 @@ class ApiClient {
     required Map<String, String> fields,
     List<http.MultipartFile> files = const [],
   }) {
-    final uri = _baseUri.resolve(path.replaceFirst(RegExp(r'^/+'), ''));
-    final request = http.MultipartRequest(method, uri)
-      ..fields.addAll(fields)
-      ..files.addAll(files);
-    return _send(request, path);
+    final uri = _resolve(path);
+    // Los archivos son un flujo de un solo uso: no se puede reenviar tras renovar.
+    return _send(
+      () => http.MultipartRequest(method, uri)
+        ..fields.addAll(fields)
+        ..files.addAll(files),
+      path,
+      reintentable: false,
+      decode: _decodeJson,
+    );
   }
 
-  Future<Object?> _send(
-    http.BaseRequest request,
+  static const _sesionExpirada = ApiException(
+    'Tu sesión expiró o no es válida. Inicia sesión de nuevo.',
+    statusCode: 401,
+  );
+
+  static Object? _decodeJson(http.Response response) =>
+      response.statusCode == 204 || response.bodyBytes.isEmpty
+      ? null
+      : jsonDecode(utf8.decode(response.bodyBytes));
+
+  Future<T> _send<T>(
+    http.BaseRequest Function() build,
     String path, {
+    required T Function(http.Response) decode,
     bool authenticated = true,
+    bool reintentable = true,
+    String accept = 'application/json',
+    Duration requestTimeout = timeout,
   }) async {
     try {
-      request.headers['Accept'] = 'application/json';
-      if (authenticated && bearerToken != null) {
-        request.headers['Authorization'] = 'Bearer $bearerToken';
+      // Renovación preventiva: evita mandar un token a punto de vencer.
+      if (authenticated && _puedeRenovar && _accesoPorVencer) {
+        if (!await _renovar()) throw _sesionExpirada;
       }
-      final response = await (() async {
-        final stream = await _client.send(request);
-        return http.Response.fromStream(stream);
-      })().timeout(timeout);
+      var renovado = false;
+      late http.Response response;
+      while (true) {
+        final request = build();
+        request.headers['Accept'] = accept;
+        if (authenticated && bearerToken != null) {
+          request.headers['Authorization'] = 'Bearer $bearerToken';
+        }
+        response = await (() async {
+          final stream = await _client.send(request);
+          return http.Response.fromStream(stream);
+        })().timeout(requestTimeout);
+        // 401 con sesión renovable: el acceso venció (p. ej. reloj desfasado).
+        if (response.statusCode == 401 &&
+            authenticated &&
+            _puedeRenovar &&
+            !renovado) {
+          renovado = true;
+          if (!await _renovar()) throw _sesionExpirada;
+          if (reintentable) continue;
+        }
+        break;
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final message = switch (response.statusCode) {
+        var message = switch (response.statusCode) {
           400 => 'Revisa los datos del formulario.',
           401 =>
             authenticated
@@ -115,16 +342,72 @@ class ApiClient {
             'El servidor respondió HTTP ${response.statusCode}. Inténtalo más tarde.',
         };
         final fieldErrors = <String, String>{};
-        if (response.statusCode == 400 || response.statusCode == 409) {
+        String? code;
+        String? detail;
+        if (response.statusCode == 400 ||
+            response.statusCode == 401 ||
+            response.statusCode == 403 ||
+            response.statusCode == 404 ||
+            response.statusCode == 409) {
           try {
             final problem = jsonDecode(utf8.decode(response.bodyBytes));
-            if (problem is Map && problem['errores'] is Map) {
-              for (final entry in (problem['errores'] as Map).entries) {
-                if (entry.key is String &&
-                    entry.value is String &&
-                    (entry.value as String).isNotEmpty) {
-                  fieldErrors[entry.key as String] = entry.value as String;
+            if (problem is Map) {
+              final textoDetalle = problem['detail'];
+              if (textoDetalle is String && textoDetalle.trim().isNotEmpty) {
+                detail = textoDetalle.trim();
+                if (response.statusCode == 403 || response.statusCode == 401) {
+                  message = detail;
                 }
+              }
+              final codigo = problem['codigo'];
+              if (codigo is String) code = codigo;
+              if (problem['errores'] is Map) {
+                for (final entry in (problem['errores'] as Map).entries) {
+                  if (entry.key is String &&
+                      entry.value is String &&
+                      (entry.value as String).isNotEmpty) {
+                    fieldErrors[entry.key as String] = entry.value as String;
+                  }
+                }
+              }
+              final ruta = path
+                  .replaceFirst(RegExp(r'^/+'), '')
+                  .split('?')
+                  .first;
+              if ((response.statusCode == 400 || response.statusCode == 409) &&
+                  (ruta == 'api/pedidos' || ruta.startsWith('api/pedidos/'))) {
+                final recibido = problem['codigo'];
+                final detalle = problem['detail'];
+                if (recibido is String) code = recibido;
+                if (code == null &&
+                    detalle is String &&
+                    (detalle.trim() ==
+                            'Debe haber un corte de caja abierto para la sucursal del pedido.' ||
+                        detalle.trim() ==
+                            'El corte de caja debe estar abierto y pertenecer a la sucursal del pedido.')) {
+                  code = 'CORTE_CAJA_NO_ABIERTO';
+                }
+                // Solo si el servidor mandó el código: los textos antiguos sin
+                // código conservan el mensaje fijo.
+                final textoServidor =
+                    recibido is String &&
+                        detalle is String &&
+                        detalle.trim().isNotEmpty
+                    ? detalle.trim()
+                    : null;
+                message = switch (code) {
+                  // El servidor dice si faltó la caja para cobrar o para cancelar.
+                  'CORTE_CAJA_NO_ABIERTO' =>
+                    textoServidor ??
+                        'No hay un corte de caja abierto en esta sucursal. Abre uno antes de registrar un pago.',
+                  // Dice en qué estado está el pedido y a cuál puede pasar.
+                  'TRANSICION_ESTADO_INVALIDA' => textoServidor ?? message,
+                  'PAGO_SUPERA_SALDO' =>
+                    'El pago supera el saldo calculado por el servidor. Actualiza el pedido y revisa el importe.',
+                  'PRODUCTO_NO_DISPONIBLE' =>
+                    'Uno de los productos ya no está disponible. Vuelve a la lista de pedidos e inicia el registro de nuevo.',
+                  _ => message,
+                };
               }
             }
           } on FormatException {
@@ -135,10 +418,11 @@ class ApiClient {
           message,
           statusCode: response.statusCode,
           fieldErrors: Map.unmodifiable(fieldErrors),
+          code: code,
+          detail: detail,
         );
       }
-      if (response.statusCode == 204) return null;
-      return jsonDecode(utf8.decode(response.bodyBytes));
+      return decode(response);
     } on TimeoutException {
       throw const ApiException('El servidor tardó demasiado en responder.');
     } on http.ClientException {

@@ -1,0 +1,237 @@
+import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
+import '../../../application/ports/pedidos_gateway.dart';
+import '../../../domain/pedido.dart';
+
+class HttpPedidosGateway implements PedidosGateway {
+  const HttpPedidosGateway(this._api);
+  final ApiClient _api;
+
+  @override
+  Future<List<AvisoPedido>> notificaciones() async =>
+      _lista(await _api.requestJson('GET', 'api/notificaciones'))
+          .map(
+            (j) => AvisoPedido(
+              id: j['id'] as int,
+              titulo: j['titulo'] as String,
+              mensaje: j['mensaje'] as String,
+              leida: j['leida'] as bool,
+            ),
+          )
+          .toList();
+
+  @override
+  Future<void> marcarLeida(int id) async {
+    await _api.requestJson('PATCH', 'api/notificaciones/$id/leida');
+  }
+
+  List<Map<String, dynamic>> _lista(Object? value) {
+    if (value is! List) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return value
+        .map((item) {
+          if (item is! Map<String, dynamic>) {
+            throw const ApiException('La respuesta de pedidos no es válida.');
+          }
+          return item;
+        })
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> _mapa(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return value;
+  }
+
+  @override
+  Future<PaginaPedidos> listar(
+    int sucursalId, {
+    String? estado,
+    int pagina = 0,
+  }) async {
+    final consulta = [
+      'sucursalId=$sucursalId',
+      'page=$pagina',
+      if (estado != null) 'estado=${Uri.encodeQueryComponent(estado)}',
+    ].join('&');
+    final json = _mapa(await _api.requestJson('GET', 'api/pedidos?$consulta'));
+    final total = json['totalElementos'];
+    final numeroPagina = json['pagina'];
+    final ultima = json['ultima'];
+    if (total is! int || numeroPagina is! int || ultima is! bool) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return PaginaPedidos(
+      pedidos: _lista(json['contenido'])
+          .map(
+            (j) => ResumenPedido(
+              id: j['id'] as int,
+              estado: j['estado'] as String,
+              cliente: j['cliente'] as String,
+              tipoEntrega: j['tipoEntrega'] as String,
+              productos: _lista(j['productos'])
+                  .map(
+                    (p) => LineaResumen(
+                      nombre: p['nombre'] as String,
+                      cantidad: p['cantidad'] as int,
+                    ),
+                  )
+                  .toList(),
+              total: (j['total'] as num).toDouble(),
+              pagado: (j['totalPagado'] as num).toDouble(),
+              saldo: (j['saldoPendiente'] as num).toDouble(),
+            ),
+          )
+          .toList(),
+      pagina: numeroPagina,
+      ultima: ultima,
+      total: total,
+    );
+  }
+
+  @override
+  Future<Pedido> obtener(int pedidoId) async {
+    final j = _mapa(await _api.requestJson('GET', 'api/pedidos/$pedidoId'));
+    final cliente = _mapa(j['cliente']);
+    return Pedido(
+      id: j['id'] as int,
+      folio: j['folio'] as String,
+      estado: j['estado'] as String,
+      cliente: cliente['nombre'] as String,
+      telefono: cliente['telefono'] as String? ?? '',
+      ciudad: cliente['ciudad'] as String? ?? '',
+      colonia: cliente['colonia'] as String? ?? '',
+      calle: cliente['calle'] as String? ?? '',
+      descripcion: j['descripcion'] as String? ?? '',
+      descripcionEnvio: j['descripcionEnvio'] as String? ?? '',
+      tipoEntrega: j['tipoEntrega'] as String,
+      productos: _lista(j['productos'])
+          .map(
+            (p) => DetallePedido(
+              nombre: p['nombre'] as String,
+              cantidad: p['cantidad'] as int,
+              subtotal: (p['subtotal'] as num).toDouble(),
+              porcentajeDescuento: (p['porcentajeDescuento'] as num).toDouble(),
+              precioUnitario: (p['precioUnitario'] as num?)?.toDouble(),
+              imagenUrl: p['imagenUrl'] as String?,
+            ),
+          )
+          .toList(),
+      total: (j['total'] as num).toDouble(),
+      pagado: (j['totalPagado'] as num).toDouble(),
+      saldo: (j['saldoPendiente'] as num).toDouble(),
+      fechaCreacion: switch (j['fechaCreacion']) {
+        final String fecha => DateTime.tryParse(fecha)?.toLocal(),
+        _ => null,
+      },
+    );
+  }
+
+  @override
+  Future<List<ProductoPedido>> productos(int sucursalId) async =>
+      _lista(
+            await _api.requestJson(
+              'GET',
+              'api/pedidos/opciones/productos?sucursalId=$sucursalId',
+            ),
+          )
+          .map(
+            (j) => ProductoPedido(
+              id: j['id'] as int,
+              nombre: j['nombre'] as String,
+              precio: (j['precio'] as num).toDouble(),
+              areaId: (j['areaId'] as num?)?.toInt(),
+              area: j['area'] as String?,
+              categoriaId: (j['categoriaId'] as num?)?.toInt(),
+              categoria: j['categoria'] as String?,
+              imagenUrl: j['imagenUrl'] as String?,
+              descuentos: ((j['descuentos'] as List?) ?? const [])
+                  .cast<Map<String, dynamic>>()
+                  .map(
+                    (d) => EscalonDescuento(
+                      cantidadMinima: d['cantidadMinima'] as int,
+                      cantidadMaxima: d['cantidadMaxima'] as int?,
+                      porcentaje: (d['porcentaje'] as num).toDouble(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          )
+          .toList();
+
+  @override
+  Future<bool> cajaAbierta(int sucursalId) async => _lista(
+    await _api.requestJson(
+      'GET',
+      'api/pedidos/opciones/cortes?sucursalId=$sucursalId',
+    ),
+  ).isNotEmpty;
+
+  @override
+  Future<void> registrar(DatosPedido d) async {
+    await _api.requestJson(
+      'POST',
+      'api/pedidos',
+      body: {
+        'sucursalId': d.sucursalId,
+        'descripcion': d.descripcion.trim(),
+        'cliente': {
+          'nombre': d.cliente.trim(),
+          'telefono': d.telefono.trim(),
+          if (d.ciudad.trim().isNotEmpty) 'ciudad': d.ciudad.trim(),
+          if (d.colonia.trim().isNotEmpty) 'colonia': d.colonia.trim(),
+          if (d.calle.trim().isNotEmpty) 'calle': d.calle.trim(),
+        },
+        'productos': [
+          for (final producto in d.productos)
+            {
+              'productoId': producto.productoId,
+              'cantidad': producto.cantidad,
+              'aplicarDescuento': producto.aplicarDescuento,
+            },
+        ],
+        'tipoEntrega': d.tipoEntrega,
+        'descripcionEnvio': d.descripcionEnvio.trim(),
+        'pagoInicial': {'monto': d.monto, 'metodoPago': d.metodo},
+      },
+    );
+  }
+
+  @override
+  Future<void> pagar(int id, double monto, String metodo) async =>
+      _api.requestJson(
+        'POST',
+        'api/pedidos/$id/pagos',
+        body: {'monto': monto, 'metodoPago': metodo},
+      );
+  @override
+  Future<void> cambiarEstado(int id, String estado) async => _api.requestJson(
+    'PATCH',
+    'api/pedidos/$id/estado',
+    body: {'estado': estado},
+  );
+  @override
+  Future<void> cancelar(int id) async =>
+      _api.requestJson('POST', 'api/pedidos/$id/cancelar');
+
+  @override
+  Future<void> editarDatos(int id, DatosEdicionPedido d) async =>
+      _api.requestJson(
+        'PUT',
+        'api/pedidos/$id/datos',
+        body: {
+          'descripcion': d.descripcion.trim(),
+          'tipoEntrega': d.tipoEntrega,
+          'descripcionEnvio': d.descripcionEnvio.trim(),
+          'cliente': {
+            'nombre': d.cliente.trim(),
+            'telefono': d.telefono.trim(),
+            if (d.ciudad.trim().isNotEmpty) 'ciudad': d.ciudad.trim(),
+            if (d.colonia.trim().isNotEmpty) 'colonia': d.colonia.trim(),
+            if (d.calle.trim().isNotEmpty) 'calle': d.calle.trim(),
+          },
+        },
+      );
+}

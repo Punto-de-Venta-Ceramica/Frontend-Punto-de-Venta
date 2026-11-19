@@ -1,10 +1,16 @@
+import 'package:punto_de_venta/core/infrastructure/cache/consultas_compartidas.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import '../../../../application/ports/outbound/sucursal_gateway.dart';
 import '../../../../domain/sucursal.dart';
 
 class HttpSucursalGateway implements SucursalGateway {
-  const HttpSucursalGateway(this._api);
+  const HttpSucursalGateway(this._api, {ConsultasCompartidas? compartidas})
+    : _compartidas = compartidas;
   final ApiClient _api;
+
+  /// Caché de negocios y sucursales que comparten los módulos. Crear, editar
+  /// o eliminar una sucursal descarta las sucursales guardadas.
+  final ConsultasCompartidas? _compartidas;
 
   Future<T> _seguro<T>(Future<T> Function() operacion) async {
     try {
@@ -58,22 +64,27 @@ class HttpSucursalGateway implements SucursalGateway {
 
   @override
   Future<List<NegocioSucursal>> negocios() => _seguro(
-    () async => _lista(await _api.requestJson('GET', 'api/negocios'), (data) {
-      final json = _map(data);
-      return NegocioSucursal(
-        id: _id(json['id']),
-        nombre: _texto(json['nombre']),
-      );
-    }),
+    () async => _lista(
+      await (_compartidas?.negocios() ??
+          _api.requestJson('GET', 'api/negocios')),
+      (data) {
+        final json = _map(data);
+        return NegocioSucursal(
+          id: _id(json['id']),
+          nombre: _texto(json['nombre']),
+        );
+      },
+    ),
   );
   @override
   Future<List<Sucursal>> listar(int negocioId) => _seguro(() async {
     final lista = _lista(
-      await _api.requestJson(
-        'POST',
-        'api/sucursales/consultar',
-        body: {'negocioId': negocioId},
-      ),
+      await (_compartidas?.sucursales(negocioId) ??
+          _api.requestJson(
+            'POST',
+            'api/sucursales/consultar',
+            body: {'negocioId': negocioId},
+          )),
       _sucursal,
     );
     if (lista.any((s) => s.negocioId != negocioId)) {
@@ -82,25 +93,28 @@ class HttpSucursalGateway implements SucursalGateway {
     return lista;
   });
   @override
-  Future<Sucursal> crear(int negocioId, DatosSucursal datos) => _seguro(
-    () async => _sucursal(
-      await _api.requestJson(
-        'POST',
-        'api/sucursales',
-        body: {
-          'negocioId': negocioId,
-          'nombre': datos.nombre.trim(),
-          'descripcion': datos.descripcion.trim(),
-          'ciudad': datos.ciudad.trim(),
-          'calle': datos.calle.trim(),
-          'codigoPostal': datos.codigoPostal,
-        },
-      ),
-    ),
-  );
+  Future<Sucursal> crear(int negocioId, DatosSucursal datos) =>
+      _seguro(() async {
+        final sucursal = _sucursal(
+          await _api.requestJson(
+            'POST',
+            'api/sucursales',
+            body: {
+              'negocioId': negocioId,
+              'nombre': datos.nombre.trim(),
+              'descripcion': datos.descripcion.trim(),
+              'ciudad': datos.ciudad.trim(),
+              'calle': datos.calle.trim(),
+              'codigoPostal': datos.codigoPostal,
+            },
+          ),
+        );
+        _compartidas?.descartarSucursales(negocioId);
+        return sucursal;
+      });
   @override
-  Future<Sucursal> editar(int id, DatosSucursal datos) => _seguro(
-    () async => _sucursal(
+  Future<Sucursal> editar(int id, DatosSucursal datos) => _seguro(() async {
+    final sucursal = _sucursal(
       await _api.requestJson(
         'PATCH',
         'api/sucursales',
@@ -110,10 +124,14 @@ class HttpSucursalGateway implements SucursalGateway {
           'descripcion': datos.descripcion.trim(),
         },
       ),
-    ),
-  );
+    );
+    _compartidas?.descartarSucursales(sucursal.negocioId);
+    return sucursal;
+  });
   @override
   Future<void> eliminar(int id) => _seguro(() async {
     await _api.requestJson('DELETE', 'api/sucursales', body: {'id': id});
+    // Solo se conoce la sucursal, no su negocio: se descartan todas.
+    _compartidas?.descartarSucursales();
   });
 }

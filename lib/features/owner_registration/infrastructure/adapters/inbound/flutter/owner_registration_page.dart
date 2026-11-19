@@ -212,7 +212,7 @@ class _OwnerRegistrationPageState extends State<OwnerRegistrationPage> {
           constraints: const BoxConstraints(maxWidth: 390),
           child: SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(28, 40, 28, 32),
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
             child: AbsorbPointer(
               absorbing: _busy,
               child: AutofillGroup(

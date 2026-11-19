@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'notificaciones_test_utils.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
@@ -11,19 +12,25 @@ import 'package:punto_de_venta/features/login/domain/login_input.dart';
 import 'owner_registration_page_test.dart' as registration;
 import 'login_test.dart' as login;
 
-String sessionResponse({int seconds = 900}) => jsonEncode({
-  'token': 'test-jwt',
-  'tipo': 'Bearer',
-  'expiraEn': DateTime.now()
-      .toUtc()
-      .add(Duration(seconds: seconds))
-      .toIso8601String(),
-  'usuarioId': 42,
-  'rol': 'PROPIETARIO',
-});
+String sessionResponse({int seconds = 900, int refreshSeconds = 1728000}) =>
+    jsonEncode({
+      'token': 'test-jwt',
+      'tipo': 'Bearer',
+      'expiraEn': DateTime.now()
+          .toUtc()
+          .add(Duration(seconds: seconds))
+          .toIso8601String(),
+      'refreshToken': 'test-refresh',
+      'refreshExpiraEn': DateTime.now()
+          .toUtc()
+          .add(Duration(seconds: refreshSeconds))
+          .toIso8601String(),
+      'usuarioId': 42,
+      'rol': 'PROPIETARIO',
+    });
 
 void main() {
-  testWidgets(
+  testWidgetsConNotificaciones(
     'Registro confirmado → login con correo precargado → sesión → logout',
     (tester) async {
       final requests = <http.Request>[];
@@ -31,6 +38,14 @@ void main() {
         tester,
         client: MockClient((request) async {
           requests.add(request);
+          if (request.url.path == '/api/notificaciones/no-leidas/conteo') {
+            expect(request.headers['Authorization'], 'Bearer test-jwt');
+            return http.Response('{"cantidad":0}', 200);
+          }
+          if (request.url.path == '/api/negocios') {
+            expect(request.headers['Authorization'], 'Bearer test-jwt');
+            return http.Response('[]', 200);
+          }
           expect(request.headers['Authorization'], isNull);
           final data = jsonDecode(request.body) as Map<String, dynamic>;
           if (request.url.path == '/api/usuarios/registro') {
@@ -73,9 +88,10 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('login-submit')));
       await tester.pumpAndSettle();
-      expect(find.text('Sesión iniciada'), findsOneWidget);
+      expect(find.text('Mis negocios'), findsOneWidget);
+      expect(find.text('Sesión iniciada'), findsNothing);
       expect(find.text('test-jwt'), findsNothing);
-      expect(requests, hasLength(2));
+      expect(requests, hasLength(4));
       await tester.tap(find.text('Cerrar sesión'));
       await tester.pumpAndSettle();
       expect(find.text('Bienvenido de nuevo'), findsOneWidget);
@@ -89,46 +105,49 @@ void main() {
     },
   );
 
-  testWidgets('Evita envíos repetidos y cierra la sesión al vencer el JWT', (
-    tester,
-  ) async {
-    final pending = Completer<http.Response>();
-    var calls = 0;
-    await login.openLogin(
-      tester,
-      client: MockClient((_) {
-        calls++;
-        return pending.future;
-      }),
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('login-email')),
-      'maria@ejemplo.com',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('login-password')),
-      'Registro123',
-    );
-    await tester.tap(find.byKey(const ValueKey('login-submit')));
-    await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const ValueKey('login-submit')))
-          .onPressed,
-      isNull,
-    );
-    expect(calls, 1);
-    pending.complete(http.Response(sessionResponse(seconds: 2), 200));
-    await tester.pumpAndSettle();
-    expect(find.text('Sesión iniciada'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpAndSettle();
-    expect(find.text('Bienvenido de nuevo'), findsOneWidget);
-    expect(
-      find.text('Tu sesión expiró. Inicia sesión de nuevo.'),
-      findsOneWidget,
-    );
-  });
+  testWidgetsConNotificaciones(
+    'Evita envíos repetidos y cierra la sesión al vencer el token de renovación',
+    (tester) async {
+      final pending = Completer<http.Response>();
+      var calls = 0;
+      await login.openLogin(
+        tester,
+        client: MockClient((_) {
+          calls++;
+          return pending.future;
+        }),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('login-email')),
+        'maria@ejemplo.com',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('login-password')),
+        'Registro123',
+      );
+      await tester.tap(find.byKey(const ValueKey('login-submit')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('login-submit')))
+            .onPressed,
+        isNull,
+      );
+      expect(calls, 1);
+      pending.complete(
+        http.Response(sessionResponse(seconds: 900, refreshSeconds: 2), 200),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Mis negocios'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      expect(find.text('Bienvenido de nuevo'), findsOneWidget);
+      expect(
+        find.text('Tu sesión expiró. Inicia sesión de nuevo.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final status in [400, 401, 409, 500]) {
     test('Traduce HTTP $status sin exponer el cuerpo de error', () async {

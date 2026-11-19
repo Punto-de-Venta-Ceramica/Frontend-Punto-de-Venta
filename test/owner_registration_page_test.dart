@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/main.dart';
+import 'memory_session_store.dart';
 
 const _captureKey = ValueKey('registration-capture');
 
@@ -29,6 +30,7 @@ Future<void> openRegistration(
     RepaintBoundary(
       key: _captureKey,
       child: PuntoDeVentaApp(
+        sessionStore: MemorySessionStore(),
         initialRoute: '/register',
         httpClient: client ?? MockClient((_) async => http.Response('{}', 500)),
       ),

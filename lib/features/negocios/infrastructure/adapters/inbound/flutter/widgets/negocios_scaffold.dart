@@ -1,14 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/barro_header.dart';
 
 const negociosSuave = Color(0xFFF8E7DF);
 
 class NegociosScaffold extends StatelessWidget {
-  const NegociosScaffold({required this.children, this.footer, super.key});
+  const NegociosScaffold({
+    required this.children,
+    this.footer,
+    this.onNotificaciones,
+    this.conteoNotificaciones,
+    super.key,
+  });
 
   final List<Widget> children;
   final Widget? footer;
+  final VoidCallback? onNotificaciones;
+  final ValueListenable<int?>? conteoNotificaciones;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -27,7 +36,10 @@ class NegociosScaffold extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const _NegociosHeader(),
+                        BarroHeader(
+                          onNotificaciones: onNotificaciones,
+                          conteoNotificaciones: conteoNotificaciones,
+                        ),
                         const SizedBox(height: 28),
                         ...children,
                         if (footer != null) ...[
@@ -48,51 +60,20 @@ class NegociosScaffold extends StatelessWidget {
   );
 }
 
-class _NegociosHeader extends StatelessWidget {
-  const _NegociosHeader();
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SvgPicture.asset(
-        'assets/icons/brand.svg',
-        width: 32,
-        height: 32,
-        semanticsLabel: 'Logo de BarroControl',
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          'BarroControl',
-          style: BarroTheme.type(18, 26, weight: FontWeight.w600),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: negociosSuave,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          'Propietario',
-          style: BarroTheme.type(11, 16, color: BarroTheme.primary),
-        ),
-      ),
-    ],
-  );
-}
-
 class NegociosPrimaryButton extends StatelessWidget {
   const NegociosPrimaryButton({
     required this.label,
     this.destructivo = false,
+    this.icon,
+    this.cargando = false,
     this.onPressed,
     super.key,
   });
 
   final String label;
   final bool destructivo;
+  final IconData? icon;
+  final bool cargando;
   final VoidCallback? onPressed;
 
   @override
@@ -110,7 +91,26 @@ class NegociosPrimaryButton extends StatelessWidget {
       textStyle: BarroTheme.type(14, 20, weight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    child: Text(label, textAlign: TextAlign.center),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (cargando) ...[
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 10),
+        ] else if (icon != null) ...[
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+        ],
+        Flexible(child: Text(label, textAlign: TextAlign.center)),
+      ],
+    ),
   );
 }
 

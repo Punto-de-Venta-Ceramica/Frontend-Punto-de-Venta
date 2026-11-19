@@ -40,23 +40,42 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
       final expiry = DateTime.tryParse(
         data['expiraEn'] is String ? data['expiraEn'] as String : '',
       );
+      final refreshExpiry = DateTime.tryParse(
+        data['refreshExpiraEn'] is String
+            ? data['refreshExpiraEn'] as String
+            : '',
+      );
       if (data['token'] is! String ||
           (data['token'] as String).isEmpty ||
           data['tipo'] != 'Bearer' ||
           expiry == null ||
           !expiry.isAfter(DateTime.now()) ||
+          data['refreshToken'] is! String ||
+          (data['refreshToken'] as String).isEmpty ||
+          refreshExpiry == null ||
+          !refreshExpiry.isAfter(DateTime.now()) ||
           data['usuarioId'] is! int ||
           data['rol'] is! String) {
         throw const AuthenticationFailure(
           'El servidor no devolvió una sesión válida.',
         );
       }
-      return AuthSession(
+      final session = AuthSession(
         token: data['token'] as String,
         expiresAt: expiry,
+        refreshToken: data['refreshToken'] as String,
+        refreshExpiresAt: refreshExpiry,
         userId: data['usuarioId'] as int,
         role: data['rol'] as String,
+        forcePasswordChange: data['forcePasswordChange'] == true,
       );
+      _api.iniciarSesion(
+        token: session.token,
+        expiresAt: session.expiresAt,
+        refreshToken: session.refreshToken,
+        refreshExpiresAt: session.refreshExpiresAt,
+      );
+      return session;
     } on ApiException catch (error) {
       throw _failure(error);
     }
@@ -84,6 +103,56 @@ class HttpAuthenticationGateway implements AuthenticationGateway {
       );
     } on ApiException catch (error) {
       throw _failure(error);
+    }
+  }
+
+  @override
+  Future<void> cambiarPassword({
+    required String passwordActual,
+    required String nuevaPassword,
+    required String confirmarPassword,
+  }) async {
+    try {
+      await _api.patchJson('api/auth/password', {
+        'passwordActual': passwordActual,
+        'nuevaPassword': nuevaPassword,
+        'confirmarPassword': confirmarPassword,
+      });
+    } on ApiException catch (error) {
+      throw AuthenticationFailure(error.detail ?? error.message);
+    }
+  }
+
+  @override
+  Future<void> solicitarCodigo(String correo) async {
+    try {
+      await _api.requestJson(
+        'POST',
+        'api/auth/forgot',
+        body: {'correo': correo.trim()},
+        authenticated: false,
+      );
+    } on ApiException catch (error) {
+      throw AuthenticationFailure(error.detail ?? error.message);
+    }
+  }
+
+  @override
+  Future<void> restablecerPassword({
+    required String correo,
+    required String codigo,
+    required String nuevaPassword,
+    required String confirmarPassword,
+  }) async {
+    try {
+      await _api.patchJson('api/auth/forgot/password', {
+        'correo': correo.trim(),
+        'codigo': codigo.trim(),
+        'nuevaPassword': nuevaPassword,
+        'confirmarPassword': confirmarPassword,
+      }, authenticated: false);
+    } on ApiException catch (error) {
+      throw AuthenticationFailure(error.detail ?? error.message);
     }
   }
 }
