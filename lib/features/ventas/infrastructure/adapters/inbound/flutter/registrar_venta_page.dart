@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
     show NivelExistencia, ProductoImagen, productoSuave;
@@ -36,6 +37,7 @@ class RegistrarVentaPage extends StatefulWidget {
 }
 
 class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
+  final _formulario = GlobalKey<FormState>();
   final _carrito = <int, SeleccionVenta>{};
   final _buscador = TextEditingController();
   PaginaProductosVenta? _pagina;
@@ -184,7 +186,8 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   }
 
   Future<void> _continuar(List<SeleccionVenta> seleccion) async {
-    if (_abriendoPago) return;
+    if (_abriendoPago || !_formulario.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() => _abriendoPago = true);
     final venta = await Navigator.of(context).push<VentaRegistrada>(
       MaterialPageRoute(
@@ -225,7 +228,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
           ]
         : pagina?.productos ?? const <ProductoVenta>[];
 
-    return VentaScaffold(
+    final pantalla = VentaScaffold(
       contexto: widget.contexto,
       paso: '1 de 2 · Selecciona productos de tu sucursal.',
       accion: 'Continuar al pago',
@@ -399,6 +402,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
           for (final producto in productos) _tarjeta(producto),
       ],
     );
+    return Form(key: _formulario, child: pantalla);
   }
 
   String _mensajeSinProductos(bool carritoVacio) {
@@ -419,10 +423,12 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     final seleccion = _carrito[producto.id];
     final cantidad = seleccion?.cantidad ?? 0;
     final porcentaje = seleccion?.porcentajeDisponible;
-    final puedeAgregar =
-        cantidad < producto.existencia &&
+    final puedeSeleccionar =
+        producto.existencia > 0 &&
         (cantidad > 0 || _carrito.length < SeleccionVenta.maximoProductos);
+    final puedeAgregar = puedeSeleccionar && cantidad < producto.existencia;
     return Padding(
+      key: ValueKey(producto.id),
       padding: const EdgeInsets.only(bottom: 10),
       child: VentaProductoCard(
         nombre: producto.nombre,
@@ -432,6 +438,9 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
         precio: dineroVenta(producto.precio),
         existencia: producto.existencia,
         cantidad: cantidad,
+        onCambiarCantidad: puedeSeleccionar
+            ? (valor) => _cambiarCantidad(producto, valor)
+            : null,
         subtotal: dineroVenta(seleccion?.importe ?? 0),
         porcentajeDescuento: porcentaje,
         aplicarDescuento: seleccion?.aplicarDescuento ?? false,
@@ -495,6 +504,7 @@ class VentaProductoCard extends StatelessWidget {
     this.onCambiarDescuento,
     this.onQuitar,
     this.onAgregar,
+    this.onCambiarCantidad,
     super.key,
   });
 
@@ -513,6 +523,7 @@ class VentaProductoCard extends StatelessWidget {
   final ValueChanged<bool>? onCambiarDescuento;
   final VoidCallback? onQuitar;
   final VoidCallback? onAgregar;
+  final ValueChanged<int>? onCambiarCantidad;
 
   /// Lado de la foto: la imagen es lo primero que se reconoce del producto.
   static const double ladoImagen = 108;
@@ -652,6 +663,7 @@ class VentaProductoCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconButton.outlined(
                 icon: const Icon(Icons.remove_rounded),
@@ -663,13 +675,11 @@ class VentaProductoCard extends StatelessWidget {
                 ),
                 onPressed: onQuitar,
               ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 36),
-                child: Text(
-                  '$cantidad',
-                  textAlign: TextAlign.center,
-                  style: BarroTheme.type(18, 24, weight: FontWeight.w700),
-                ),
+              _CantidadVenta(
+                nombre: nombre,
+                cantidad: cantidad,
+                maximo: existencia,
+                onChanged: onCambiarCantidad,
               ),
               IconButton.filled(
                 icon: const Icon(Icons.add_rounded),
@@ -740,6 +750,124 @@ class VentaProductoCard extends StatelessWidget {
 
   static String _formatearPorcentaje(num valor) =>
       valor.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
+class _CantidadVenta extends StatefulWidget {
+  const _CantidadVenta({
+    required this.nombre,
+    required this.cantidad,
+    required this.maximo,
+    required this.onChanged,
+  });
+
+  final String nombre;
+  final int cantidad;
+  final int maximo;
+  final ValueChanged<int>? onChanged;
+
+  @override
+  State<_CantidadVenta> createState() => _CantidadVentaState();
+}
+
+class _CantidadVentaState extends State<_CantidadVenta>
+    with AutomaticKeepAliveClientMixin {
+  static final _entero = RegExp(r'^\d{0,10}$');
+  late final _controlador = TextEditingController(text: '${widget.cantidad}');
+  final _foco = FocusNode();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _foco.addListener(_restaurarSiVacio);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CantidadVenta oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cantidad != widget.cantidad &&
+        int.tryParse(_controlador.text) != widget.cantidad) {
+      // El formulario recibe la nueva cantidad cuando termina su reconstrucción.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _controlador.text = '${widget.cantidad}';
+        }
+      });
+    }
+  }
+
+  void _restaurarSiVacio() {
+    if (!_foco.hasFocus && _controlador.text.isEmpty) {
+      _controlador.text = '${widget.cantidad}';
+    }
+  }
+
+  String? _validar(String? texto) {
+    if (texto == null || texto.isEmpty) return null;
+    final cantidad = int.tryParse(texto);
+    if (cantidad == null || cantidad > widget.maximo) {
+      return 'Máximo ${widget.maximo}';
+    }
+    return null;
+  }
+
+  void _cambiar(String texto) {
+    final cantidad = int.tryParse(texto);
+    if (cantidad != null && cantidad <= widget.maximo) {
+      widget.onChanged?.call(cantidad);
+    }
+  }
+
+  @override
+  void dispose() {
+    _foco.removeListener(_restaurarSiVacio);
+    _foco.dispose();
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return SizedBox(
+      width: 64,
+      child: Semantics(
+        label: 'Cantidad de ${widget.nombre}',
+        child: TextFormField(
+          controller: _controlador,
+          focusNode: _foco,
+          enabled: widget.onChanged != null,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.done,
+          textAlign: TextAlign.center,
+          style: BarroTheme.type(18, 24, weight: FontWeight.w700),
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validar,
+          inputFormatters: [
+            TextInputFormatter.withFunction(
+              (anterior, nuevo) =>
+                  _entero.hasMatch(nuevo.text) ? nuevo : anterior,
+            ),
+          ],
+          decoration: decoracionCampoVenta().copyWith(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 12,
+            ),
+          ),
+          onChanged: _cambiar,
+          onTap: () => _controlador.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: _controlador.text.length,
+          ),
+          onTapOutside: (_) => _foco.unfocus(),
+          onFieldSubmitted: (_) => _foco.unfocus(),
+        ),
+      ),
+    );
+  }
 }
 
 /// Dato breve del producto acompañado de un ícono (existencia, área, etc.).
