@@ -38,6 +38,7 @@ class PerfilUsuarioDialog extends StatefulWidget {
 }
 
 class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
+  final _correoCtrl = TextEditingController();
   final _nombreCtrl = TextEditingController();
   final _paternoCtrl = TextEditingController();
   final _maternoCtrl = TextEditingController();
@@ -45,8 +46,8 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
 
   bool _cargando = true;
   bool _guardando = false;
-  String? _error;
-  String _correo = '';
+  String? _generalError;
+  final Map<String, String> _fieldErrors = {};
   String _rol = '';
 
   @override
@@ -57,6 +58,7 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
 
   @override
   void dispose() {
+    _correoCtrl.dispose();
     _nombreCtrl.dispose();
     _paternoCtrl.dispose();
     _maternoCtrl.dispose();
@@ -67,7 +69,7 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
   Future<void> _cargarPerfil() async {
     setState(() {
       _cargando = true;
-      _error = null;
+      _generalError = null;
     });
 
     try {
@@ -75,11 +77,11 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
       if (res is Map<String, dynamic>) {
         if (!mounted) return;
         setState(() {
+          _correoCtrl.text = res['correo']?.toString() ?? '';
           _nombreCtrl.text = res['nombre']?.toString() ?? '';
           _paternoCtrl.text = res['apellidoPaterno']?.toString() ?? '';
           _maternoCtrl.text = res['apellidoMaterno']?.toString() ?? '';
           _telefonoCtrl.text = res['telefono']?.toString() ?? '';
-          _correo = res['correo']?.toString() ?? '';
           _rol = res['rol']?.toString() ?? '';
           _cargando = false;
         });
@@ -89,30 +91,105 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'No se pudo cargar la información del perfil.';
+        _generalError = 'No se pudo cargar la información del perfil.';
         _cargando = false;
       });
     }
   }
 
+  Map<String, String> _validar() {
+    final errores = <String, String>{};
+    final correo = _correoCtrl.text;
+    final nombre = _nombreCtrl.text;
+    final paterno = _paternoCtrl.text;
+    final materno = _maternoCtrl.text;
+    final telefono = _telefonoCtrl.text;
+
+    // 1. Correo electrónico
+    if (correo.trim().isEmpty) {
+      errores['correo'] = 'El correo electrónico es obligatorio y no puede contener solo espacios.';
+    } else if (correo.contains(' ')) {
+      errores['correo'] = 'El correo electrónico no debe contener espacios en blanco.';
+    } else if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(correo.trim())) {
+      errores['correo'] = 'El correo electrónico no tiene un formato válido.';
+    } else if (correo.trim().length > 254) {
+      errores['correo'] = 'El correo electrónico no debe superar 254 caracteres.';
+    }
+
+    // 2. Nombre
+    if (nombre.trim().isEmpty) {
+      errores['nombre'] = 'El nombre es obligatorio y no puede contener solo espacios.';
+    } else if (RegExp(r'[0-9]').hasMatch(nombre)) {
+      errores['nombre'] = 'El nombre no debe contener números.';
+    } else if (nombre.trim().length > 100) {
+      errores['nombre'] = 'El nombre no debe superar 100 caracteres.';
+    } else if (nombre != nombre.trim()) {
+      errores['nombre'] = 'El nombre no debe tener espacios al inicio ni al final.';
+    }
+
+    // 3. Apellido paterno
+    if (paterno.trim().isEmpty) {
+      errores['apellidoPaterno'] = 'El apellido paterno es obligatorio y no puede contener solo espacios.';
+    } else if (RegExp(r'[0-9]').hasMatch(paterno)) {
+      errores['apellidoPaterno'] = 'El apellido paterno no debe contener números.';
+    } else if (paterno.trim().length > 100) {
+      errores['apellidoPaterno'] = 'El apellido paterno no debe superar 100 caracteres.';
+    } else if (paterno != paterno.trim()) {
+      errores['apellidoPaterno'] = 'El apellido paterno no debe tener espacios al inicio ni al final.';
+    }
+
+    // 4. Apellido materno (opcional)
+    if (materno.isNotEmpty) {
+      if (materno.trim().isEmpty) {
+        errores['apellidoMaterno'] = 'El apellido materno no puede contener solo espacios.';
+      } else if (RegExp(r'[0-9]').hasMatch(materno)) {
+        errores['apellidoMaterno'] = 'El apellido materno no debe contener números.';
+      } else if (materno.trim().length > 100) {
+        errores['apellidoMaterno'] = 'El apellido materno no debe superar 100 caracteres.';
+      } else if (materno != materno.trim()) {
+        errores['apellidoMaterno'] = 'El apellido materno no debe tener espacios al inicio ni al final.';
+      }
+    }
+
+    // 5. Teléfono
+    if (telefono.trim().isEmpty) {
+      errores['telefono'] = 'El teléfono es obligatorio y no puede contener solo espacios.';
+    } else if (telefono.contains(' ')) {
+      errores['telefono'] = 'El teléfono no debe contener espacios en blanco.';
+    } else if (!RegExp(r'^[0-9]{10}$').hasMatch(telefono.trim())) {
+      errores['telefono'] = 'El teléfono debe contener exactamente 10 dígitos numéricos.';
+    }
+
+    return errores;
+  }
+
   Future<void> _guardar() async {
-    final nombre = _nombreCtrl.text.trim();
-    if (nombre.isEmpty) {
-      setState(() => _error = 'El nombre es obligatorio.');
+    final errores = _validar();
+    if (errores.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errores);
+        _generalError = null;
+      });
       return;
     }
 
     setState(() {
       _guardando = true;
-      _error = null;
+      _fieldErrors.clear();
+      _generalError = null;
     });
 
     try {
       await widget.api.putJson('api/usuarios/perfil', {
-        'nombre': nombre,
+        'nombre': _nombreCtrl.text.trim(),
         'apellidoPaterno': _paternoCtrl.text.trim(),
-        'apellidoMaterno': _maternoCtrl.text.trim(),
+        'apellidoMaterno': _maternoCtrl.text.trim().isEmpty
+            ? null
+            : _maternoCtrl.text.trim(),
         'telefono': _telefonoCtrl.text.trim(),
+        'correo': _correoCtrl.text.trim(),
       });
 
       if (!mounted) return;
@@ -122,9 +199,28 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
         'Tus datos de perfil se actualizaron con éxito.',
       );
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      setState(() {
+        if (e.fieldErrors.isNotEmpty) {
+          _fieldErrors.addAll(e.fieldErrors);
+        } else {
+          final msg = e.message;
+          final msgLower = msg.toLowerCase();
+          if (msgLower.contains('correo') || msgLower.contains('email')) {
+            _fieldErrors['correo'] = msg;
+          } else if (msgLower.contains('nombre')) {
+            _fieldErrors['nombre'] = msg;
+          } else if (msgLower.contains('apellido')) {
+            _fieldErrors['apellidoPaterno'] = msg;
+          } else if (msgLower.contains('teléfono') || msgLower.contains('telefono')) {
+            _fieldErrors['telefono'] = msg;
+          } else {
+            _generalError = msg;
+          }
+        }
+      });
     } catch (_) {
-      if (mounted) setState(() => _error = 'Error al actualizar el perfil.');
+      if (mounted) setState(() => _generalError = 'Error al actualizar el perfil.');
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -214,66 +310,90 @@ class _PerfilUsuarioDialogState extends State<PerfilUsuarioDialog> {
                   ),
                 )
               else ...[
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(
-                        color: BarroTheme.error,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                // Correo (solo lectura)
                 TextField(
-                  controller: TextEditingController(text: _correo),
-                  enabled: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo electrónico',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: Color(0xFFF5F5F5),
+                  controller: _correoCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (_) {
+                    if (_fieldErrors.containsKey('correo')) {
+                      setState(() => _fieldErrors.remove('correo'));
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Correo electrónico *',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: const OutlineInputBorder(),
+                    errorText: _fieldErrors['correo'],
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _nombreCtrl,
-                  decoration: const InputDecoration(
+                  onChanged: (_) {
+                    if (_fieldErrors.containsKey('nombre')) {
+                      setState(() => _fieldErrors.remove('nombre'));
+                    }
+                  },
+                  decoration: InputDecoration(
                     labelText: 'Nombre *',
-                    prefixIcon: Icon(Icons.badge_outlined),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    border: const OutlineInputBorder(),
+                    errorText: _fieldErrors['nombre'],
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _paternoCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Apellido paterno',
-                    prefixIcon: Icon(Icons.person_outline),
-                    border: OutlineInputBorder(),
+                  onChanged: (_) {
+                    if (_fieldErrors.containsKey('apellidoPaterno')) {
+                      setState(() => _fieldErrors.remove('apellidoPaterno'));
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Apellido paterno *',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: const OutlineInputBorder(),
+                    errorText: _fieldErrors['apellidoPaterno'],
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _maternoCtrl,
-                  decoration: const InputDecoration(
+                  onChanged: (_) {
+                    if (_fieldErrors.containsKey('apellidoMaterno')) {
+                      setState(() => _fieldErrors.remove('apellidoMaterno'));
+                    }
+                  },
+                  decoration: InputDecoration(
                     labelText: 'Apellido materno',
-                    prefixIcon: Icon(Icons.person_outline),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: const OutlineInputBorder(),
+                    errorText: _fieldErrors['apellidoMaterno'],
                   ),
                 ),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _telefonoCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Teléfono',
-                    prefixIcon: Icon(Icons.phone_outlined),
-                    border: OutlineInputBorder(),
+                  onChanged: (_) {
+                    if (_fieldErrors.containsKey('telefono')) {
+                      setState(() => _fieldErrors.remove('telefono'));
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Teléfono *',
+                    prefixIcon: const Icon(Icons.phone_outlined),
+                    border: const OutlineInputBorder(),
+                    errorText: _fieldErrors['telefono'],
                   ),
                 ),
+                if (_generalError != null) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    _generalError!,
+                    style: BarroTheme.type(13, 18, color: BarroTheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
                 const SizedBox(height: 20),
                 FilledButton.icon(
                   onPressed: _guardando ? null : _guardar,
