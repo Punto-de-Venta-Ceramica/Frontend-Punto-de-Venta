@@ -257,7 +257,11 @@ void main() {
       await tester.pump();
 
       final filtro = find.widgetWithText(FilterChip, 'Seleccionados');
-      final buscador = find.byType(TextField);
+      final buscador = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.hintText == 'Nombre o ID del producto',
+      );
       final posicionBuscador = tester.getTopLeft(buscador);
       expect(
         tester.getTopRight(filtro).dx,
