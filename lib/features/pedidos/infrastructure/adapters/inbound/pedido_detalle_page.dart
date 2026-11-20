@@ -127,70 +127,223 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
   Future<void> _pagar(Pedido pedido) async {
     final monto = TextEditingController();
     String metodo = 'EFECTIVO';
+    String? error;
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: const Text('Nuevo pago'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Saldo pendiente: ${formatoPrecio(pedido.saldo)}'),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: metodo,
-                decoration: const InputDecoration(labelText: 'Tipo de pago'),
-                items: const [
-                  DropdownMenuItem(value: 'EFECTIVO', child: Text('Efectivo')),
-                  DropdownMenuItem(value: 'TARJETA', child: Text('Tarjeta')),
-                ],
-                onChanged: (v) => update(() => metodo = v!),
-              ),
-              TextField(
-                controller: monto,
-                inputFormatters: PedidoInputFormatters.dinero,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+        builder: (context, update) {
+          void guardar() {
+            final valor = double.tryParse(monto.text.replaceAll(',', '.'));
+            if (valor == null ||
+                !valor.isFinite ||
+                valor <= 0 ||
+                valor > pedido.saldo ||
+                !RegExp(r'^\d+(?:[.,]\d{1,2})?$').hasMatch(monto.text.trim())) {
+              update(
+                () => error = valor != null && valor > pedido.saldo
+                    ? 'No puede superar el saldo pendiente.'
+                    : 'Escribe un importe mayor a \$0 con hasta dos decimales.',
+              );
+              return;
+            }
+            Navigator.pop(context);
+            _accion(
+              () => widget.gestion.pagar(pedido.id, valor, metodo),
+              'Pago de ${formatoPrecio(valor)} registrado.',
+            );
+          }
+
+          Widget opcion(String valor, String texto, IconData icono) {
+            final elegido = metodo == valor;
+            return Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => update(() => metodo = valor),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: elegido ? productoSuave : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: elegido ? BarroTheme.primary : BarroTheme.border,
+                      width: elegido ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        icono,
+                        color: elegido
+                            ? BarroTheme.primary
+                            : BarroTheme.secondary,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        texto,
+                        style: BarroTheme.type(
+                          13,
+                          18,
+                          weight: elegido ? FontWeight.w700 : FontWeight.w500,
+                          color: elegido ? BarroTheme.primary : BarroTheme.text,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad pagada',
-                  helperText: 'No puede superar el saldo pendiente.',
+              ),
+            );
+          }
+
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: productoSuave,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.payments_outlined,
+                            color: BarroTheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Registrar pago',
+                                style: BarroTheme.type(
+                                  20,
+                                  28,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                pedido.cliente,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: BarroTheme.type(
+                                  13,
+                                  18,
+                                  color: BarroTheme.secondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: BarroTheme.background,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: BarroTheme.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Saldo pendiente',
+                              style: BarroTheme.type(
+                                13,
+                                18,
+                                color: BarroTheme.secondary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            formatoPrecio(pedido.saldo),
+                            style: BarroTheme.type(
+                              20,
+                              26,
+                              weight: FontWeight.w700,
+                              color: BarroTheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const ProductoEtiqueta('Método de pago'),
+                    Row(
+                      children: [
+                        opcion('EFECTIVO', 'Efectivo', Icons.payments_outlined),
+                        const SizedBox(width: 10),
+                        opcion('TARJETA', 'Tarjeta', Icons.credit_card),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: ProductoEtiqueta('Cantidad pagada'),
+                        ),
+                        TextButton(
+                          onPressed: () => update(() {
+                            monto.text = pedido.saldo.toStringAsFixed(2);
+                            error = null;
+                          }),
+                          child: const Text('Liquidar saldo'),
+                        ),
+                      ],
+                    ),
+                    TextField(
+                      controller: monto,
+                      autofocus: true,
+                      inputFormatters: PedidoInputFormatters.dinero,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) {
+                        if (error != null) update(() => error = null);
+                      },
+                      onSubmitted: (_) => guardar(),
+                      style: BarroTheme.type(18, 24, weight: FontWeight.w700),
+                      decoration: productoDecoracion(hint: '0.00', error: error)
+                          .copyWith(
+                            prefixIcon: const Icon(
+                              Icons.attach_money,
+                              color: BarroTheme.secondary,
+                            ),
+                            helperText: error == null
+                                ? 'No puede superar el saldo pendiente.'
+                                : null,
+                          ),
+                    ),
+                    const SizedBox(height: 20),
+                    ProductoBoton(texto: 'Guardar pago', onPressed: guardar),
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Volver'),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Volver'),
             ),
-            FilledButton(
-              onPressed: () {
-                final valor = double.tryParse(monto.text.replaceAll(',', '.'));
-                if (valor == null ||
-                    !valor.isFinite ||
-                    valor <= 0 ||
-                    valor > pedido.saldo ||
-                    !RegExp(
-                      r'^\d+(?:[.,]\d{1,2})?$',
-                    ).hasMatch(monto.text.trim())) {
-                  NotificacionServicio.advertencia(
-                    context,
-                    'Revisa el importe.',
-                  );
-                  return;
-                }
-                Navigator.pop(context);
-                _accion(
-                  () => widget.gestion.pagar(pedido.id, valor, metodo),
-                  'Pago de ${formatoPrecio(valor)} registrado.',
-                );
-              },
-              child: const Text('Guardar pago'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
     monto.dispose();
