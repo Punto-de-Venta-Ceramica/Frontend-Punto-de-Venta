@@ -675,7 +675,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
       theme: BarroTheme.data,
       initialRoute: widget.initialRoute,
-      home: Builder(builder: _login),
+      home: _RestaurarSesion(store: widget.sessionStore, login: _login),
       routes: {
         '/login': _login,
         '/register': (_) => OwnerRegistrationPage(
@@ -757,6 +757,40 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       },
     ),
   );
+}
+
+/// Al abrir la app entra directo con la sesión guardada; sin ella muestra el login.
+class _RestaurarSesion extends StatefulWidget {
+  const _RestaurarSesion({required this.store, required this.login});
+  final SessionStore store;
+  final WidgetBuilder login;
+
+  @override
+  State<_RestaurarSesion> createState() => _RestaurarSesionState();
+}
+
+class _RestaurarSesionState extends State<_RestaurarSesion> {
+  bool _sinSesion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.leer().then((session) {
+      if (!mounted) return;
+      if (session == null) {
+        setState(() => _sinSesion = true);
+      } else {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/session', (_) => false, arguments: session);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _sinSesion
+      ? widget.login(context)
+      : const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 class _ConnectionHome extends StatefulWidget {
