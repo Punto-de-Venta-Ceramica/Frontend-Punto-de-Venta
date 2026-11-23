@@ -35,6 +35,9 @@ const _meses = [
   'diciembre',
 ];
 
+String fechaLargaReporte(DateTime fecha) =>
+    '${fecha.day} de ${_meses[fecha.month - 1]} de ${fecha.year}';
+
 /// Contenedor blanco con borde suave usado en toda la pantalla.
 class PanelReporte extends StatelessWidget {
   const PanelReporte({required this.child, super.key});
@@ -99,8 +102,7 @@ class FiltroPeriodo extends StatelessWidget {
   final VoidCallback? onSiguiente;
 
   String get _textoFecha => switch (seleccionado) {
-    PeriodoReporte.diario =>
-      '${desde.day} de ${_meses[desde.month - 1]} de ${desde.year}',
+    PeriodoReporte.diario => fechaLargaReporte(desde),
     PeriodoReporte.semanal =>
       '${_fechaCorta(desde, conAnio: desde.year != hasta.year)} – ${_fechaCorta(hasta)}',
     PeriodoReporte.mensual => '${_meses[desde.month - 1]} de ${desde.year}',

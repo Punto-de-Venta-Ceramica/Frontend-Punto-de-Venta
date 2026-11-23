@@ -7,6 +7,8 @@ import 'package:punto_de_venta/core/infrastructure/services/notificacion_servici
 
 import '../../../../application/ports/inbound/gestion_reportes_use_case.dart';
 import '../../../../domain/reporte_contable.dart';
+import 'movimientos_dia_page.dart';
+import 'movimientos_dia_widgets.dart';
 import 'reporte_widgets.dart';
 
 class DatosContablesPage extends StatefulWidget {
@@ -130,14 +132,36 @@ class _DatosContablesPageState extends State<DatosContablesPage> {
     _cargarReporte();
   }
 
+  Future<void> _verMovimientos() async {
+    final consulta = _consulta;
+    final reporte = _reporte;
+    if (consulta == null || reporte == null) return;
+    final sucursal = _sucursales.firstWhere(
+      (sucursal) => sucursal.id == consulta.sucursalId,
+    );
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => MovimientosDiaPage(
+          sucursal: sucursal.nombre,
+          consulta: consulta,
+          reporteInicial: reporte,
+          reportes: widget.reportes,
+          onSesionExpirada: widget.onSesionExpirada,
+        ),
+      ),
+    );
+    if (mounted) await _cargarReporte();
+  }
+
   Future<void> _exportar() async {
     final consulta = _consulta;
     if (consulta == null || _reporte == null || _exportando) return;
     setState(() => _exportando = true);
     try {
       final guardado = await widget.reportes.exportar(consulta);
-      if (mounted && guardado)
+      if (mounted && guardado) {
         NotificacionServicio.exito(context, 'Reporte exportado a Excel.');
+      }
     } on ReporteFailure catch (error) {
       if (!mounted) return;
       if (error.sesionExpirada) {
@@ -301,6 +325,14 @@ class _DatosContablesPageState extends State<DatosContablesPage> {
                 ] else if (reporte != null) ...[
                   const SizedBox(height: 16),
                   ResumenReporte(reporte: reporte),
+                  if (_periodo == PeriodoReporte.diario) ...[
+                    const SizedBox(height: 28),
+                    MovimientosDia(
+                      movimientos: reporte.movimientos,
+                      onVerTodos: _verMovimientos,
+                      onActualizar: _cargarReporte,
+                    ),
+                  ],
                   if (_periodo.permiteExportar) ...[
                     const SizedBox(height: 24),
                     FilledButton.icon(
