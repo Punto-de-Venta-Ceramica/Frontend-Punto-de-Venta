@@ -9,6 +9,7 @@ import 'package:punto_de_venta/features/tickets/application/impresion_tickets.da
 import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 
 import '../../../../application/services/gestion_ventas.dart';
+import '../../../../domain/busqueda_productos_venta.dart';
 import '../../../../domain/venta.dart';
 import 'confirmar_venta_page.dart';
 import 'filtros_productos_venta.dart';
@@ -216,16 +217,10 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     final piezas = seleccion.fold(0, (suma, linea) => suma + linea.cantidad);
     final total = seleccion.fold<num>(0, (suma, linea) => suma + linea.importe);
     final pagina = _pagina;
-    final consulta = _busqueda.toLowerCase();
-    final idBuscado = int.tryParse(consulta);
     final productos = _soloSeleccionados
-        ? [
-            for (final linea in seleccion)
-              if (_filtros.coincide(linea.producto) &&
-                  (linea.producto.nombre.toLowerCase().contains(consulta) ||
-                      linea.producto.id == idBuscado))
-                linea.producto,
-          ]
+        ? BusquedaProductosVenta(_busqueda).filtrar(
+            seleccion.map((linea) => linea.producto).where(_filtros.coincide),
+          )
         : pagina?.productos ?? const <ProductoVenta>[];
 
     final pantalla = VentaScaffold(
@@ -234,6 +229,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
       accion: 'Continuar al pago',
       iconoAccion: Icons.arrow_forward_rounded,
       espacioAntesContenido: 0,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       onAccion: (!_cargando || _soloSeleccionados) && seleccion.isNotEmpty
           ? () => _continuar(seleccion)
           : null,

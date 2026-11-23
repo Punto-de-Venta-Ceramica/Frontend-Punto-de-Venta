@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'movimiento_reporte.dart';
+
 enum PeriodoReporte {
   diario('Diario', 'SEMANAL'),
   semanal('Semanal', 'SEMANAL'),
@@ -61,6 +63,7 @@ class ReporteContable {
     required this.efectivo,
     required this.tarjeta,
     required this.hayMovimientos,
+    this.movimientos = const [],
   });
 
   final DateTime desde;
@@ -71,6 +74,7 @@ class ReporteContable {
   final num efectivo;
   final num tarjeta;
   final bool hayMovimientos;
+  final List<MovimientoReporte> movimientos;
 }
 
 class ArchivoReporte {
