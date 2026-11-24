@@ -118,13 +118,29 @@ class AvisoPedido {
     required this.mensaje,
     required this.leida,
     this.pedidoId,
+    this.fecha,
   });
   final int id;
   final String titulo, mensaje;
   final bool leida;
 
+  /// Cuándo se generó el aviso; null si el servidor no la envía.
+  final DateTime? fecha;
+
   /// Pedido del aviso, para abrir su detalle; null si no tiene.
   final int? pedidoId;
+}
+
+/// Página de avisos del servidor: del más reciente al más antiguo.
+class PaginaAvisos {
+  const PaginaAvisos({
+    required this.avisos,
+    required this.pagina,
+    required this.ultima,
+  });
+  final List<AvisoPedido> avisos;
+  final int pagina;
+  final bool ultima;
 }
 
 class Pedido {

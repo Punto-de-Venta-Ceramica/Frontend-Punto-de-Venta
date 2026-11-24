@@ -117,7 +117,8 @@ class PedidosConMemoria implements PedidosGateway, PedidosEnMemoria {
   }
 
   @override
-  Future<List<AvisoPedido>> notificaciones() => _origen.notificaciones();
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) =>
+      _origen.notificaciones(pagina: pagina);
 
   @override
   Future<void> marcarLeida(int id) => _origen.marcarLeida(id);

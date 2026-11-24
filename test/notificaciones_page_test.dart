@@ -16,9 +16,19 @@ class _IconoFalso implements IndicadorIcono {
 
 class _PedidosFalsos extends Fake implements PedidosGateway {
   List<AvisoPedido> avisos = [];
+  final paginasPedidas = <int>[];
 
+  /// Como el servidor: 20 por página, tal cual está ordenada la lista.
   @override
-  Future<List<AvisoPedido>> notificaciones() async => List.of(avisos);
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async {
+    paginasPedidas.add(pagina);
+    final desde = pagina * 20;
+    return PaginaAvisos(
+      avisos: avisos.skip(desde).take(20).toList(),
+      pagina: pagina,
+      ultima: desde + 20 >= avisos.length,
+    );
+  }
 
   @override
   Future<Pedido> obtener(int pedidoId) async => Pedido(
@@ -109,13 +119,18 @@ void main() {
     ];
     await tester.tap(find.byTooltip('Actualizar notificaciones'));
     await tester.pumpAndSettle();
+    // La primera página se pone al inicio y lo ya cargado se conserva.
     expect(find.text('Otro pedido'), findsOneWidget);
-    expect(find.text('Nuevo pedido'), findsNothing);
+    expect(find.text('Nuevo pedido'), findsOneWidget);
 
+    // Al leerlo sale de "No leídas" (el filtro por defecto) y pasa a "Leídas".
     await tester.tap(find.text('Otro pedido'));
     await tester.pumpAndSettle();
-    expect(find.text('Nueva'), findsNothing);
+    expect(find.text('Otro pedido'), findsNothing);
+    await tester.tap(find.text('Leídas'));
+    await tester.pumpAndSettle();
     expect(find.text('Otro pedido'), findsOneWidget);
+    expect(find.text('Nuevo pedido'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
     contador.dispose();
@@ -151,10 +166,130 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Es un aviso leído: por defecto no aparece hasta elegir "Leídas".
+    expect(find.text('Nuevo pedido'), findsNothing);
+    await tester.tap(find.text('Leídas'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Nuevo pedido'));
     await tester.pumpAndSettle();
     expect(find.byType(PedidoDetallePage), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    contador.dispose();
+    api.close();
+  });
+
+  testWidgets('carga de 20 en 20 y filtra leídas / no leídas en la app', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 30000);
+    addTearDown(tester.view.reset);
+    final api = ApiClient(
+      baseUrl: 'http://localhost/',
+      client: MockClient(
+        (_) async => throw StateError('No se esperaba una solicitud'),
+      ),
+    );
+    final contador = ContadorNotificaciones(api, _IconoFalso());
+    // 45 avisos, del 45 (más reciente) al 1; los pares ya están leídos.
+    final pedidos = _PedidosFalsos()
+      ..avisos = [
+        for (var i = 45; i >= 1; i--)
+          AvisoPedido(
+            id: i,
+            titulo: 'Aviso $i',
+            mensaje: 'Detalle',
+            leida: i.isEven,
+          ),
+      ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificacionesPage(
+          gestion: GestionPedidos(pedidos),
+          contador: contador,
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Solo se pidió la primera página; por defecto se ven las no leídas.
+    expect(pedidos.paginasPedidas, [0]);
+    expect(find.text('Aviso 45'), findsOneWidget);
+    expect(find.text('Aviso 44'), findsNothing);
+    expect(find.text('Aviso 25'), findsNothing);
+
+    await tester.tap(find.text('Leídas'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aviso 44'), findsOneWidget);
+    expect(find.text('Aviso 45'), findsNothing);
+
+    await tester.tap(find.text('Todas'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aviso 45'), findsOneWidget);
+    expect(find.text('Aviso 44'), findsOneWidget);
+
+    await tester.tap(find.text('Cargar más notificaciones'));
+    await tester.pumpAndSettle();
+    expect(pedidos.paginasPedidas.last, 1);
+    expect(find.text('Aviso 6'), findsOneWidget);
+    expect(find.text('Aviso 5'), findsNothing);
+
+    await tester.tap(find.text('Cargar más notificaciones'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aviso 1'), findsOneWidget);
+    expect(find.text('Cargar más notificaciones'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+    contador.dispose();
+    api.close();
+  });
+
+  testWidgets('agrupa por día y muestra hace cuánto llegó cada aviso', (
+    tester,
+  ) async {
+    final api = ApiClient(
+      baseUrl: 'http://localhost/',
+      client: MockClient(
+        (_) async => throw StateError('No se esperaba una solicitud'),
+      ),
+    );
+    final contador = ContadorNotificaciones(api, _IconoFalso());
+    final ahora = DateTime.now();
+    final pedidos = _PedidosFalsos()
+      ..avisos = [
+        AvisoPedido(
+          id: 2,
+          titulo: 'Pedido entregado',
+          mensaje: 'Un pedido fue entregado.',
+          leida: false,
+          fecha: ahora.subtract(const Duration(seconds: 10)),
+        ),
+        AvisoPedido(
+          id: 1,
+          titulo: 'Nuevo pedido',
+          mensaje: 'Se registró un nuevo pedido.',
+          leida: false,
+          fecha: ahora.subtract(const Duration(days: 1)),
+        ),
+      ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificacionesPage(
+          gestion: GestionPedidos(pedidos),
+          contador: contador,
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('HOY'), findsOneWidget);
+    expect(find.text('AYER'), findsOneWidget);
+    expect(find.text('Ahora'), findsOneWidget);
+    expect(find.text('2 notificaciones nuevas'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     contador.dispose();

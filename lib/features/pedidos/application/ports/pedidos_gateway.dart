@@ -23,7 +23,7 @@ abstract interface class PedidosGateway {
 
   /// Descripción, entrega y datos del cliente. Solo el propietario.
   Future<void> editarDatos(int pedidoId, DatosEdicionPedido datos);
-  Future<List<AvisoPedido>> notificaciones();
+  Future<PaginaAvisos> notificaciones({int pagina = 0});
   Future<void> marcarLeida(int id);
 }
 

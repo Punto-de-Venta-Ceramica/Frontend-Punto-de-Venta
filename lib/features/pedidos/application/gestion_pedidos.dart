@@ -44,6 +44,7 @@ class GestionPedidos {
   Future<void> cancelar(int id) => _gateway.cancelar(id);
   Future<void> editarDatos(int id, DatosEdicionPedido datos) =>
       _gateway.editarDatos(id, datos);
-  Future<List<AvisoPedido>> notificaciones() => _gateway.notificaciones();
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) =>
+      _gateway.notificaciones(pagina: pagina);
   Future<void> marcarLeida(int id) => _gateway.marcarLeida(id);
 }

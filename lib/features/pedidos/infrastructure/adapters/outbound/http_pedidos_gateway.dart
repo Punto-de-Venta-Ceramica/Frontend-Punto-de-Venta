@@ -7,8 +7,17 @@ class HttpPedidosGateway implements PedidosGateway {
   final ApiClient _api;
 
   @override
-  Future<List<AvisoPedido>> notificaciones() async =>
-      _lista(await _api.requestJson('GET', 'api/notificaciones'))
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async {
+    final json = _mapa(
+      await _api.requestJson('GET', 'api/notificaciones?page=$pagina'),
+    );
+    final numeroPagina = json['pagina'];
+    final ultima = json['ultima'];
+    if (numeroPagina is! int || ultima is! bool) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return PaginaAvisos(
+      avisos: _lista(json['contenido'])
           .map(
             (j) => AvisoPedido(
               id: j['id'] as int,
@@ -16,9 +25,14 @@ class HttpPedidosGateway implements PedidosGateway {
               mensaje: j['mensaje'] as String,
               leida: j['leida'] as bool,
               pedidoId: j['pedidoId'] as int?,
+              fecha: DateTime.tryParse('${j['fecha']}'),
             ),
           )
-          .toList();
+          .toList(),
+      pagina: numeroPagina,
+      ultima: ultima,
+    );
+  }
 
   @override
   Future<void> marcarLeida(int id) async {

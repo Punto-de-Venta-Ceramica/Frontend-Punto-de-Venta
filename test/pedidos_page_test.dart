@@ -21,7 +21,8 @@ class _Gateway implements PedidosGateway {
   @override
   Future<bool> cajaAbierta(int sucursalId) async => caja;
   @override
-  Future<List<AvisoPedido>> notificaciones() async => [];
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async =>
+      const PaginaAvisos(avisos: [], pagina: 0, ultima: true);
   @override
   Future<void> marcarLeida(int id) async {}
   @override

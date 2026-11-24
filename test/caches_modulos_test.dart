@@ -515,7 +515,8 @@ class _PedidosFalsos implements PedidosGateway {
   Future<void> marcarLeida(int id) async {}
 
   @override
-  Future<List<AvisoPedido>> notificaciones() async => const [];
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async =>
+      const PaginaAvisos(avisos: [], pagina: 0, ultima: true);
 
   @override
   Future<List<ProductoPedido>> productos(int sucursalId) async => const [];
