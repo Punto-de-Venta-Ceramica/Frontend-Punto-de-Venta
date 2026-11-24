@@ -465,11 +465,8 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
           titulo: 'Caja cerrada',
           subtitulo: _subtituloSucursal('Abre un turno para registrar ventas'),
         ),
-        // El historial es información financiera: solo el propietario (HU-05).
-        if (widget.esPropietario) ...[
-          const SizedBox(height: 16),
-          CorteBotonHistorial(onPressed: _abrirHistorial),
-        ],
+        const SizedBox(height: 16),
+        CorteBotonHistorial(onPressed: _abrirHistorial),
         const SizedBox(height: 20),
         CorteTurnoInfo(responsable: _usuarioSesion),
         const SizedBox(height: 16),
@@ -555,10 +552,8 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
             titulo: 'Corte de caja',
             subtitulo: _subtituloSucursal('Revisa los movimientos del día'),
           ),
-          if (widget.esPropietario) ...[
-            const SizedBox(height: 16),
-            CorteBotonHistorial(onPressed: _abrirHistorial),
-          ],
+          const SizedBox(height: 16),
+          CorteBotonHistorial(onPressed: _abrirHistorial),
           const SizedBox(height: 20),
           CorteTurnoInfo(corte: corte, responsable: corte.usuarioNombre),
           const SizedBox(height: 16),
