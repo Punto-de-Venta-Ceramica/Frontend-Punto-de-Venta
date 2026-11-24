@@ -51,9 +51,7 @@ class CorteRealizadoPage extends StatelessWidget {
                   SucursalCorteCard(
                     sucursalNombre: corte.sucursalNombre,
                     fecha: fecha,
-                    negocioNombre: negocioNombre.isNotEmpty
-                        ? negocioNombre
-                        : 'Cerámica La Lola',
+                    negocioNombre: negocioNombre,
                     folioCorte: folio,
                     usuarioNombre: corte.usuarioNombre,
                   ),

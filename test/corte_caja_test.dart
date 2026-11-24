@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'notificaciones_test_utils.dart';
@@ -5,8 +7,10 @@ import 'package:punto_de_venta/features/corte_caja/application/ports/outbound/co
 import 'package:punto_de_venta/features/corte_caja/application/services/gestion_corte_caja.dart';
 import 'package:punto_de_venta/features/corte_caja/domain/corte_caja.dart';
 import 'package:punto_de_venta/features/corte_caja/infrastructure/adapters/inbound/flutter/corte_caja_page.dart';
+import 'package:punto_de_venta/features/corte_caja/infrastructure/adapters/inbound/flutter/corte_caja_widgets.dart';
 import 'package:punto_de_venta/features/corte_caja/infrastructure/adapters/inbound/flutter/corte_realizado_page.dart';
 import 'package:punto_de_venta/features/corte_caja/infrastructure/adapters/inbound/flutter/detalle_movimientos_page.dart';
+import 'package:punto_de_venta/features/corte_caja/infrastructure/adapters/inbound/flutter/historial_cortes_page.dart';
 
 class FakeCorteCajaGateway implements CorteCajaGateway {
   CorteCaja? corteActivo;
@@ -117,6 +121,42 @@ class FakeCorteCajaGateway implements CorteCajaGateway {
     int page = 0,
     int size = 20,
   }) async => [];
+}
+
+/// Historial con dos cortes cerrados; el detalle tarda hasta que se complete.
+class _HistorialFalso extends FakeCorteCajaGateway {
+  final respuesta = Completer<CorteCaja>();
+  final consultas = <int>[];
+
+  @override
+  Future<List<ResumenCorteCaja>> listarHistorial(
+    int sucursalId, {
+    int page = 0,
+    int size = 20,
+  }) async => [
+    for (final (id, real) in [(9, 994.0), (5, 1240.0)])
+      ResumenCorteCaja(
+        id: id,
+        cajaId: 1,
+        sucursalId: sucursalId,
+        usuarioId: 5,
+        usuarioNombre: 'María López',
+        fechaHoraApertura: DateTime(2026, 11, 15, 9),
+        fechaHoraCierre: DateTime(2026, 11, 16, 19, 50),
+        cerrado: true,
+        montoInicial: 200,
+        totalVentas: 1000,
+        totalEstimado: 994,
+        totalReal: real,
+        diferencia: real - 994,
+      ),
+  ];
+
+  @override
+  Future<CorteCaja> consultarCorte(int corteId) {
+    consultas.add(corteId);
+    return respuesta.future;
+  }
 }
 
 CorteCaja _crearCorteEjemplo() => CorteCaja(
@@ -362,18 +402,18 @@ void main() {
           await tester.pumpAndSettle();
         }
 
-        // Caja cerrada: ni el ícono ni el botón de historial para el empleado.
+        // Caja cerrada: el empleado no ve el acceso al historial.
         await abrir(propietario: false);
-        expect(find.byIcon(Icons.history), findsNothing);
-        expect(find.text('Ver historial de cortes anteriores'), findsNothing);
+        expect(find.text('Historial de cortes'), findsNothing);
         // Con turno abierto, el empleado sigue pudiendo hacer el corte.
         await abrir(propietario: false, corte: _crearCorteEjemplo());
-        expect(find.byIcon(Icons.history), findsNothing);
+        expect(find.text('Historial de cortes'), findsNothing);
         expect(find.text('Realizar corte'), findsOneWidget);
 
         await abrir(propietario: true);
-        expect(find.byIcon(Icons.history), findsOneWidget);
-        expect(find.text('Ver historial de cortes anteriores'), findsOneWidget);
+        expect(find.text('Historial de cortes'), findsOneWidget);
+        await abrir(propietario: true, corte: _crearCorteEjemplo());
+        expect(find.text('Historial de cortes'), findsOneWidget);
       },
     );
 
@@ -431,5 +471,89 @@ void main() {
         expect(find.text('Volver a caja'), findsOneWidget);
       },
     );
+
+    testWidgetsConNotificaciones(
+      'HistorialCortesPage abre el corte sin oscurecer la pantalla',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final gateway = _HistorialFalso();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: HistorialCortesPage(
+              gestion: GestionCorteCaja(gateway),
+              sucursalId: 1,
+              sucursalNombre: 'Centro',
+              esPropietario: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('C-000009'), findsOneWidget);
+        final barreras = find.byType(ModalBarrier).evaluate().length;
+
+        await tester.tap(find.text('C-000009'));
+        await tester.pump();
+        // Sin diálogo encima: no hay otra barrera que oscurezca la pantalla y
+        // el indicador va dentro de la tarjeta tocada.
+        expect(find.byType(ModalBarrier).evaluate().length, barreras);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.text('Historial de cortes'), findsOneWidget);
+
+        // Mientras se abre, otro toque se ignora.
+        await tester.tap(find.text('C-000005'));
+        await tester.pump();
+        expect(gateway.consultas, [9]);
+
+        gateway.respuesta.complete(_crearCorteEjemplo());
+        await tester.pumpAndSettle();
+        expect(find.text('Corte realizado'), findsOneWidget);
+      },
+    );
+
+    testWidgetsConNotificaciones(
+      'el bloque del turno avisa si sigue abierto de un día anterior',
+      (tester) async {
+        Future<void> mostrar(CorteCaja? corte, DateTime ahora) =>
+            tester.pumpWidget(
+              MaterialApp(
+                home: Scaffold(
+                  body: CorteTurnoInfo(
+                    corte: corte,
+                    responsable: 'María López',
+                    ahora: ahora,
+                  ),
+                ),
+              ),
+            );
+        final corte = _crearCorteEjemplo(); // abierto el 1 oct 2026 8:30
+
+        await mostrar(corte, DateTime(2026, 10, 1, 17));
+        expect(find.text('TURNO ACTUAL'), findsOneWidget);
+        expect(find.text('Turno abierto: 01 oct 2026 08:30'), findsOneWidget);
+        expect(find.text('Responsable: María López'), findsOneWidget);
+        expect(find.textContaining('sigue abierto'), findsNothing);
+
+        await mostrar(corte, DateTime(2026, 10, 2, 9));
+        expect(find.textContaining('desde ayer'), findsOneWidget);
+
+        await mostrar(corte, DateTime(2026, 10, 8, 9));
+        expect(find.textContaining('desde hace 7 días'), findsOneWidget);
+
+        // Sin turno: la fecha de hoy.
+        await mostrar(null, DateTime(2026, 11, 24, 9));
+        expect(find.text('Hoy, 24 nov 2026'), findsOneWidget);
+        expect(find.text('Responsable: María López'), findsOneWidget);
+        expect(find.textContaining('sigue abierto'), findsNothing);
+      },
+    );
+
+    test('textoSucursal no repite la palabra Sucursal', () {
+      expect(textoSucursal('Centro'), 'Sucursal Centro');
+      expect(textoSucursal('Sucursal Lindavista'), 'Sucursal Lindavista');
+    });
   });
 }
