@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/features/empleados/domain/sucursal_asignada.dart';
 import 'package:punto_de_venta/features/empleados/infrastructure/adapters/inbound/flutter/empleado_inicio_page.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 
 const _centro = SucursalAsignada(
   sucursalId: 1,
@@ -28,22 +29,27 @@ Widget _pagina(List<SucursalAsignada> sucursales, {VoidCallback? salir}) =>
       ),
     );
 
+Finder _nav(String rotulo) => find.descendant(
+  of: find.byType(SucursalNavegacion),
+  matching: find.text(rotulo),
+);
+
 void main() {
   testWidgets('abre en Caja y la barra solo tiene 3 iconos', (tester) async {
     await tester.pumpWidget(_pagina([_centro]));
     await tester.pumpAndSettle();
 
     expect(find.text('CAJA Sucursal Centro'), findsOneWidget);
-    expect(find.byTooltip('Pedidos'), findsOneWidget);
-    expect(find.byTooltip('Caja'), findsOneWidget);
-    expect(find.byTooltip('Inventario'), findsOneWidget);
-    expect(find.byTooltip('Inicio'), findsNothing);
-    expect(find.byTooltip('Más'), findsNothing);
+    expect(_nav('Pedidos'), findsOneWidget);
+    expect(_nav('Caja'), findsOneWidget);
+    expect(_nav('Productos'), findsOneWidget);
+    expect(_nav('Inicio'), findsNothing);
+    expect(_nav('Reportes'), findsNothing);
 
     // Pedidos a la izquierda de Caja e Inventario a la derecha.
-    final pedidos = tester.getCenter(find.byTooltip('Pedidos')).dx;
-    final caja = tester.getCenter(find.byTooltip('Caja')).dx;
-    final inventario = tester.getCenter(find.byTooltip('Inventario')).dx;
+    final pedidos = tester.getCenter(_nav('Pedidos')).dx;
+    final caja = tester.getCenter(_nav('Caja')).dx;
+    final inventario = tester.getCenter(_nav('Productos')).dx;
     expect(pedidos, lessThan(caja));
     expect(caja, lessThan(inventario));
   });
@@ -52,15 +58,15 @@ void main() {
     await tester.pumpWidget(_pagina([_centro]));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Pedidos'));
+    await tester.tap(_nav('Pedidos'));
     await tester.pumpAndSettle();
     expect(find.text('PEDIDOS Sucursal Centro'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Inventario'));
+    await tester.tap(_nav('Productos'));
     await tester.pumpAndSettle();
     expect(find.text('INVENTARIO Sucursal Centro'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Caja'));
+    await tester.tap(_nav('Caja'));
     await tester.pumpAndSettle();
     expect(find.text('CAJA Sucursal Centro'), findsOneWidget);
   });

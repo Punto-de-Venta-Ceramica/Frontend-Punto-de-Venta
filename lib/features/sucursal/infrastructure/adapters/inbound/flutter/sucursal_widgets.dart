@@ -244,31 +244,9 @@ class SucursalNavegacion extends StatelessWidget {
   final bool esEmpleado;
   final String seleccionada;
 
-  Future<void> _abrirMas(BuildContext context) async {
-    final abrirReporte = onDatosContables;
-    if (abrirReporte == null) return;
-    final elegido = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      constraints: const BoxConstraints(maxWidth: 480),
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: ListTile(
-            leading: const Icon(
-              Icons.bar_chart_rounded,
-              color: BarroTheme.primary,
-            ),
-            title: const Text('Datos contables'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(sheetContext).pop(true),
-          ),
-        ),
-      ),
-    );
-    if (context.mounted && elegido == true) abrirReporte();
-  }
+  // La clave de cada pestaña es la que reciben `seleccionada` y los módulos;
+  // el rótulo visible puede ser distinto.
+  static const _rotulos = {'Inventario': 'Productos', 'Reportes': 'Reportes'};
 
   @override
   Widget build(BuildContext context) => Container(
@@ -280,13 +258,9 @@ class SucursalNavegacion extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             child: Row(
-              // Con solo tres botones (empleado) se reparten con espacios
-              // iguales, como space-evenly, para que no queden tan separados.
-              mainAxisAlignment: esEmpleado
-                  ? MainAxisAlignment.spaceEvenly
-                  : MainAxisAlignment.spaceBetween,
+              // Cada pestaña ocupa el mismo ancho: icono y nombre centrados.
               children: [
                 for (final item
                     in esEmpleado
@@ -300,66 +274,118 @@ class SucursalNavegacion extends StatelessWidget {
                             (Icons.receipt_long_outlined, 'Pedidos'),
                             (Icons.point_of_sale_outlined, 'Caja'),
                             (Icons.inventory_2_outlined, 'Inventario'),
-                            (Icons.apps_rounded, 'Más'),
+                            (Icons.bar_chart_rounded, 'Reportes'),
                           ])
-                  IconButton(
-                    tooltip: item.$2,
-                    isSelected: item.$2 == seleccionada,
-                    style: IconButton.styleFrom(
-                      backgroundColor: item.$2 == seleccionada
-                          ? const Color(0xFFA93A21)
-                          : Colors.transparent,
-                      foregroundColor: item.$2 == seleccionada
-                          ? Colors.white
-                          : BarroTheme.secondary,
-                      minimumSize: const Size(46, 46),
-                    ),
-                    onPressed: () {
-                      if (esEmpleado) {
-                        switch (item.$2) {
-                          case 'Pedidos':
-                            onPedidos?.call();
-                          case 'Caja':
-                            onCaja?.call();
-                          case 'Inventario':
-                            onInventario?.call();
+                  Expanded(
+                    child: _ItemNavegacion(
+                      icono: item.$1,
+                      rotulo: _rotulos[item.$2] ?? item.$2,
+                      seleccionado: item.$2 == seleccionada,
+                      onPressed: () {
+                        if (esEmpleado) {
+                          switch (item.$2) {
+                            case 'Pedidos':
+                              onPedidos?.call();
+                            case 'Caja':
+                              onCaja?.call();
+                            case 'Inventario':
+                              onInventario?.call();
+                          }
+                          return;
                         }
-                        return;
-                      }
-                      if (item.$2 == 'Inicio' && onInicio != null) {
-                        onInicio!();
-                        return;
-                      }
-                      if (item.$2 == seleccionada && item.$2 != 'Pedidos') {
-                        return;
-                      }
-                      if (item.$2 == 'Pedidos' && onPedidos != null) {
-                        onPedidos!();
-                        return;
-                      }
-                      if (item.$2 == 'Inventario' && onInventario != null) {
-                        onInventario!();
-                        return;
-                      }
-                      if (item.$2 == 'Caja' && onCaja != null) {
-                        onCaja!();
-                        return;
-                      }
-                      if (item.$2 == 'Más' && onDatosContables != null) {
-                        _abrirMas(context);
-                        return;
-                      }
-                      NotificacionServicio.info(
-                        context,
-                        'El módulo de ${item.$2.toLowerCase()} aún no está disponible.',
-                      );
-                    },
-                    icon: Icon(item.$1, size: 25),
+                        if (item.$2 == 'Inicio' && onInicio != null) {
+                          onInicio!();
+                          return;
+                        }
+                        if (item.$2 == seleccionada && item.$2 != 'Pedidos') {
+                          return;
+                        }
+                        if (item.$2 == 'Pedidos' && onPedidos != null) {
+                          onPedidos!();
+                          return;
+                        }
+                        if (item.$2 == 'Inventario' && onInventario != null) {
+                          onInventario!();
+                          return;
+                        }
+                        if (item.$2 == 'Caja' && onCaja != null) {
+                          onCaja!();
+                          return;
+                        }
+                        if (item.$2 == 'Reportes' && onDatosContables != null) {
+                          onDatosContables!();
+                          return;
+                        }
+                        NotificacionServicio.info(
+                          context,
+                          'El módulo de ${item.$2.toLowerCase()} aún no está disponible.',
+                        );
+                      },
+                    ),
                   ),
               ],
             ),
           ),
         ),
+      ),
+    ),
+  );
+}
+
+class _ItemNavegacion extends StatelessWidget {
+  const _ItemNavegacion({
+    required this.icono,
+    required this.rotulo,
+    required this.seleccionado,
+    required this.onPressed,
+  });
+  final IconData icono;
+  final String rotulo;
+  final bool seleccionado;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onPressed,
+    borderRadius: BorderRadius.circular(16),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 32,
+            decoration: BoxDecoration(
+              color: seleccionado
+                  ? const Color(0xFFA93A21)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icono,
+              size: 24,
+              color: seleccionado ? Colors.white : BarroTheme.secondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Se reduce en pantallas estrechas en vez de cortarse.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              rotulo,
+              maxLines: 1,
+              style: BarroTheme.type(
+                11,
+                14,
+                weight: seleccionado ? FontWeight.w700 : FontWeight.w500,
+                color: seleccionado
+                    ? const Color(0xFFA93A21)
+                    : BarroTheme.secondary,
+              ),
+            ),
+          ),
+        ],
       ),
     ),
   );

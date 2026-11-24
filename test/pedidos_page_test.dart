@@ -11,6 +11,7 @@ import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/pedido_input_formatters.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/registrar_pedido_page.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 
 class _Gateway implements PedidosGateway {
   _Gateway({this.caja = true});
@@ -105,20 +106,23 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('BarroControl')).dy, lessThan(100));
-    expect(find.byTooltip('Inicio'), findsOneWidget);
-    expect(find.byTooltip('Pedidos'), findsOneWidget);
-    expect(find.byTooltip('Caja'), findsOneWidget);
-    expect(find.byTooltip('Inventario'), findsOneWidget);
-    expect(find.byTooltip('Más'), findsOneWidget);
+    Finder enNavegacion(String texto) => find.descendant(
+      of: find.byType(SucursalNavegacion),
+      matching: find.text(texto),
+    );
+    for (final rotulo in [
+      'Inicio',
+      'Pedidos',
+      'Caja',
+      'Productos',
+      'Reportes',
+    ]) {
+      expect(enNavegacion(rotulo), findsOneWidget);
+    }
+    // La pestaña activa se distingue por su rótulo en negritas.
     expect(
-      tester
-          .widget<IconButton>(
-            find.byWidgetPredicate(
-              (widget) => widget is IconButton && widget.tooltip == 'Pedidos',
-            ),
-          )
-          .isSelected,
-      isTrue,
+      tester.widget<Text>(enNavegacion('Pedidos')).style?.fontWeight,
+      FontWeight.w700,
     );
     await tester.enterText(
       find.byType(TextFormField).first,
@@ -612,7 +616,12 @@ void main() {
 
     testWidgets('sin datos capturados, Inicio sale directo', (tester) async {
       final destinos = await abrir(tester);
-      await tester.tap(find.byTooltip('Inicio'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SucursalNavegacion),
+          matching: find.text('Inicio'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Listado'), findsOneWidget);
@@ -627,7 +636,12 @@ void main() {
       await tester.enterText(find.byType(TextFormField).first, 'Tazas');
       // Espera a que termine el desplazamiento por el foco del campo.
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Caja'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SucursalNavegacion),
+          matching: find.text('Caja'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('¿Salir sin registrar el pedido?'), findsOneWidget);
 
@@ -636,7 +650,12 @@ void main() {
       expect(find.byType(RegistrarPedidoPage), findsOneWidget);
       expect(destinos, isEmpty);
 
-      await tester.tap(find.byTooltip('Caja'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SucursalNavegacion),
+          matching: find.text('Caja'),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Salir'));
       await tester.pumpAndSettle();
