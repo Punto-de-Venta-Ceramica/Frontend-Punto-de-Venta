@@ -532,6 +532,30 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
                 ),
               ],
             ],
+            // Comprobante de lo pagado mientras el pedido sigue en curso (el
+            // mismo que se ofrece al registrarlo con anticipo).
+            if (pedido.pagado > 0 &&
+                pedido.estado != 'TERMINADO' &&
+                pedido.estado != 'CANCELADO') ...[
+              const SizedBox(height: 24),
+              _titulo('Comprobante de pago'),
+              const SizedBox(height: 12),
+              SeccionImprimirTicket(
+                impresion: widget.impresion,
+                habilitado: !_busy || _imprimiendo,
+                onImprimiendo: (imprimiendo) => setState(() {
+                  _busy = imprimiendo;
+                  _imprimiendo = imprimiendo;
+                }),
+                ticket: () => ticketDeComprobante(
+                  pedido,
+                  negocio: widget.negocio.nombre,
+                  sucursal:
+                      widget.sucursalNombre ?? 'Sucursal ${widget.sucursalId}',
+                  fecha: DateTime.now(),
+                ),
+              ),
+            ],
             // Tickets: solo en pedidos terminados, al final del detalle.
             if (pedido.estado == 'TERMINADO') ...[
               const SizedBox(height: 24),
@@ -616,6 +640,18 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
             icono: Icons.place_outlined,
             etiqueta: 'Dirección de entrega',
             texto: direccion,
+          ),
+        if (pedido.fechaEntrega != null)
+          _Dato(
+            icono: Icons.event_outlined,
+            etiqueta:
+                pedido.estado == 'ENTREGADO' || pedido.estado == 'TERMINADO'
+                ? 'Entregado el'
+                : 'Fecha de entrega',
+            texto:
+                '${pedido.fechaEntrega!.day.toString().padLeft(2, '0')}/'
+                '${pedido.fechaEntrega!.month.toString().padLeft(2, '0')}/'
+                '${pedido.fechaEntrega!.year}',
           ),
         if (pedido.descripcionEnvio.isNotEmpty)
           _Dato(

@@ -36,7 +36,7 @@ class GestionPedidos {
     }
   }
 
-  Future<void> registrar(DatosPedido datos) => _gateway.registrar(datos);
+  Future<int> registrar(DatosPedido datos) => _gateway.registrar(datos);
   Future<void> pagar(int id, double monto, String metodo) =>
       _gateway.pagar(id, monto, metodo);
   Future<void> cambiarEstado(int id, String estado) =>

@@ -6,15 +6,21 @@ import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
 import 'package:punto_de_venta/features/notificaciones/application/contador_notificaciones.dart';
 import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
+import 'package:punto_de_venta/features/productos/domain/producto.dart';
+import 'pedido_detalle_page.dart';
 
 class NotificacionesPage extends StatefulWidget {
   const NotificacionesPage({
     required this.gestion,
     required this.contador,
+    required this.esPropietario,
     super.key,
   });
   final GestionPedidos gestion;
   final ContadorNotificaciones contador;
+
+  /// Rol de quien ve los avisos: define qué puede hacer en el detalle del pedido.
+  final bool esPropietario;
   @override
   State<NotificacionesPage> createState() => _NotificacionesPageState();
 }
@@ -63,6 +69,39 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
       if (mounted) {
         NotificacionServicio.error(context, e.message);
       }
+    }
+  }
+
+  /// Marca el aviso como leído y abre el detalle de su pedido.
+  Future<void> _abrir(AvisoPedido aviso) async {
+    await _marcar(aviso);
+    final pedidoId = aviso.pedidoId;
+    if (pedidoId == null || !mounted) return;
+    try {
+      final pedido = await widget.gestion.obtener(pedidoId);
+      final sucursalId = pedido.sucursalId;
+      final negocioId = pedido.negocioId;
+      if (sucursalId == null || negocioId == null) {
+        throw const ApiException('No se pudo abrir el pedido.');
+      }
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PedidoDetallePage(
+            gestion: widget.gestion,
+            pedidoId: pedidoId,
+            sucursalId: sucursalId,
+            esPropietario: widget.esPropietario,
+            negocio: NegocioProducto(
+              id: negocioId,
+              nombre: pedido.negocio ?? '',
+            ),
+            sucursalNombre: pedido.sucursal,
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (mounted) NotificacionServicio.error(context, e.message);
     }
   }
 
@@ -134,8 +173,8 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
                         nuevas == 0
                             ? 'Estás al día'
                             : nuevas == 1
-                            ? '1 notificación nueva · toca para marcarla como leída'
-                            : '$nuevas notificaciones nuevas · toca para marcarlas como leídas',
+                            ? '1 notificación nueva · tócala para ver el pedido'
+                            : '$nuevas notificaciones nuevas · tócalas para ver cada pedido',
                         style: BarroTheme.type(
                           13,
                           20,
@@ -144,7 +183,7 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
                       ),
                     ),
                     for (final aviso in avisos)
-                      _TarjetaAviso(aviso: aviso, onTap: () => _marcar(aviso)),
+                      _TarjetaAviso(aviso: aviso, onTap: () => _abrir(aviso)),
                   ],
                 ),
               );
@@ -180,7 +219,7 @@ class _TarjetaAviso extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: nueva ? onTap : null,
+          onTap: nueva || aviso.pedidoId != null ? onTap : null,
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(

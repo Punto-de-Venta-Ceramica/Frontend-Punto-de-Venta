@@ -9,6 +9,7 @@ import '../../../../application/ports/inbound/gestion_reportes_use_case.dart';
 import '../../../../domain/reporte_contable.dart';
 import 'movimientos_dia_page.dart';
 import 'movimientos_dia_widgets.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/encabezado_sucursal_negocio.dart';
 import 'reporte_widgets.dart';
 
 class DatosContablesPage extends StatefulWidget {
@@ -198,96 +199,20 @@ class _DatosContablesPageState extends State<DatosContablesPage> {
                     label: const Text('Volver'),
                   ),
                 ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: BarroTheme.primary,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: BarroTheme.primary.withValues(alpha: 0.25),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.analytics_outlined,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Datos contables',
-                            style: BarroTheme.type(
-                              26,
-                              33,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Consulta los ingresos de tu sucursal.',
-                            style: BarroTheme.type(
-                              14,
-                              21,
-                              color: BarroTheme.secondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                PanelReporte(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          const IconoReporte(Icons.storefront_outlined),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'NEGOCIO',
-                                  style: BarroTheme.type(
-                                    11,
-                                    16,
-                                    weight: FontWeight.w700,
-                                    color: BarroTheme.secondary,
-                                  ),
-                                ),
-                                Text(
-                                  widget.negocio.nombre,
-                                  style: BarroTheme.type(
-                                    15,
-                                    21,
-                                    weight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _selectorSucursal(),
-                      if (_sucursalId != null) ...[
-                        const SizedBox(height: 14),
-                        FiltroPeriodo(
+                EncabezadoSucursalNegocio(
+                  icono: Icons.analytics_outlined,
+                  titulo: 'Datos contables',
+                  descripcion: 'Consulta los ingresos de tu sucursal.',
+                  negocio: widget.negocio.nombre,
+                  sucursales: _sucursales,
+                  sucursalId: _sucursalId,
+                  cargando: _cargandoSucursales,
+                  error: _errorSucursales,
+                  onReintentar: _cargarSucursales,
+                  onElegir: _exportando ? null : _elegirSucursal,
+                  debajo: _sucursalId == null
+                      ? null
+                      : FiltroPeriodo(
                           seleccionado: _periodo,
                           desde: reporte?.desde ?? rango.desde,
                           hasta: reporte?.hasta ?? rango.hasta,
@@ -303,9 +228,6 @@ class _DatosContablesPageState extends State<DatosContablesPage> {
                               ? () => _moverFecha(1)
                               : null,
                         ),
-                      ],
-                    ],
-                  ),
                 ),
                 if (_sucursalId == null &&
                     !_cargandoSucursales &&
@@ -394,102 +316,6 @@ class _DatosContablesPageState extends State<DatosContablesPage> {
                 ],
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _selectorSucursal() {
-    if (_cargandoSucursales) {
-      return const LinearProgressIndicator(
-        semanticsLabel: 'Cargando sucursales',
-      );
-    }
-    if (_errorSucursales case final String error) {
-      return ErrorReporte(error: error, onReintentar: _cargarSucursales);
-    }
-    if (_sucursales.isEmpty) {
-      return Row(
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 18,
-            color: BarroTheme.secondary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Este negocio todavía no tiene sucursales registradas.',
-              style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
-            ),
-          ),
-        ],
-      );
-    }
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: BarroTheme.background,
-        border: Border.all(
-          color: _sucursalId == null ? BarroTheme.primary : BarroTheme.border,
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: _sucursalId,
-            isExpanded: true,
-            borderRadius: BorderRadius.circular(14),
-            icon: const Icon(
-              Icons.expand_more_rounded,
-              color: BarroTheme.primary,
-            ),
-            selectedItemBuilder: (context) => [
-              for (final sucursal in _sucursales)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.store_mall_directory_outlined,
-                      size: 20,
-                      color: BarroTheme.primary,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        sucursal.nombre,
-                        overflow: TextOverflow.ellipsis,
-                        style: BarroTheme.type(15, 21, weight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
-            hint: const Row(
-              children: [
-                Icon(
-                  Icons.store_mall_directory_outlined,
-                  size: 20,
-                  color: BarroTheme.placeholder,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Selecciona una sucursal',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            items: [
-              for (final sucursal in _sucursales)
-                DropdownMenuItem(
-                  value: sucursal.id,
-                  child: Text(sucursal.nombre, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: _exportando ? null : _elegirSucursal,
           ),
         ),
       ),

@@ -1,3 +1,6 @@
+import 'package:punto_de_venta/features/tickets/application/impresion_tickets.dart';
+import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
+import 'comprobante_pedido_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
@@ -21,6 +24,7 @@ class RegistrarPedidoPage extends StatefulWidget {
     this.onCaja,
     this.onInventario,
     this.onDatosContables,
+    this.impresion = impresionTicketsBluetooth,
     super.key,
   });
   final GestionPedidos gestion;
@@ -33,6 +37,9 @@ class RegistrarPedidoPage extends StatefulWidget {
   /// desde el listado de pedidos que la abrió.
   final VoidCallback? onInicio, onCaja, onInventario;
   final VoidCallback? onDatosContables;
+
+  /// Impresora del comprobante de anticipo (se sustituye en pruebas).
+  final ImpresionTickets impresion;
   @override
   State<RegistrarPedidoPage> createState() => _RegistrarPedidoPageState();
 }
@@ -53,6 +60,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   Map<String, String> _errores = {};
   int? _producto;
   String _entrega = 'LOCAL', _metodo = 'EFECTIVO';
+  DateTime? _fechaEntrega;
   String? _error;
   bool _cargando = true, _guardando = false;
   // Sin turno de caja abierto no se cobra: el pedido se registra sin anticipo.
@@ -147,6 +155,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         'descripcionEnvio' => 'Descripción de envío',
         'productos' => 'Productos',
         'tipoEntrega' => 'Tipo de entrega',
+        'fechaEntrega' => 'Fecha de entrega',
         'pagoInicial' => 'Pago inicial',
         'pagoInicial.monto' => 'Anticipo',
         'pagoInicial.metodoPago' => 'Tipo de pago',
@@ -1046,6 +1055,65 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     ),
   );
 
+  static String _dia(DateTime f) =>
+      '${f.day.toString().padLeft(2, '0')}/${f.month.toString().padLeft(2, '0')}/${f.year}';
+
+  Future<void> _elegirFechaEntrega() async {
+    final hoy = DateUtils.dateOnly(DateTime.now());
+    final elegida = await showDatePicker(
+      context: context,
+      initialDate: _fechaEntrega ?? hoy,
+      firstDate: hoy,
+      lastDate: hoy.add(const Duration(days: 365 * 2)),
+      helpText: 'Fecha de entrega',
+      cancelText: 'Cancelar',
+      confirmText: 'Aceptar',
+    );
+    if (elegida != null && mounted) {
+      setState(() {
+        _fechaEntrega = elegida;
+        _errores.remove('fechaEntrega');
+      });
+    }
+  }
+
+  /// Fecha acordada con el cliente; se imprime en el comprobante del anticipo.
+  Widget _campoFechaEntrega() => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const ProductoEtiqueta('Fecha de entrega *'),
+        TextFormField(
+          key: ValueKey('pedido-fecha-entrega-$_fechaEntrega'),
+          initialValue: _fechaEntrega == null ? '' : _dia(_fechaEntrega!),
+          readOnly: true,
+          onTap: _guardando ? null : _elegirFechaEntrega,
+          decoration:
+              productoDecoracion(
+                hint: 'Elige el día',
+                error: _errores['fechaEntrega'],
+              ).copyWith(
+                prefixIcon: const Icon(
+                  Icons.event_outlined,
+                  size: 20,
+                  color: BarroTheme.secondary,
+                ),
+                helperText: 'Día en que el cliente recibe o recoge su pedido.',
+                helperMaxLines: 2,
+                helperStyle: BarroTheme.type(
+                  12,
+                  18,
+                  color: BarroTheme.secondary,
+                ),
+              ),
+          validator: (_) =>
+              _fechaEntrega == null ? 'Elige la fecha de entrega.' : null,
+        ),
+      ],
+    ),
+  );
+
   /// Leyenda bajo los campos que no son de texto (selectores).
   Widget _leyenda(String texto) => Padding(
     padding: const EdgeInsets.only(top: 6, left: 12, right: 12),
@@ -1072,7 +1140,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       _error = null;
     });
     try {
-      await widget.gestion.registrar(
+      final pedidoId = await widget.gestion.registrar(
         DatosPedido(
           sucursalId: widget.sucursalId,
           descripcion: _descripcion.text,
@@ -1086,8 +1154,25 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
           descripcionEnvio: _envio.text,
           monto: monto,
           metodo: _metodo,
+          fechaEntrega: _fechaEntrega!,
         ),
       );
+      if (!mounted) return;
+      // Con anticipo se ofrece el comprobante; sin él no hay nada que imprimir.
+      if (monto > 0) {
+        setState(() => _guardando = false);
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => ComprobantePedidoDialog(
+            gestion: widget.gestion,
+            pedidoId: pedidoId,
+            negocio: widget.negocio.nombre,
+            sucursal: widget.sucursalNombre ?? 'Sucursal ${widget.sucursalId}',
+            impresion: widget.impresion,
+          ),
+        );
+      }
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
       if (mounted) {
@@ -1288,6 +1373,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       'En sucursal: el cliente lo recoge. A domicilio: se envía a la dirección del cliente.',
     ),
     const SizedBox(height: 14),
+    _campoFechaEntrega(),
     _campo(
       'Descripción de envío',
       _envio,
@@ -1756,6 +1842,12 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                 ? 'Envío a domicilio'
                 : 'Recoge en sucursal',
           ),
+          if (_fechaEntrega != null)
+            _dato(
+              Icons.event_outlined,
+              _dia(_fechaEntrega!),
+              etiqueta: 'Fecha de entrega',
+            ),
           if (direccion.isNotEmpty)
             _dato(Icons.location_on_outlined, direccion, etiqueta: 'Dirección'),
           if (envio.isNotEmpty)

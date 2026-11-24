@@ -7,6 +7,7 @@ import 'package:punto_de_venta/features/pedidos/application/gestion_pedidos.dart
 import 'package:punto_de_venta/features/pedidos/application/ports/pedidos_gateway.dart';
 import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/notificaciones_page.dart';
+import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/pedido_detalle_page.dart';
 
 class _IconoFalso implements IndicadorIcono {
   @override
@@ -20,6 +21,31 @@ class _PedidosFalsos extends Fake implements PedidosGateway {
   Future<List<AvisoPedido>> notificaciones() async => List.of(avisos);
 
   @override
+  Future<Pedido> obtener(int pedidoId) async => Pedido(
+    id: pedidoId,
+    folio: 'PED-000007',
+    estado: 'ENCARGADO',
+    cliente: 'Ana López',
+    telefono: '5512345678',
+    ciudad: '',
+    colonia: '',
+    calle: '',
+    descripcion: '',
+    tipoEntrega: 'LOCAL',
+    productos: const [],
+    total: 100,
+    pagado: 0,
+    saldo: 100,
+    sucursalId: 3,
+    negocioId: 1,
+    negocio: 'Cerámica',
+    sucursal: 'Centro',
+  );
+
+  @override
+  Future<bool> cajaAbierta(int sucursalId) async => true;
+
+  @override
   Future<void> marcarLeida(int id) async {
     avisos = avisos
         .map(
@@ -29,6 +55,7 @@ class _PedidosFalsos extends Fake implements PedidosGateway {
                   titulo: aviso.titulo,
                   mensaje: aviso.mensaje,
                   leida: true,
+                  pedidoId: aviso.pedidoId,
                 )
               : aviso,
         )
@@ -53,6 +80,7 @@ void main() {
         home: NotificacionesPage(
           gestion: GestionPedidos(pedidos),
           contador: contador,
+          esPropietario: true,
         ),
       ),
     );
@@ -88,6 +116,45 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Nueva'), findsNothing);
     expect(find.text('Otro pedido'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    contador.dispose();
+    api.close();
+  });
+
+  testWidgets('al tocar un aviso con pedido abre su detalle', (tester) async {
+    final api = ApiClient(
+      baseUrl: 'http://localhost/',
+      client: MockClient(
+        (_) async => throw StateError('No se esperaba una solicitud'),
+      ),
+    );
+    final contador = ContadorNotificaciones(api, _IconoFalso());
+    final pedidos = _PedidosFalsos()
+      ..avisos = [
+        const AvisoPedido(
+          id: 5,
+          titulo: 'Nuevo pedido',
+          mensaje: 'Se registró un nuevo pedido.',
+          leida: true,
+          pedidoId: 7,
+        ),
+      ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificacionesPage(
+          gestion: GestionPedidos(pedidos),
+          contador: contador,
+          esPropietario: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Nuevo pedido'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PedidoDetallePage), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
     contador.dispose();

@@ -55,9 +55,10 @@ class _Gateway implements PedidosGateway {
     ),
   ];
   @override
-  Future<void> registrar(DatosPedido datos) async {
+  Future<int> registrar(DatosPedido datos) async {
     if (errorAlRegistrar != null) throw errorAlRegistrar!;
     recibido = datos;
+    return 1;
   }
 
   @override
@@ -157,6 +158,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -223,6 +225,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar pedido').last);
     await tester.pumpAndSettle();
+    // Con anticipo se ofrece imprimir el comprobante antes de salir.
+    expect(find.text('Pedido registrado'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('comprobante-listo')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pedido registrado'), findsNothing);
     expect(gateway.recibido?.descripcion, 'Pedido de 5 piezas');
     expect(gateway.recibido?.cliente, 'Ana María');
     expect(gateway.recibido?.telefono, '5512345678');
@@ -403,6 +410,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -464,6 +472,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -539,6 +548,7 @@ void main() {
     expect(find.textContaining('sin aplicar'), findsOneWidget);
 
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -664,6 +674,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -724,6 +735,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -817,4 +829,19 @@ void main() {
     expect(PedidoInputFormatters.validarDinero('12,50'), isNull);
     expect(PedidoInputFormatters.validarDinero('12.345'), isNotNull);
   });
+}
+
+/// Elige hoy como fecha de entrega (campo obligatorio del primer paso).
+Future<void> elegirFechaEntrega(WidgetTester tester) async {
+  final campo = find.byWidgetPredicate(
+    (w) =>
+        w.key is ValueKey<String> &&
+        (w.key! as ValueKey<String>).value.startsWith('pedido-fecha-entrega'),
+  );
+  await tester.ensureVisible(campo);
+  await tester.pumpAndSettle();
+  await tester.tap(campo);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Aceptar'));
+  await tester.pumpAndSettle();
 }

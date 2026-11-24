@@ -521,7 +521,7 @@ class _PedidosFalsos implements PedidosGateway {
   Future<List<ProductoPedido>> productos(int sucursalId) async => const [];
 
   @override
-  Future<void> registrar(DatosPedido datos) async {}
+  Future<int> registrar(DatosPedido datos) async => 1;
 }
 
 class _CortesFalsos implements CorteCajaGateway {

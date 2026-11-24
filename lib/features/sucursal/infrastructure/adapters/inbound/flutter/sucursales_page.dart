@@ -19,6 +19,7 @@ class SucursalesPage extends StatefulWidget {
     this.onDescuentos,
     this.onEmpleados,
     this.onDatosContables,
+    this.onPedidos,
     super.key,
   });
   final GestionSucursalesUseCase gestion;
@@ -28,6 +29,7 @@ class SucursalesPage extends StatefulWidget {
   final void Function(NegocioSucursal negocio)? onDescuentos;
   final void Function(NegocioSucursal negocio)? onEmpleados;
   final ValueChanged<NegocioSucursal>? onDatosContables;
+  final ValueChanged<NegocioSucursal>? onPedidos;
   final NegocioSucursal? negocioInicial;
   final bool registrarAlAbrir;
   final void Function(NegocioSucursal negocio, Sucursal sucursal)?
@@ -355,8 +357,18 @@ class _SucursalesPageState extends State<SucursalesPage> {
                           ? null
                           : () => widget.onEmpleados!(_negocio!),
                     ),
-                    if (widget.onDatosContables != null) ...[
+                    if (widget.onPedidos != null) ...[
                       const SizedBox(height: 20),
+                      AccesoAreasCategorias(
+                        icono: Icons.receipt_long_outlined,
+                        titulo: 'Pedidos',
+                        descripcion:
+                            'Revisa los pedidos de tus sucursales y cambia su estado.',
+                        onPressed: () => widget.onPedidos!(_negocio!),
+                      ),
+                    ],
+                    if (widget.onDatosContables != null) ...[
+                      SizedBox(height: widget.onPedidos != null ? 12 : 20),
                       AccesoAreasCategorias(
                         icono: Icons.bar_chart_rounded,
                         titulo: 'Datos contables',

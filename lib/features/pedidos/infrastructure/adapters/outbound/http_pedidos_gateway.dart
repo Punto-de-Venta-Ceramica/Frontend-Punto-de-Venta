@@ -15,6 +15,7 @@ class HttpPedidosGateway implements PedidosGateway {
               titulo: j['titulo'] as String,
               mensaje: j['mensaje'] as String,
               leida: j['leida'] as bool,
+              pedidoId: j['pedidoId'] as int?,
             ),
           )
           .toList();
@@ -126,6 +127,14 @@ class HttpPedidosGateway implements PedidosGateway {
         final String fecha => DateTime.tryParse(fecha)?.toLocal(),
         _ => null,
       },
+      sucursalId: j['sucursalId'] as int?,
+      negocioId: j['negocioId'] as int?,
+      negocio: j['negocio'] as String?,
+      sucursal: j['sucursal'] as String?,
+      fechaEntrega: switch (j['fechaEntrega']) {
+        final String fecha => DateTime.tryParse(fecha)?.toLocal(),
+        _ => null,
+      },
     );
   }
 
@@ -170,8 +179,8 @@ class HttpPedidosGateway implements PedidosGateway {
   ).isNotEmpty;
 
   @override
-  Future<void> registrar(DatosPedido d) async {
-    await _api.requestJson(
+  Future<int> registrar(DatosPedido d) async {
+    final respuesta = await _api.requestJson(
       'POST',
       'api/pedidos',
       body: {
@@ -195,8 +204,19 @@ class HttpPedidosGateway implements PedidosGateway {
         'tipoEntrega': d.tipoEntrega,
         'descripcionEnvio': d.descripcionEnvio.trim(),
         'pagoInicial': {'monto': d.monto, 'metodoPago': d.metodo},
+        // Fin del día elegido en hora local: el servidor rechaza fechas pasadas
+        // y así elegir "hoy" sigue siendo válido.
+        'fechaEntrega': DateTime(
+          d.fechaEntrega.year,
+          d.fechaEntrega.month,
+          d.fechaEntrega.day,
+          23,
+          59,
+          59,
+        ).toUtc().toIso8601String(),
       },
     );
+    return _mapa(respuesta)['id'] as int;
   }
 
   @override

@@ -845,4 +845,27 @@ void main() {
       expect(abierto?.id, 7);
     },
   );
+  testWidgets('la pantalla del negocio muestra la tarjeta Pedidos y la abre', (
+    tester,
+  ) async {
+    _pantalla(tester);
+    NegocioSucursal? abierto;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SucursalesPage(
+          gestion: _GestionSucursales(),
+          negocioInicial: const NegocioSucursal(id: 7, nombre: 'Barro Centro'),
+          onSesionExpirada: () {},
+          onPedidos: (negocio) => abierto = negocio,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tarjeta = find.text('Pedidos');
+    await tester.ensureVisible(tarjeta);
+    await tester.tap(tarjeta);
+
+    expect(abierto?.id, 7);
+  });
 }

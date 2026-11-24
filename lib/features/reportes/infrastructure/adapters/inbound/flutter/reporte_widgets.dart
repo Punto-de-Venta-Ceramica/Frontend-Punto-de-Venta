@@ -584,7 +584,14 @@ class _ImporteMetodo extends StatelessWidget {
 }
 
 class SeleccionSucursalPendiente extends StatelessWidget {
-  const SeleccionSucursalPendiente({super.key});
+  const SeleccionSucursalPendiente({
+    this.detalle =
+        'Selecciona una sucursal para consultar sus ingresos y movimientos.',
+    this.icono = Icons.insights_rounded,
+    super.key,
+  });
+  final String detalle;
+  final IconData icono;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -600,11 +607,7 @@ class SeleccionSucursalPendiente extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFF0D3C6), width: 6),
             ),
-            child: const Icon(
-              Icons.insights_rounded,
-              size: 32,
-              color: BarroTheme.primary,
-            ),
+            child: Icon(icono, size: 32, color: BarroTheme.primary),
           ),
           const SizedBox(height: 14),
           Text(
@@ -613,7 +616,7 @@ class SeleccionSucursalPendiente extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Selecciona una sucursal para consultar sus ingresos y movimientos.',
+            detalle,
             textAlign: TextAlign.center,
             style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
           ),

@@ -38,6 +38,7 @@ import 'features/productos/infrastructure/imagenes_producto.dart';
 import 'features/pedidos/application/gestion_pedidos.dart';
 import 'features/pedidos/infrastructure/adapters/outbound/http_pedidos_gateway.dart';
 import 'features/pedidos/infrastructure/adapters/inbound/pedidos_page.dart';
+import 'features/pedidos/infrastructure/adapters/inbound/pedidos_negocio_page.dart';
 import 'features/pedidos/infrastructure/adapters/inbound/notificaciones_page.dart';
 import 'features/notificaciones/application/contador_notificaciones.dart';
 import 'features/notificaciones/infrastructure/indicador_icono_movil.dart';
@@ -272,6 +273,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onDescuentos: (negocio) => _abrirDescuentosNegocio(context, negocio),
         onEmpleados: (negocio) => _abrirEmpleadosNegocio(context, negocio),
         onDatosContables: (negocio) => _abrirDatosContables(context, negocio),
+        onPedidos: (negocio) => _abrirPedidosNegocio(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
       ),
@@ -538,6 +540,22 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
   }
 
+  /// Pedidos desde el negocio: la sucursal se elige en la misma pantalla.
+  Future<void> _abrirPedidosNegocio(
+    BuildContext context,
+    NegocioSucursal negocio,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (pedidosContext) => PedidosNegocioPage(
+        negocio: negocio,
+        sucursales: _gestionSucursales,
+        gestion: _gestionPedidos,
+        contador: _contador,
+        onSesionExpirada: () => _cerrarSesion(pedidosContext),
+      ),
+    ),
+  );
+
   Future<void> _abrirPedidos(
     BuildContext context,
     NegocioSucursal negocio,
@@ -639,8 +657,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     conteoNotificaciones: _contador,
     onNotificaciones: () => Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            NotificacionesPage(gestion: _gestionPedidos, contador: _contador),
+        builder: (_) => NotificacionesPage(
+          gestion: _gestionPedidos,
+          contador: _contador,
+          esPropietario: _rol == 'PROPIETARIO',
+        ),
       ),
     ),
   );
@@ -653,8 +674,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     if (_sesionActual == null) return;
     _navegador.currentState?.push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            NotificacionesPage(gestion: _gestionPedidos, contador: _contador),
+        builder: (_) => NotificacionesPage(
+          gestion: _gestionPedidos,
+          contador: _contador,
+          esPropietario: _rol == 'PROPIETARIO',
+        ),
       ),
     );
   }
@@ -723,6 +747,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
                 builder: (_) => NotificacionesPage(
                   gestion: _gestionPedidos,
                   contador: _contador,
+                  esPropietario: _rol == 'PROPIETARIO',
                 ),
               ),
             ),
@@ -744,6 +769,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
                         builder: (_) => NotificacionesPage(
                           gestion: _gestionPedidos,
                           contador: _contador,
+                          esPropietario: _rol == 'PROPIETARIO',
                         ),
                       ),
                     ),

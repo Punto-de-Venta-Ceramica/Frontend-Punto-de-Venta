@@ -86,9 +86,10 @@ class PedidosConMemoria implements PedidosGateway, PedidosEnMemoria {
   Future<bool> cajaAbierta(int sucursalId) => _origen.cajaAbierta(sucursalId);
 
   @override
-  Future<void> registrar(DatosPedido datos) async {
-    await _origen.registrar(datos);
+  Future<int> registrar(DatosPedido datos) async {
+    final id = await _origen.registrar(datos);
     _cambio(null);
+    return id;
   }
 
   @override

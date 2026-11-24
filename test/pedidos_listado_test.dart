@@ -183,7 +183,9 @@ void main() {
       );
       expect(find.text('Registrar pago'), findsOneWidget);
       expect(find.text('Cancelar pedido'), findsNothing);
-      expect(find.text('Imprimir ticket'), findsNothing);
+      // En curso y con pagos: solo el comprobante de pago, no el ticket final.
+      expect(find.text('Comprobante de pago'), findsOneWidget);
+      expect(find.text('Ticket'), findsNothing);
       expect(find.text('Ver ticket'), findsNothing);
     },
   );

@@ -105,12 +105,17 @@ void main() {
         expect(json['pagoInicial'].containsKey('corteCajaId'), isFalse);
         expect(json['productos'][0]['productoId'], 3);
         expect(json['productos'][1]['productoId'], 4);
+        // Fin del día elegido, en hora local, enviado como instante UTC.
+        expect(
+          DateTime.parse(json['fechaEntrega'] as String).toLocal(),
+          DateTime(2026, 12, 24, 23, 59, 59),
+        );
         return http.Response('{"id":1}', 201);
       }),
     );
     final gateway = HttpPedidosGateway(client);
     await gateway.registrar(
-      const DatosPedido(
+      DatosPedido(
         sucursalId: 1,
         descripcion: '',
         cliente: 'Ana',
@@ -126,6 +131,7 @@ void main() {
         descripcionEnvio: '',
         monto: 25,
         metodo: 'EFECTIVO',
+        fechaEntrega: DateTime(2026, 12, 24),
       ),
     );
     client.close();
