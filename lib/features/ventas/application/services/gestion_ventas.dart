@@ -24,6 +24,9 @@ class GestionVentas {
   Future<List<CategoriaFiltroVenta>> cargarCategorias(int sucursalId) =>
       _gateway.cargarCategorias(sucursalId);
 
+  Future<ProductoVenta> productoLibre(int sucursalId) =>
+      _gateway.productoLibre(sucursalId);
+
   Future<CotizacionVenta> preparar({
     required int sucursalId,
     required List<SeleccionVenta> productos,

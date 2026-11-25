@@ -79,6 +79,22 @@ class HttpVentasGateway implements VentasGateway {
       });
 
   @override
+  Future<ProductoVenta> productoLibre(int sucursalId) => _solicitar(() async {
+    final ruta = Uri(
+      path: 'api/ventas/producto-libre',
+      queryParameters: {'sucursalId': '$sucursalId'},
+    );
+    final respuesta = await _api.getJson(ruta.toString());
+    return ProductoVenta(
+      id: respuesta['productoId'] as int,
+      nombre: respuesta['nombre'] as String,
+      precio: 0,
+      existencia: 0,
+      precioVariable: true,
+    );
+  });
+
+  @override
   Future<CotizacionVenta> preparar({
     required int sucursalId,
     required List<SeleccionVenta> productos,
@@ -144,6 +160,8 @@ class HttpVentasGateway implements VentasGateway {
           'productoId': seleccion.producto.id,
           'cantidad': seleccion.cantidad,
           'aplicarDescuento': seleccion.aplicarDescuento,
+          if (seleccion.esLibre) 'precioUnitario': seleccion.precioLibre,
+          'nombre': ?seleccion.nombreLibre,
         },
     ],
   };

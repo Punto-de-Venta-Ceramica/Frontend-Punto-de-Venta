@@ -11,6 +11,9 @@ abstract interface class VentasGateway {
 
   Future<List<CategoriaFiltroVenta>> cargarCategorias(int sucursalId);
 
+  /// Producto de cobro libre (artículo artesanal) del negocio, para cobrar algo que no está registrado.
+  Future<ProductoVenta> productoLibre(int sucursalId);
+
   Future<CotizacionVenta> preparar({
     required int sucursalId,
     required List<SeleccionVenta> productos,

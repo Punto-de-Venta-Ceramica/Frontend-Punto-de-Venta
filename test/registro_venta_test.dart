@@ -52,7 +52,8 @@ void main() {
   testWidgets(
     'conserva la elección de descuento al paginar y reintenta el mismo cobro',
     (tester) async {
-      tester.view.physicalSize = const Size(416, 960);
+      // Más alto que antes: la tarjeta de cobro libre ocupa la parte alta.
+      tester.view.physicalSize = const Size(416, 1120);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
