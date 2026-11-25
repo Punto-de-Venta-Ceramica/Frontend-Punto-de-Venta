@@ -120,114 +120,26 @@ class CorteRealizadoPage extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: corteSuave,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: BarroTheme.primary.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.payments_outlined,
-                                    size: 16,
-                                    color: BarroTheme.primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Efectivo neto',
-                                    style: BarroTheme.type(
-                                      12,
-                                      16,
-                                      weight: FontWeight.w600,
-                                      color: BarroTheme.secondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                formatDinero(corte.ventasEfectivo.subtotalNeto),
-                                style: BarroTheme.type(
-                                  17,
-                                  22,
-                                  weight: FontWeight.w700,
-                                  color: BarroTheme.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Total efectivo: ${formatDinero(corte.totalEfectivo)}',
-                                style: BarroTheme.type(
-                                  11,
-                                  15,
-                                  weight: FontWeight.w500,
-                                  color: BarroTheme.secondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: _MetodoNetoCard(
+                          etiqueta: 'Efectivo neto',
+                          icono: Icons.payments_outlined,
+                          color: corteVerde,
+                          fondo: corteVerdeSuave,
+                          neto: corte.ventasEfectivo.subtotalNeto,
+                          leyenda:
+                              'Total efectivo: ${formatDinero(corte.totalEfectivo)}',
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: BarroTheme.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.credit_card_rounded,
-                                    size: 16,
-                                    color: BarroTheme.secondary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Tarjeta',
-                                    style: BarroTheme.type(
-                                      12,
-                                      16,
-                                      weight: FontWeight.w600,
-                                      color: BarroTheme.secondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                formatDinero(corte.ventasTarjeta.subtotalNeto),
-                                style: BarroTheme.type(
-                                  17,
-                                  22,
-                                  weight: FontWeight.w700,
-                                  color: BarroTheme.text,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Total tarjeta: ${formatDinero(corte.totalTarjeta)}',
-                                style: BarroTheme.type(
-                                  11,
-                                  15,
-                                  weight: FontWeight.w500,
-                                  color: BarroTheme.secondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: _MetodoNetoCard(
+                          etiqueta: 'Tarjeta',
+                          icono: Icons.credit_card_rounded,
+                          color: corteAzul,
+                          fondo: corteAzulSuave,
+                          neto: corte.ventasTarjeta.subtotalNeto,
+                          leyenda:
+                              'Total tarjeta: ${formatDinero(corte.totalTarjeta)}',
                         ),
                       ),
                     ],
@@ -415,5 +327,75 @@ class CorteRealizadoPage extends StatelessWidget {
             ),
       ),
     ],
+  );
+}
+
+/// Tarjeta de un método de pago (efectivo verde, tarjeta azul), igual que en
+/// el resto del corte y en reportes.
+class _MetodoNetoCard extends StatelessWidget {
+  const _MetodoNetoCard({
+    required this.etiqueta,
+    required this.icono,
+    required this.color,
+    required this.fondo,
+    required this.neto,
+    required this.leyenda,
+  });
+
+  final String etiqueta;
+  final IconData icono;
+  final Color color;
+  final Color fondo;
+  final double neto;
+  final String leyenda;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: fondo,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: color.withValues(alpha: 0.2)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icono, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              etiqueta,
+              style: BarroTheme.type(
+                12,
+                16,
+                weight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          formatDinero(neto),
+          style: BarroTheme.type(
+            17,
+            22,
+            weight: FontWeight.w700,
+            color: BarroTheme.text,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          leyenda,
+          style: BarroTheme.type(
+            11,
+            15,
+            weight: FontWeight.w500,
+            color: BarroTheme.secondary,
+          ),
+        ),
+      ],
+    ),
   );
 }

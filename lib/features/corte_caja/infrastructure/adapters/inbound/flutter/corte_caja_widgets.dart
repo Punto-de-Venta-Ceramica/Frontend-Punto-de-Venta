@@ -341,25 +341,64 @@ class SucursalCorteCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            CortePastilla(
-              icono: Icons.event_outlined,
-              texto: formatFecha(fecha),
-            ),
-            if (usuarioNombre != null && usuarioNombre!.isNotEmpty)
-              CortePastilla(
-                icono: Icons.person_outline_rounded,
-                texto: usuarioNombre!,
-              ),
-            if (folioCorte != null)
-              CortePastilla(
-                icono: Icons.confirmation_number_outlined,
-                texto: 'Corte $folioCorte',
-              ),
-          ],
+        const Divider(height: 1, color: BarroTheme.border),
+        if (folioCorte != null)
+          _DatoCorte(
+            icono: Icons.confirmation_number_outlined,
+            etiqueta: 'Folio del corte',
+            valor: folioCorte!,
+          ),
+        if (usuarioNombre != null && usuarioNombre!.isNotEmpty)
+          _DatoCorte(
+            icono: Icons.person_outline_rounded,
+            etiqueta: 'Responsable',
+            valor: usuarioNombre!,
+          ),
+        _DatoCorte(
+          icono: Icons.event_outlined,
+          etiqueta: 'Fecha corte',
+          valor: formatFechaHora(fecha),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Fila "icono · etiqueta ........ valor" de la tarjeta del corte.
+class _DatoCorte extends StatelessWidget {
+  const _DatoCorte({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+  });
+
+  final IconData icono;
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Row(
+      children: [
+        Icon(icono, size: 18, color: BarroTheme.secondary),
+        const SizedBox(width: 8),
+        Text(
+          etiqueta,
+          style: BarroTheme.type(
+            13,
+            18,
+            weight: FontWeight.w500,
+            color: BarroTheme.secondary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            valor,
+            textAlign: TextAlign.end,
+            style: BarroTheme.type(14, 20, weight: FontWeight.w700),
+          ),
         ),
       ],
     ),
