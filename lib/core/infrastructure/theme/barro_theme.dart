@@ -36,5 +36,44 @@ abstract final class BarroTheme {
       seedColor: primary,
     ).copyWith(primary: primary, surface: background, error: error),
     textSelectionTheme: const TextSelectionThemeData(cursorColor: primary),
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: background,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      headerBackgroundColor: primary,
+      headerForegroundColor: Colors.white,
+      headerHelpStyle: type(
+        13,
+        18,
+        weight: FontWeight.w600,
+        color: Colors.white,
+      ),
+      headerHeadlineStyle: type(
+        26,
+        32,
+        weight: FontWeight.w700,
+        color: Colors.white,
+      ),
+      weekdayStyle: type(12, 16, weight: FontWeight.w600, color: placeholder),
+      dayStyle: type(14, 20, weight: FontWeight.w500),
+      yearStyle: type(14, 20, weight: FontWeight.w500),
+      todayForegroundColor: WidgetStateProperty.resolveWith(
+        (estados) =>
+            estados.contains(WidgetState.selected) ? Colors.white : primary,
+      ),
+      todayBorder: const BorderSide(color: primary, width: 1.5),
+      dividerColor: border,
+      cancelButtonStyle: TextButton.styleFrom(
+        foregroundColor: secondary,
+        textStyle: type(14, 20, weight: FontWeight.w600),
+      ),
+      confirmButtonStyle: FilledButton.styleFrom(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        textStyle: type(14, 20, weight: FontWeight.w700),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
   );
 }

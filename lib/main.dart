@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:material_ui/material_ui.dart'
     as mui
-    show DefaultMaterialLocalizations;
+    show GlobalMaterialLocalizations;
 import 'package:http/http.dart' as http;
 import 'package:toastification/toastification.dart';
 import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
@@ -694,9 +695,15 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ),
       title: 'BarroControl',
       debugShowCheckedModeBanner: false,
+      // Todo en español (México): calendario, menús de texto y accesibilidad.
       // `dropdown_search` usa su propio material_ui: sus TextField piden las
-      // localizaciones de ese paquete (las de flutter/material.dart no sirven).
-      localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
+      // traducciones de ese paquete (las de flutter_localizations no le sirven).
+      localizationsDelegates: const [
+        ...GlobalMaterialLocalizations.delegates,
+        mui.GlobalMaterialLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es', 'MX')],
+      locale: const Locale('es', 'MX'),
       theme: BarroTheme.data,
       initialRoute: widget.initialRoute,
       home: _RestaurarSesion(store: widget.sessionStore, login: _login),

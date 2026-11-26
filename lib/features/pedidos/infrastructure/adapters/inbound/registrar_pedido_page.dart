@@ -1118,6 +1118,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       initialDate: _fechaEntrega ?? hoy,
       firstDate: hoy,
       lastDate: hoy.add(const Duration(days: 365 * 2)),
+      // Solo calendario: escribir la fecha a mano invita a errores de formato.
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
       helpText: 'Fecha de entrega',
       cancelText: 'Cancelar',
       confirmText: 'Aceptar',
@@ -1214,10 +1216,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       // Con anticipo se ofrece el comprobante; sin él no hay nada que imprimir.
       if (monto > 0) {
         setState(() => _guardando = false);
-        await showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => ComprobantePedidoDialog(
+        await _dialogo<void>(
+          cerrable: false,
+          (_) => ComprobantePedidoDialog(
             gestion: widget.gestion,
             pedidoId: pedidoId,
             negocio: widget.negocio.nombre,
@@ -1332,27 +1333,28 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         _calle,
       ].any((c) => c.text.trim().isNotEmpty);
 
+  /// Abre un diálogo y espera a que termine de cerrarse. Después se cierra esta
+  /// pantalla: si se cerrara mientras el diálogo aún se anima, Flutter falla
+  /// ("_dependents.isEmpty is not true").
+  Future<T?> _dialogo<T>(WidgetBuilder builder, {bool cerrable = true}) async {
+    final ruta = DialogRoute<T>(
+      context: context,
+      builder: builder,
+      barrierDismissible: cerrable,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    );
+    final resultado = await Navigator.of(context).push(ruta);
+    await ruta.completed;
+    return resultado;
+  }
+
   /// Sale desde la barra inferior: cierra el registro (pidiendo confirmación si
   /// hay datos capturados) y después abre [destino], si hay uno.
   Future<void> _salir(VoidCallback? destino) async {
     if (_guardando) return;
     if (_hayDatos) {
-      final salir = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('¿Salir sin registrar el pedido?'),
-          content: const Text('Se perderán los datos que capturaste.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Seguir capturando'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Salir'),
-            ),
-          ],
-        ),
+      final salir = await _dialogo<bool>(
+        (_) => const _SalirSinRegistrarDialog(),
       );
       if (salir != true || !mounted) return;
     }
@@ -2067,6 +2069,89 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
             ),
           ),
       ],
+    ),
+  );
+}
+
+/// Confirma salir del registro sin guardar; se cierra con `true` si sale.
+class _SalirSinRegistrarDialog extends StatelessWidget {
+  const _SalirSinRegistrarDialog();
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: BarroTheme.background,
+    surfaceTintColor: Colors.transparent,
+    insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF6E5),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFF2D59B), width: 6),
+                ),
+                child: const Icon(
+                  Icons.edit_note_rounded,
+                  size: 34,
+                  color: Color(0xFF9A6200),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '¿Salir sin registrar el pedido?',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(21, 27, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Se perderán los datos que capturaste.',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(13, 19, color: BarroTheme.placeholder),
+            ),
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              key: const ValueKey('pedido-seguir-capturando'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                backgroundColor: BarroTheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context, false),
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              label: const Text('Seguir capturando'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const ValueKey('pedido-salir-sin-registrar'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: BarroTheme.error,
+                side: const BorderSide(color: BarroTheme.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.logout_rounded, size: 20),
+              label: const Text('Salir sin guardar'),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
