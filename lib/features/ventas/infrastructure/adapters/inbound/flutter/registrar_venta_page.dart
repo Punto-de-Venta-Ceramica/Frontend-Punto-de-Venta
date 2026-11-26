@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/descuento_manual_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
@@ -181,15 +182,32 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     });
   }
 
+  /// Desmarcar quita también el descuento manual; marcar usa el del catálogo.
   void _cambiarDescuento(int productoId, bool aplicar) {
     final seleccion = _carrito[productoId];
-    if (seleccion == null || seleccion.porcentajeDisponible == null) return;
+    if (seleccion == null) return;
+    if (aplicar && seleccion.porcentajeDisponible == null) {
+      _editarDescuento(productoId);
+      return;
+    }
     setState(() {
-      _carrito[productoId] = SeleccionVenta(
-        producto: seleccion.producto,
-        cantidad: seleccion.cantidad,
-        aplicarDescuento: aplicar,
-      );
+      _carrito[productoId] = seleccion.conDescuento(aplicar: aplicar);
+    });
+  }
+
+  Future<void> _editarDescuento(int productoId) async {
+    final seleccion = _carrito[productoId];
+    if (seleccion == null) return;
+    final resultado = await pedirDescuentoManual(
+      context,
+      producto: seleccion.nombre,
+      actual: seleccion.porcentajeAplicado,
+      puedeQuitar: seleccion.porcentajeAplicado != null,
+    );
+    final actual = _carrito[productoId];
+    if (!mounted || resultado == null || actual == null) return;
+    setState(() {
+      _carrito[productoId] = actual.conDescuento(manual: resultado.porcentaje);
     });
   }
 
@@ -233,6 +251,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
               cantidad: cobro.cantidad,
               precioLibre: cobro.precio,
               nombreLibre: cobro.nombre,
+              descuentoManual: cobro.descuento,
             );
     });
   }
@@ -505,9 +524,13 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
         subtotal: dineroVenta(seleccion?.importe ?? 0),
         porcentajeDescuento: porcentaje,
         aplicarDescuento: seleccion?.aplicarDescuento ?? false,
-        onCambiarDescuento: porcentaje == null
+        descuentoManual: seleccion?.descuentoManual,
+        onCambiarDescuento: seleccion == null
             ? null
             : (aplicar) => _cambiarDescuento(producto.id, aplicar),
+        onEditarDescuento: seleccion == null
+            ? null
+            : () => _editarDescuento(producto.id),
         onQuitar: cantidad > 0
             ? () => _cambiarCantidad(producto, cantidad - 1)
             : null,
@@ -562,7 +585,9 @@ class VentaProductoCard extends StatelessWidget {
     this.categoriaNombre,
     this.porcentajeDescuento,
     this.aplicarDescuento = false,
+    this.descuentoManual,
     this.onCambiarDescuento,
+    this.onEditarDescuento,
     this.onQuitar,
     this.onAgregar,
     this.onCambiarCantidad,
@@ -581,7 +606,11 @@ class VentaProductoCard extends StatelessWidget {
   final String? categoriaNombre;
   final num? porcentajeDescuento;
   final bool aplicarDescuento;
+  final num? descuentoManual;
   final ValueChanged<bool>? onCambiarDescuento;
+
+  /// Abre el diálogo para capturar o cambiar el porcentaje a mano.
+  final VoidCallback? onEditarDescuento;
   final VoidCallback? onQuitar;
   final VoidCallback? onAgregar;
   final ValueChanged<int>? onCambiarCantidad;
@@ -778,15 +807,40 @@ class VentaProductoCard extends StatelessWidget {
             ],
           ),
         ),
-        if (porcentajeDescuento case final porcentaje?)
-          CheckboxListTile(
+        if (descuentoManual ?? porcentajeDescuento case final porcentaje?)
+          Row(
+            children: [
+              Expanded(child: _casillaDescuento(porcentaje)),
+              if (onEditarDescuento != null)
+                IconButton(
+                  tooltip: 'Cambiar porcentaje de descuento',
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  color: BarroTheme.success,
+                  onPressed: onEditarDescuento,
+                ),
+            ],
+          )
+        else if (onEditarDescuento != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onEditarDescuento,
+              icon: const Icon(Icons.local_offer_outlined, size: 18),
+              label: const Text('Agregar descuento'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _casillaDescuento(num porcentaje) => CheckboxListTile(
             contentPadding: const EdgeInsets.only(left: 4),
             minTileHeight: 48,
             dense: true,
             controlAffinity: ListTileControlAffinity.trailing,
             materialTapTargetSize: MaterialTapTargetSize.padded,
             activeColor: BarroTheme.primary,
-            value: aplicarDescuento,
+            value: aplicarDescuento || descuentoManual != null,
             onChanged: onCambiarDescuento == null
                 ? null
                 : (valor) => onCambiarDescuento!(valor ?? false),
@@ -796,7 +850,8 @@ class VentaProductoCard extends StatelessWidget {
               color: BarroTheme.success,
             ),
             title: Text(
-              'Aplicar descuento · ${_formatearPorcentaje(porcentaje)} %',
+              '${descuentoManual == null ? 'Aplicar descuento' : 'Descuento manual'}'
+              ' · ${textoPorcentaje(porcentaje)} %',
               style: BarroTheme.type(
                 13,
                 18,
@@ -804,13 +859,7 @@ class VentaProductoCard extends StatelessWidget {
                 color: BarroTheme.success,
               ),
             ),
-          ),
-      ],
-    );
-  }
-
-  static String _formatearPorcentaje(num valor) =>
-      valor.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+          );
 }
 
 class _CantidadVenta extends StatefulWidget {

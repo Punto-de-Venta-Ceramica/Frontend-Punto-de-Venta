@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/descuento_manual_dialog.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
     show productoSuave;
 
@@ -9,13 +10,21 @@ import 'ventas_widgets.dart';
 
 /// Lo que el cajero captura para cobrar algo que no está en el catálogo.
 class CobroLibre {
-  const CobroLibre({required this.cantidad, required this.precio, this.nombre});
+  const CobroLibre({
+    required this.cantidad,
+    required this.precio,
+    this.nombre,
+    this.descuento,
+  });
 
   final int cantidad;
   final num precio;
 
   /// Descripción opcional; sin ella la venta usa el nombre del producto.
   final String? nombre;
+
+  /// Porcentaje de descuento opcional (1 a 100).
+  final double? descuento;
 }
 
 /// Resultado de la hoja: un cobro guardado o la orden de quitar el actual.
@@ -154,7 +163,8 @@ class TarjetaCobroLibre extends StatelessWidget {
                         style: BarroTheme.type(15, 21, weight: FontWeight.w700),
                       ),
                       Text(
-                        'Cobro libre · ${linea.cantidad} × ${dineroVenta(linea.precio)} c/u',
+                        'Cobro libre · ${linea.cantidad} × ${dineroVenta(linea.precio)} c/u'
+                        '${linea.descuentoManual == null ? '' : ' · ${textoPorcentaje(linea.descuentoManual!)} % desc.'}',
                         style: BarroTheme.type(
                           12,
                           17,
@@ -332,6 +342,13 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
   late final _nombre = TextEditingController(
     text: widget.actual?.nombreLibre ?? '',
   );
+  late final _descuento = TextEditingController(
+    text: widget.actual?.descuentoManual == null
+        ? ''
+        : textoPorcentaje(widget.actual!.descuentoManual!),
+  );
+
+  bool get _descuentoVacio => _descuento.text.trim().isEmpty;
 
   bool get _editando => widget.actual != null;
 
@@ -359,6 +376,7 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
     _precio.dispose();
     _cantidad.dispose();
     _nombre.dispose();
+    _descuento.dispose();
     super.dispose();
   }
 
@@ -370,10 +388,16 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
     setState(() => _cantidad.text = '$nueva');
   }
 
-  void _guardar() {
+  Future<void> _guardar() async {
     final precio = _precioValido;
     final cantidad = _cantidadValida;
+    final descuento = leerPorcentajeManual(_descuento.text);
     if (precio == null || cantidad == null) return;
+    if (!_descuentoVacio && descuento == null) return;
+    if (descuento != null && !await confirmarDescuentoAlto(context, descuento)) {
+      return;
+    }
+    if (!mounted) return;
     final nombre = _nombre.text.trim();
     Navigator.of(context).pop(
       ResultadoCobroLibre.guardar(
@@ -381,6 +405,7 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
           cantidad: cantidad,
           precio: precio,
           nombre: nombre.isEmpty ? null : nombre,
+          descuento: descuento,
         ),
       ),
     );
@@ -390,9 +415,20 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
   Widget build(BuildContext context) {
     final precio = _precioValido;
     final cantidad = _cantidadValida;
-    final total = precio == null || cantidad == null
+    final descuento = leerPorcentajeManual(_descuento.text);
+    final errorDescuento = !_descuentoVacio && descuento == null
+        ? 'Escribe un porcentaje entre 1 y 100.'
+        : null;
+    final total = precio == null || cantidad == null || errorDescuento != null
         ? null
-        : (precio * 100).round() * cantidad / 100;
+        // Mismo redondeo por línea que SeleccionVenta.importe y el servidor.
+        : ((BigInt.from((precio * 100).round()) *
+                          BigInt.from(cantidad) *
+                          BigInt.from(10000 - ((descuento ?? 0) * 100).round()) +
+                      BigInt.from(5000)) ~/
+                  BigInt.from(10000))
+              .toDouble() /
+          100;
     final errorPrecio = _precio.text.trim().isNotEmpty && precio == null
         ? 'Escribe un precio entre \$0.01 y \$999,999.99.'
         : null;
@@ -505,6 +541,23 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          VentaCampo(
+            etiqueta: 'Descuento % (opcional)',
+            child: TextField(
+              key: const ValueKey('descuento-cobro-libre'),
+              controller: _descuento,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [formatoPorcentajeManual],
+              decoration: decoracionCampoVenta(
+                indicacion: 'Ej. 10',
+                error: errorDescuento,
+              ).copyWith(suffixText: '%'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -518,7 +571,8 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
                   child: Text(
                     total == null
                         ? 'Escribe el precio para ver el total'
-                        : '$cantidad × ${dineroVenta(precio!)} c/u',
+                        : '$cantidad × ${dineroVenta(precio!)} c/u'
+                              '${descuento == null ? '' : ' − ${textoPorcentaje(descuento)} %'}',
                     style: BarroTheme.type(
                       14,
                       20,
