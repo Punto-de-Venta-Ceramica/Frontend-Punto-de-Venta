@@ -35,6 +35,9 @@ const _meses = [
   'diciembre',
 ];
 
+String fechaLargaReporte(DateTime fecha) =>
+    '${fecha.day} de ${_meses[fecha.month - 1]} de ${fecha.year}';
+
 /// Contenedor blanco con borde suave usado en toda la pantalla.
 class PanelReporte extends StatelessWidget {
   const PanelReporte({required this.child, super.key});
@@ -99,8 +102,7 @@ class FiltroPeriodo extends StatelessWidget {
   final VoidCallback? onSiguiente;
 
   String get _textoFecha => switch (seleccionado) {
-    PeriodoReporte.diario =>
-      '${desde.day} de ${_meses[desde.month - 1]} de ${desde.year}',
+    PeriodoReporte.diario => fechaLargaReporte(desde),
     PeriodoReporte.semanal =>
       '${_fechaCorta(desde, conAnio: desde.year != hasta.year)} – ${_fechaCorta(hasta)}',
     PeriodoReporte.mensual => '${_meses[desde.month - 1]} de ${desde.year}',
@@ -582,7 +584,14 @@ class _ImporteMetodo extends StatelessWidget {
 }
 
 class SeleccionSucursalPendiente extends StatelessWidget {
-  const SeleccionSucursalPendiente({super.key});
+  const SeleccionSucursalPendiente({
+    this.detalle =
+        'Selecciona una sucursal para consultar sus ingresos y movimientos.',
+    this.icono = Icons.insights_rounded,
+    super.key,
+  });
+  final String detalle;
+  final IconData icono;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -598,11 +607,7 @@ class SeleccionSucursalPendiente extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFF0D3C6), width: 6),
             ),
-            child: const Icon(
-              Icons.insights_rounded,
-              size: 32,
-              color: BarroTheme.primary,
-            ),
+            child: Icon(icono, size: 32, color: BarroTheme.primary),
           ),
           const SizedBox(height: 14),
           Text(
@@ -611,7 +616,7 @@ class SeleccionSucursalPendiente extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Selecciona una sucursal para consultar sus ingresos y movimientos.',
+            detalle,
             textAlign: TextAlign.center,
             style: BarroTheme.type(14, 22, color: BarroTheme.secondary),
           ),

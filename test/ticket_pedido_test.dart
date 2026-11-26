@@ -189,4 +189,81 @@ void main() {
     expect(EscPosTicket.envolver('uno dos tres', 7), ['uno dos', 'tres']);
     expect(EscPosTicket.envolver('abcdefghij', 4), ['abcd', 'efgh', 'ij']);
   });
+
+  group('comprobante de anticipo', () {
+    Pedido enCurso({String estado = 'ENCARGADO', double pagado = 500}) =>
+        Pedido(
+          id: 1,
+          folio: 'PED-000001',
+          estado: estado,
+          cliente: 'Ana',
+          telefono: '',
+          ciudad: '',
+          colonia: '',
+          calle: '',
+          descripcion: '',
+          tipoEntrega: 'LOCAL',
+          productos: _pedido().productos,
+          total: 1170,
+          pagado: pagado,
+          saldo: 1170 - pagado,
+          fechaEntrega: DateTime(2026, 12, 24, 23, 59),
+        );
+
+    test('solo para pedidos en curso con pagos', () {
+      for (final pedido in [
+        enCurso(pagado: 0),
+        enCurso(estado: 'TERMINADO'),
+        enCurso(estado: 'CANCELADO'),
+      ]) {
+        expect(
+          () => ticketDeComprobante(
+            pedido,
+            negocio: 'Santo Barro',
+            sucursal: 'Centro',
+            fecha: entrega,
+          ),
+          throwsA(isA<ImpresionException>()),
+        );
+      }
+    });
+
+    test('imprime lo pagado y el saldo pendiente', () {
+      final texto = _texto(
+        encoder.codificar(
+          ticketDeComprobante(
+            enCurso(),
+            negocio: 'Santo Barro',
+            sucursal: 'Centro',
+            fecha: entrega,
+          ),
+        ),
+      );
+      expect(texto, contains('COMPROBANTE DE PEDIDO'));
+      expect(texto, contains('PED-000001'));
+      expect(texto, contains(r'$500.00'));
+      expect(texto, contains(r'$670.00'));
+      expect(texto, contains('Saldo pendiente'));
+      expect(texto, contains('recoger su pedido'));
+      expect(texto, contains('Entrega:'));
+      expect(texto, contains('24/12/2026'));
+      for (final renglon in texto.split(String.fromCharCode(10))) {
+        expect(renglon.length, lessThanOrEqualTo(32), reason: renglon);
+      }
+    });
+
+    test('si ya se liquidó lo indica', () {
+      final texto = _texto(
+        encoder.codificar(
+          ticketDeComprobante(
+            enCurso(pagado: 1170),
+            negocio: 'Santo Barro',
+            sucursal: 'Centro',
+            fecha: entrega,
+          ),
+        ),
+      );
+      expect(texto, contains('Liquidado'));
+    });
+  });
 }

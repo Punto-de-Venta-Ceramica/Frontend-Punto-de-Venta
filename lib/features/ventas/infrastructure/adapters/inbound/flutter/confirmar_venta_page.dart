@@ -371,9 +371,9 @@ class _ConfirmarVentaPageState extends State<ConfirmarVentaPage> {
         [
           for (final seleccion in widget.productos)
             DetalleVenta(
-              nombre: seleccion.producto.nombre,
+              nombre: seleccion.nombre,
               cantidad: seleccion.cantidad,
-              precioUnitario: seleccion.producto.precio,
+              precioUnitario: seleccion.precio,
               subtotal: seleccion.importe,
             ),
         ];

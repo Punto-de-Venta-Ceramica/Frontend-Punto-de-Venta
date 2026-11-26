@@ -7,17 +7,32 @@ class HttpPedidosGateway implements PedidosGateway {
   final ApiClient _api;
 
   @override
-  Future<List<AvisoPedido>> notificaciones() async =>
-      _lista(await _api.requestJson('GET', 'api/notificaciones'))
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async {
+    final json = _mapa(
+      await _api.requestJson('GET', 'api/notificaciones?page=$pagina'),
+    );
+    final numeroPagina = json['pagina'];
+    final ultima = json['ultima'];
+    if (numeroPagina is! int || ultima is! bool) {
+      throw const ApiException('La respuesta de pedidos no es válida.');
+    }
+    return PaginaAvisos(
+      avisos: _lista(json['contenido'])
           .map(
             (j) => AvisoPedido(
               id: j['id'] as int,
               titulo: j['titulo'] as String,
               mensaje: j['mensaje'] as String,
               leida: j['leida'] as bool,
+              pedidoId: j['pedidoId'] as int?,
+              fecha: DateTime.tryParse('${j['fecha']}'),
             ),
           )
-          .toList();
+          .toList(),
+      pagina: numeroPagina,
+      ultima: ultima,
+    );
+  }
 
   @override
   Future<void> marcarLeida(int id) async {
@@ -126,6 +141,14 @@ class HttpPedidosGateway implements PedidosGateway {
         final String fecha => DateTime.tryParse(fecha)?.toLocal(),
         _ => null,
       },
+      sucursalId: j['sucursalId'] as int?,
+      negocioId: j['negocioId'] as int?,
+      negocio: j['negocio'] as String?,
+      sucursal: j['sucursal'] as String?,
+      fechaEntrega: switch (j['fechaEntrega']) {
+        final String fecha => DateTime.tryParse(fecha)?.toLocal(),
+        _ => null,
+      },
     );
   }
 
@@ -170,8 +193,8 @@ class HttpPedidosGateway implements PedidosGateway {
   ).isNotEmpty;
 
   @override
-  Future<void> registrar(DatosPedido d) async {
-    await _api.requestJson(
+  Future<int> registrar(DatosPedido d) async {
+    final respuesta = await _api.requestJson(
       'POST',
       'api/pedidos',
       body: {
@@ -195,8 +218,19 @@ class HttpPedidosGateway implements PedidosGateway {
         'tipoEntrega': d.tipoEntrega,
         'descripcionEnvio': d.descripcionEnvio.trim(),
         'pagoInicial': {'monto': d.monto, 'metodoPago': d.metodo},
+        // Fin del día elegido en hora local: el servidor rechaza fechas pasadas
+        // y así elegir "hoy" sigue siendo válido.
+        'fechaEntrega': DateTime(
+          d.fechaEntrega.year,
+          d.fechaEntrega.month,
+          d.fechaEntrega.day,
+          23,
+          59,
+          59,
+        ).toUtc().toIso8601String(),
       },
     );
+    return _mapa(respuesta)['id'] as int;
   }
 
   @override

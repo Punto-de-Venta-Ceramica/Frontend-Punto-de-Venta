@@ -52,9 +52,11 @@ String formatFecha(DateTime fecha) {
 
 /// Formatea fecha y hora corta (ej. "01 oct 2026 14:30").
 String formatFechaHora(DateTime fecha) {
-  final base = formatFecha(fecha);
-  final hora = fecha.hour.toString().padLeft(2, '0');
-  final min = fecha.minute.toString().padLeft(2, '0');
+  // El servidor envía instantes en UTC: se muestran en la hora del dispositivo.
+  final local = fecha.toLocal();
+  final base = formatFecha(local);
+  final hora = local.hour.toString().padLeft(2, '0');
+  final min = local.minute.toString().padLeft(2, '0');
   return '$base $hora:$min';
 }
 
@@ -323,40 +325,80 @@ class SucursalCorteCard extends StatelessWidget {
                       negocioNombre!,
                       style: BarroTheme.type(15, 20, weight: FontWeight.w700),
                     ),
-                  Text(
-                    'Sucursal $sucursalNombre',
-                    style: BarroTheme.type(
-                      13,
-                      18,
-                      weight: FontWeight.w500,
-                      color: BarroTheme.secondary,
+                  if (sucursalNombre.isNotEmpty)
+                    Text(
+                      textoSucursal(sucursalNombre),
+                      style: BarroTheme.type(
+                        13,
+                        18,
+                        weight: FontWeight.w500,
+                        color: BarroTheme.secondary,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            CortePastilla(
-              icono: Icons.event_outlined,
-              texto: formatFecha(fecha),
-            ),
-            if (usuarioNombre != null && usuarioNombre!.isNotEmpty)
-              CortePastilla(
-                icono: Icons.person_outline_rounded,
-                texto: usuarioNombre!,
-              ),
-            if (folioCorte != null)
-              CortePastilla(
-                icono: Icons.confirmation_number_outlined,
-                texto: 'Corte $folioCorte',
-              ),
-          ],
+        const Divider(height: 1, color: BarroTheme.border),
+        if (folioCorte != null)
+          _DatoCorte(
+            icono: Icons.confirmation_number_outlined,
+            etiqueta: 'Folio del corte',
+            valor: folioCorte!,
+          ),
+        if (usuarioNombre != null && usuarioNombre!.isNotEmpty)
+          _DatoCorte(
+            icono: Icons.person_outline_rounded,
+            etiqueta: 'Responsable',
+            valor: usuarioNombre!,
+          ),
+        _DatoCorte(
+          icono: Icons.event_outlined,
+          etiqueta: 'Fecha corte',
+          valor: formatFechaHora(fecha),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Fila "icono · etiqueta ........ valor" de la tarjeta del corte.
+class _DatoCorte extends StatelessWidget {
+  const _DatoCorte({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+  });
+
+  final IconData icono;
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Row(
+      children: [
+        Icon(icono, size: 18, color: BarroTheme.secondary),
+        const SizedBox(width: 8),
+        Text(
+          etiqueta,
+          style: BarroTheme.type(
+            13,
+            18,
+            weight: FontWeight.w500,
+            color: BarroTheme.secondary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            valor,
+            textAlign: TextAlign.end,
+            style: BarroTheme.type(14, 20, weight: FontWeight.w700),
+          ),
         ),
       ],
     ),
@@ -511,4 +553,174 @@ class TarjetaCancelacionPedido extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// "Sucursal Centro"; si el nombre ya empieza con "Sucursal" no se repite.
+String textoSucursal(String nombre) =>
+    nombre.toLowerCase().startsWith('sucursal') ? nombre : 'Sucursal $nombre';
+
+/// Acceso destacado al historial de cortes (solo propietario).
+class CorteBotonHistorial extends StatelessWidget {
+  const CorteBotonHistorial({required this.onPressed, super.key});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    child: Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: BarroTheme.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const CorteIcono(Icons.history_rounded, tamano: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Historial de cortes',
+                      style: BarroTheme.type(15, 21, weight: FontWeight.w700),
+                    ),
+                    Text(
+                      'Consulta los cortes anteriores',
+                      style: BarroTheme.type(
+                        12,
+                        17,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: BarroTheme.placeholder,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Inicio de la información de la caja: de cuándo es el turno y quién lo lleva.
+/// Sin [corte] (caja cerrada) muestra la fecha de hoy. Si el turno abierto es
+/// de un día anterior, lo avisa para que no quede olvidado.
+class CorteTurnoInfo extends StatelessWidget {
+  const CorteTurnoInfo({
+    required this.responsable,
+    this.corte,
+    this.ahora,
+    super.key,
+  });
+
+  final CorteCaja? corte;
+  final String responsable;
+
+  /// Solo para pruebas; por defecto, la hora actual.
+  final DateTime? ahora;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoy = ahora ?? DateTime.now();
+    final turno = corte;
+    String texto;
+    IconData icono = Icons.schedule_rounded;
+    String? aviso;
+    if (turno == null) {
+      texto = 'Hoy, ${formatFecha(hoy)}';
+      icono = Icons.event_outlined;
+    } else if (turno.cerrado) {
+      texto =
+          'Turno cerrado: ${formatFechaHora(turno.fechaHoraCierre ?? turno.fechaHoraApertura)}';
+    } else {
+      texto = 'Turno abierto: ${formatFechaHora(turno.fechaHoraApertura)}';
+      final apertura = turno.fechaHoraApertura.toLocal();
+      final dias = DateTime(hoy.year, hoy.month, hoy.day)
+          .difference(DateTime(apertura.year, apertura.month, apertura.day))
+          .inDays;
+      if (dias >= 1) {
+        aviso = dias == 1
+            ? 'Este turno sigue abierto desde ayer. Revisa si debes cerrarlo.'
+            : 'Este turno sigue abierto desde hace $dias días. Revisa si debes cerrarlo.';
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text(
+              'TURNO ACTUAL',
+              style: BarroTheme.type(
+                12,
+                16,
+                weight: FontWeight.w700,
+                color: BarroTheme.placeholder,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(child: Divider(height: 1, color: BarroTheme.border)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            CortePastilla(icono: icono, texto: texto, fondo: corteSuave),
+            if (responsable.isNotEmpty)
+              CortePastilla(
+                icono: Icons.person_outline_rounded,
+                texto: 'Responsable: $responsable',
+                fondo: corteSuave,
+              ),
+          ],
+        ),
+        if (aviso != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF6E5),
+              border: Border.all(color: const Color(0xFFF2D59B)),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 20,
+                  color: Color(0xFF9A6200),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    aviso,
+                    style: BarroTheme.type(
+                      13,
+                      19,
+                      color: const Color(0xFF6B4500),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }

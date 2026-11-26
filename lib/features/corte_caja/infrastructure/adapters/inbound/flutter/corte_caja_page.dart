@@ -314,17 +314,19 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     ),
   );
 
-  /// Botón de historial (solo propietario, HU-05).
-  Widget _botonHistorial(String tooltip) => IconButton(
-    onPressed: _abrirHistorial,
-    tooltip: tooltip,
-    style: IconButton.styleFrom(
-      backgroundColor: Colors.white,
-      side: const BorderSide(color: BarroTheme.border),
-      minimumSize: const Size(46, 46),
-    ),
-    icon: const Icon(Icons.history, color: BarroTheme.primary),
-  );
+  /// Nombre de quien lleva la sesión; el rol llega en mayúsculas ("PROPIETARIO").
+  String get _usuarioSesion {
+    final u = widget.usuarioNombre;
+    if (u.isEmpty) return widget.esPropietario ? 'Propietario' : 'Empleado';
+    return u == u.toUpperCase() && u.length > 1
+        ? u[0] + u.substring(1).toLowerCase()
+        : u;
+  }
+
+  /// Subtítulo con la sucursal; si no se conoce, el texto genérico.
+  String _subtituloSucursal(String generico) => widget.sucursalNombre.isEmpty
+      ? generico
+      : textoSucursal(widget.sucursalNombre);
 
   /// Botón principal grande con icono y estado de carga.
   Widget _botonPrincipal({
@@ -461,25 +463,12 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
         CorteTitulo(
           icono: Icons.lock_outline_rounded,
           titulo: 'Caja cerrada',
-          subtitulo: widget.onRegistrarVenta == null
-              ? 'Abre un turno para registrar movimientos'
-              : 'Abre un corte de caja para registrar ventas.',
-          // El historial es información financiera: solo el propietario (HU-05).
-          accion: widget.esPropietario
-              ? _botonHistorial('Ver historial de cortes')
-              : null,
+          subtitulo: _subtituloSucursal('Abre un turno para registrar ventas'),
         ),
+        const SizedBox(height: 16),
+        CorteBotonHistorial(onPressed: _abrirHistorial),
         const SizedBox(height: 20),
-        SucursalCorteCard(
-          sucursalNombre: widget.sucursalNombre,
-          fecha: DateTime.now(),
-          negocioNombre: widget.negocioNombre.isNotEmpty
-              ? widget.negocioNombre
-              : 'Cerámica La Lola',
-          usuarioNombre: widget.usuarioNombre.isNotEmpty
-              ? widget.usuarioNombre
-              : (widget.esPropietario ? 'Propietario' : 'Empleado'),
-        ),
+        CorteTurnoInfo(responsable: _usuarioSesion),
         const SizedBox(height: 16),
         // Estado visual de la caja.
         Container(
@@ -544,23 +533,6 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
           onPressed: _guardando ? null : _abrirCaja,
           cargando: _guardando,
         ),
-        if (widget.esPropietario) ...[
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _abrirHistorial,
-            icon: const Icon(Icons.history_rounded),
-            label: const Text('Ver historial de cortes anteriores'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: BarroTheme.primary,
-              backgroundColor: Colors.white,
-              side: const BorderSide(color: BarroTheme.border),
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ],
       ],
     ),
   );
@@ -568,8 +540,6 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
   /// Estado principal (Screen 1 del mockup): Resumen del día, revisión de efectivo y cierre.
   Widget _construirCorteActivo() {
     final corte = _corte!;
-    final fecha = corte.fechaHoraCierre ?? corte.fechaHoraApertura;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       child: Column(
@@ -580,22 +550,12 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
           CorteTitulo(
             icono: Icons.point_of_sale_rounded,
             titulo: 'Corte de caja',
-            subtitulo: 'Revisa los movimientos del día',
-            accion: widget.esPropietario
-                ? _botonHistorial('Historial de cortes')
-                : null,
+            subtitulo: _subtituloSucursal('Revisa los movimientos del día'),
           ),
+          const SizedBox(height: 16),
+          CorteBotonHistorial(onPressed: _abrirHistorial),
           const SizedBox(height: 20),
-
-          // Tarjeta de Negocio y Sucursal
-          SucursalCorteCard(
-            sucursalNombre: corte.sucursalNombre,
-            fecha: fecha,
-            negocioNombre: widget.negocioNombre.isNotEmpty
-                ? widget.negocioNombre
-                : 'Cerámica La Lola',
-            usuarioNombre: corte.usuarioNombre,
-          ),
+          CorteTurnoInfo(corte: corte, responsable: corte.usuarioNombre),
           const SizedBox(height: 16),
 
           if (widget.onRegistrarVenta != null && !corte.cerrado) ...[

@@ -2,6 +2,7 @@ import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 
 import '../../../../application/ports/outbound/reportes_gateway.dart';
 import '../../../../domain/reporte_contable.dart';
+import '../../../../domain/movimiento_reporte.dart';
 
 class HttpReportesGateway implements ReportesGateway {
   const HttpReportesGateway(this._api);
@@ -25,6 +26,7 @@ class HttpReportesGateway implements ReportesGateway {
             consulta.fecha,
             consulta.fecha,
             _hayMovimientos(dia),
+            movimientos: _movimientos(dia),
           );
         }
         return _resumen(
@@ -57,6 +59,8 @@ class HttpReportesGateway implements ReportesGateway {
     queryParameters: {
       'periodo': consulta.periodo.codigoConsulta,
       'fecha': fechaIsoReporte(consulta.fecha),
+      if (consulta.periodo == PeriodoReporte.diario && !excel)
+        'incluirAbiertos': 'true',
     },
   ).toString();
 
@@ -64,8 +68,9 @@ class HttpReportesGateway implements ReportesGateway {
     Map<String, dynamic> datos,
     DateTime desde,
     DateTime hasta,
-    bool hayMovimientos,
-  ) {
+    bool hayMovimientos, {
+    List<MovimientoReporte> movimientos = const [],
+  }) {
     final resumen = datos['resumen'] as Map<String, dynamic>;
     final general = resumen['general'] as Map<String, dynamic>;
     final efectivo = resumen['efectivo'] as Map<String, dynamic>;
@@ -79,7 +84,63 @@ class HttpReportesGateway implements ReportesGateway {
       efectivo: efectivo['neto'] as num,
       tarjeta: tarjeta['neto'] as num,
       hayMovimientos: hayMovimientos,
+      movimientos: movimientos,
     );
+  }
+
+  static List<MovimientoReporte> _movimientos(Map<String, dynamic> dia) {
+    final movimientos = [
+      for (final dato in [
+        ..._objetos(dia['efectivo']),
+        ..._objetos(dia['tarjeta']),
+      ])
+        MovimientoReporte(
+          id: dato['id'] as int,
+          fechaHora: DateTime.parse(dato['fechaHora'] as String),
+          horaLocal: _hora(dato),
+          tipo: switch (dato['tipo']) {
+            'VENTA' => TipoMovimientoReporte.venta,
+            'ANTICIPO' => TipoMovimientoReporte.anticipo,
+            'LIQUIDACION' => TipoMovimientoReporte.liquidacion,
+            'DEVOLUCION' => TipoMovimientoReporte.devolucion,
+            _ => throw const FormatException(),
+          },
+          medioPago: switch (dato['medioPago']) {
+            'EFECTIVO' => MedioPagoReporte.efectivo,
+            'TARJETA' => MedioPagoReporte.tarjeta,
+            _ => throw const FormatException(),
+          },
+          referencia: dato['referencia'] as String,
+          importe: dato['importe'] as num,
+          vendedor: _nombreUsuario(dato['vendedor']),
+          creadorPedido: _nombreUsuario(dato['creadorPedido']),
+          productos: [
+            for (final producto in _objetos(dato['productos']))
+              ProductoMovimientoReporte(
+                id: producto['id'] as int,
+                nombre: producto['nombre'] as String,
+                cantidad: producto['cantidad'] as int,
+              ),
+          ],
+        ),
+    ];
+    movimientos.sort((a, b) {
+      final fecha = b.fechaHora.compareTo(a.fechaHora);
+      if (fecha != 0) return fecha;
+      final id = b.id.compareTo(a.id);
+      return id != 0 ? id : a.tipo.index.compareTo(b.tipo.index);
+    });
+    return List.unmodifiable(movimientos);
+  }
+
+  static String? _nombreUsuario(Object? usuario) =>
+      (usuario as Map<String, dynamic>?)?['nombre'] as String?;
+
+  static String _hora(Map<String, dynamic> movimiento) {
+    if (movimiento['horaLocal'] case final String hora) return hora;
+    final fecha = DateTime.parse(movimiento['fechaHora'] as String).toLocal();
+    return '${fecha.hour.toString().padLeft(2, '0')}:'
+        '${fecha.minute.toString().padLeft(2, '0')}';
   }
 
   static Iterable<Map<String, dynamic>> _objetos(Object? lista) =>

@@ -14,14 +14,16 @@ abstract interface class PedidosGateway {
 
   /// Si la sucursal tiene un turno de caja abierto: sin él no se cobran pagos.
   Future<bool> cajaAbierta(int sucursalId);
-  Future<void> registrar(DatosPedido datos);
+
+  /// Devuelve el id del pedido registrado.
+  Future<int> registrar(DatosPedido datos);
   Future<void> pagar(int pedidoId, double monto, String metodo);
   Future<void> cambiarEstado(int pedidoId, String estado);
   Future<void> cancelar(int pedidoId);
 
   /// Descripción, entrega y datos del cliente. Solo el propietario.
   Future<void> editarDatos(int pedidoId, DatosEdicionPedido datos);
-  Future<List<AvisoPedido>> notificaciones();
+  Future<PaginaAvisos> notificaciones({int pagina = 0});
   Future<void> marcarLeida(int id);
 }
 

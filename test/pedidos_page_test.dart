@@ -11,6 +11,7 @@ import 'package:punto_de_venta/features/pedidos/domain/pedido.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/pedido_input_formatters.dart';
 import 'package:punto_de_venta/features/pedidos/infrastructure/adapters/inbound/registrar_pedido_page.dart';
 import 'package:punto_de_venta/features/productos/domain/producto.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/sucursal_widgets.dart';
 
 class _Gateway implements PedidosGateway {
   _Gateway({this.caja = true});
@@ -20,7 +21,8 @@ class _Gateway implements PedidosGateway {
   @override
   Future<bool> cajaAbierta(int sucursalId) async => caja;
   @override
-  Future<List<AvisoPedido>> notificaciones() async => [];
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async =>
+      const PaginaAvisos(avisos: [], pagina: 0, ultima: true);
   @override
   Future<void> marcarLeida(int id) async {}
   @override
@@ -55,9 +57,10 @@ class _Gateway implements PedidosGateway {
     ),
   ];
   @override
-  Future<void> registrar(DatosPedido datos) async {
+  Future<int> registrar(DatosPedido datos) async {
     if (errorAlRegistrar != null) throw errorAlRegistrar!;
     recibido = datos;
+    return 1;
   }
 
   @override
@@ -104,20 +107,23 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('BarroControl')).dy, lessThan(100));
-    expect(find.byTooltip('Inicio'), findsOneWidget);
-    expect(find.byTooltip('Pedidos'), findsOneWidget);
-    expect(find.byTooltip('Caja'), findsOneWidget);
-    expect(find.byTooltip('Inventario'), findsOneWidget);
-    expect(find.byTooltip('Más'), findsOneWidget);
+    Finder enNavegacion(String texto) => find.descendant(
+      of: find.byType(SucursalNavegacion),
+      matching: find.text(texto),
+    );
+    for (final rotulo in [
+      'Inicio',
+      'Pedidos',
+      'Caja',
+      'Productos',
+      'Reportes',
+    ]) {
+      expect(enNavegacion(rotulo), findsOneWidget);
+    }
+    // La pestaña activa se distingue por su rótulo en negritas.
     expect(
-      tester
-          .widget<IconButton>(
-            find.byWidgetPredicate(
-              (widget) => widget is IconButton && widget.tooltip == 'Pedidos',
-            ),
-          )
-          .isSelected,
-      isTrue,
+      tester.widget<Text>(enNavegacion('Pedidos')).style?.fontWeight,
+      FontWeight.w700,
     );
     await tester.enterText(
       find.byType(TextFormField).first,
@@ -157,6 +163,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -223,6 +230,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar pedido').last);
     await tester.pumpAndSettle();
+    // Con anticipo se ofrece imprimir el comprobante antes de salir.
+    expect(find.text('Pedido registrado'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('comprobante-listo')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pedido registrado'), findsNothing);
     expect(gateway.recibido?.descripcion, 'Pedido de 5 piezas');
     expect(gateway.recibido?.cliente, 'Ana María');
     expect(gateway.recibido?.telefono, '5512345678');
@@ -403,6 +415,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Taza'));
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -464,6 +477,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -539,6 +553,7 @@ void main() {
     expect(find.textContaining('sin aplicar'), findsOneWidget);
 
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar'));
@@ -602,7 +617,12 @@ void main() {
 
     testWidgets('sin datos capturados, Inicio sale directo', (tester) async {
       final destinos = await abrir(tester);
-      await tester.tap(find.byTooltip('Inicio'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SucursalNavegacion),
+          matching: find.text('Inicio'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Listado'), findsOneWidget);
@@ -617,7 +637,12 @@ void main() {
       await tester.enterText(find.byType(TextFormField).first, 'Tazas');
       // Espera a que termine el desplazamiento por el foco del campo.
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Caja'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SucursalNavegacion),
+          matching: find.text('Caja'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('¿Salir sin registrar el pedido?'), findsOneWidget);
 
@@ -626,7 +651,12 @@ void main() {
       expect(find.byType(RegistrarPedidoPage), findsOneWidget);
       expect(destinos, isEmpty);
 
-      await tester.tap(find.byTooltip('Caja'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SucursalNavegacion),
+          matching: find.text('Caja'),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Salir'));
       await tester.pumpAndSettle();
@@ -664,6 +694,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -724,6 +755,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
+    await elegirFechaEntrega(tester);
     await tester.ensureVisible(find.text('Continuar'));
     // Espera a que termine el desplazamiento por el foco del campo.
     await tester.pumpAndSettle();
@@ -817,4 +849,19 @@ void main() {
     expect(PedidoInputFormatters.validarDinero('12,50'), isNull);
     expect(PedidoInputFormatters.validarDinero('12.345'), isNotNull);
   });
+}
+
+/// Elige hoy como fecha de entrega (campo obligatorio del primer paso).
+Future<void> elegirFechaEntrega(WidgetTester tester) async {
+  final campo = find.byWidgetPredicate(
+    (w) =>
+        w.key is ValueKey<String> &&
+        (w.key! as ValueKey<String>).value.startsWith('pedido-fecha-entrega'),
+  );
+  await tester.ensureVisible(campo);
+  await tester.pumpAndSettle();
+  await tester.tap(campo);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Aceptar'));
+  await tester.pumpAndSettle();
 }

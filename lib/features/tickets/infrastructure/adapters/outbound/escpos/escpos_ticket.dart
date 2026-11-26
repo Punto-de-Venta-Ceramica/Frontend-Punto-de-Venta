@@ -48,6 +48,10 @@ class EscPosTicket {
       }
     }
     _texto(b, fila(ticket.tipo.etiquetaFecha, formatoFecha(ticket.fecha)));
+    final entrega = ticket.entrega;
+    if (entrega != null) {
+      _texto(b, fila('Entrega:', formatoDia(entrega)));
+    }
     _texto(b, _separador);
 
     for (final linea in ticket.lineas) {
@@ -78,6 +82,19 @@ class EscPosTicket {
     _texto(b, fila('TOTAL', formatoDinero(ticket.total)));
     _tamano(b, doble: false);
     _negrita(b, false);
+    final pagado = ticket.pagado;
+    if (pagado != null) {
+      final saldo = ticket.total - pagado;
+      _texto(b, fila('Pagado', formatoDinero(pagado)));
+      _negrita(b, true);
+      _texto(
+        b,
+        saldo > 0.004
+            ? fila('Saldo pendiente', formatoDinero(saldo))
+            : fila('Saldo pendiente', 'Liquidado'),
+      );
+      _negrita(b, false);
+    }
     _texto(b, _separador);
     _salto(b);
 
@@ -85,6 +102,14 @@ class EscPosTicket {
     final eslogan = ticket.eslogan?.trim() ?? '';
     if (eslogan.isNotEmpty) {
       for (final linea in envolver(eslogan, columnas)) {
+        _texto(b, linea);
+      }
+    }
+    if (ticket.tipo == TipoTicket.comprobante) {
+      for (final linea in envolver(
+        'Presente este comprobante al recoger su pedido.',
+        columnas,
+      )) {
         _texto(b, linea);
       }
     }
@@ -161,10 +186,17 @@ class EscPosTicket {
   }
 
   static String formatoFecha(DateTime fecha) {
-    String dos(int n) => n.toString().padLeft(2, '0');
     final f = fecha.toLocal();
-    return '${dos(f.day)}/${dos(f.month)}/${f.year} ${dos(f.hour)}:${dos(f.minute)}';
+    return '${formatoDia(f)} ${_dos(f.hour)}:${_dos(f.minute)}';
   }
+
+  /// Solo el día: dd/mm/aaaa.
+  static String formatoDia(DateTime fecha) {
+    final f = fecha.toLocal();
+    return '${_dos(f.day)}/${_dos(f.month)}/${f.year}';
+  }
+
+  static String _dos(int n) => n.toString().padLeft(2, '0');
 
   static String _porcentaje(double valor) => valor == valor.roundToDouble()
       ? valor.toInt().toString()

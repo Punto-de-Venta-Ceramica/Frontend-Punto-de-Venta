@@ -7,6 +7,7 @@ import 'package:punto_de_venta/features/productos/domain/producto.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart';
 import '../../../application/gestion_pedidos.dart';
 import '../../../domain/pedido.dart';
+import 'package:punto_de_venta/features/sucursal/infrastructure/adapters/inbound/flutter/encabezado_sucursal_negocio.dart';
 import 'pedido_detalle_page.dart';
 import 'registrar_pedido_page.dart';
 import 'terminar_pedido_dialog.dart';
@@ -28,6 +29,7 @@ class PedidosPage extends StatefulWidget {
     this.sucursalNombre,
     this.onCaja,
     this.onDatosContables,
+    this.encabezado,
     super.key,
   });
   final GestionPedidos gestion;
@@ -39,6 +41,10 @@ class PedidosPage extends StatefulWidget {
   final VoidCallback? onInventario;
   final VoidCallback? onCaja;
   final VoidCallback? onDatosContables;
+
+  /// Desde el negocio (propietario): título y selector de sucursal con el
+  /// diseño de Datos contables, sin barra inferior de la sucursal.
+  final Widget? encabezado;
   @override
   State<PedidosPage> createState() => _PedidosPageState();
 }
@@ -166,6 +172,7 @@ class _PedidosPageState extends State<PedidosPage> {
       builder: (_) => NotificacionesPage(
         gestion: widget.gestion,
         contador: widget.contador,
+        esPropietario: widget.esPropietario,
       ),
     ),
   );
@@ -454,6 +461,70 @@ class _PedidosPageState extends State<PedidosPage> {
   }
 
   Widget _pantalla(List<ResumenPedido> visibles, String busqueda) {
+    final contenido = <Widget>[
+      TextField(
+        decoration: productoDecoracion(hint: 'Buscar cliente...'),
+        onChanged: (v) => setState(() => _busqueda = v),
+      ),
+      const SizedBox(height: 12),
+      _filtros(),
+      const SizedBox(height: 14),
+      ProductoBoton(texto: '+ Nuevo pedido', onPressed: _nuevo),
+      const SizedBox(height: 20),
+      // Con pedidos ya en pantalla (guardados o de la carga anterior) se
+      // siguen mostrando y una barra indica que se están actualizando.
+      if (_cargando && !_hayMostrados)
+        const Center(child: CircularProgressIndicator())
+      else if (_error != null)
+        ProductoAviso(_error!, error: true)
+      else if (_cargando && visibles.isEmpty)
+        const LinearProgressIndicator()
+      else if (visibles.isEmpty)
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Text(
+              _estado == null || busqueda.isNotEmpty
+                  ? 'No hay pedidos para mostrar.'
+                  : 'No hay pedidos en estado ${EstadosPedido.etiqueta(_estado!).toLowerCase()}.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        )
+      else ...[
+        if (_cargando) ...[
+          const LinearProgressIndicator(),
+          const SizedBox(height: 8),
+        ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Mostrando ${_pedidos.length} de $_total',
+            style: BarroTheme.type(13, 20),
+          ),
+        ),
+        for (final p in visibles) _tarjeta(p),
+      ],
+      if (!_cargando && _error == null && !_ultima)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Center(
+            child: _cargandoMas
+                ? const CircularProgressIndicator()
+                : OutlinedButton(
+                    onPressed: _masPedidos,
+                    child: const Text('Cargar más pedidos'),
+                  ),
+          ),
+        ),
+    ];
+    final encabezado = widget.encabezado;
+    if (encabezado != null) {
+      return PantallaNegocio(
+        onRefresh: _cargar,
+        children: [encabezado, const SizedBox(height: 20), ...contenido],
+      );
+    }
     return ProductoScaffold(
       // El empleado navega con la barra de su pantalla de inicio.
       barraInferior: widget.esPropietario
@@ -480,61 +551,7 @@ class _PedidosPageState extends State<PedidosPage> {
           style: BarroTheme.type(28, 36, weight: FontWeight.w700),
         ),
         const SizedBox(height: 16),
-        TextField(
-          decoration: productoDecoracion(hint: 'Buscar cliente...'),
-          onChanged: (v) => setState(() => _busqueda = v),
-        ),
-        const SizedBox(height: 12),
-        _filtros(),
-        const SizedBox(height: 14),
-        ProductoBoton(texto: '+ Nuevo pedido', onPressed: _nuevo),
-        const SizedBox(height: 20),
-        // Con pedidos ya en pantalla (guardados o de la carga anterior) se
-        // siguen mostrando y una barra indica que se están actualizando.
-        if (_cargando && !_hayMostrados)
-          const Center(child: CircularProgressIndicator())
-        else if (_error != null)
-          ProductoAviso(_error!, error: true)
-        else if (_cargando && visibles.isEmpty)
-          const LinearProgressIndicator()
-        else if (visibles.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                _estado == null || busqueda.isNotEmpty
-                    ? 'No hay pedidos para mostrar.'
-                    : 'No hay pedidos en estado ${EstadosPedido.etiqueta(_estado!).toLowerCase()}.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          )
-        else ...[
-          if (_cargando) ...[
-            const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-          ],
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              'Mostrando ${_pedidos.length} de $_total',
-              style: BarroTheme.type(13, 20),
-            ),
-          ),
-          for (final p in visibles) _tarjeta(p),
-        ],
-        if (!_cargando && _error == null && !_ultima)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: _cargandoMas
-                  ? const CircularProgressIndicator()
-                  : OutlinedButton(
-                      onPressed: _masPedidos,
-                      child: const Text('Cargar más pedidos'),
-                    ),
-            ),
-          ),
+        ...contenido,
       ],
     );
   }

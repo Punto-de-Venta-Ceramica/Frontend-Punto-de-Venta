@@ -3,7 +3,10 @@
 /// reclamo se distingue a simple vista si es de una venta o de un pedido.
 enum TipoTicket {
   venta('TICKET DE VENTA', 'Fecha:'),
-  pedido('TICKET DE PEDIDO', 'Entrega:');
+  pedido('TICKET DE PEDIDO', 'Entrega:'),
+
+  /// Pedido aún no entregado con anticipo o pagos: muestra lo pagado y el saldo.
+  comprobante('COMPROBANTE DE PEDIDO', 'Fecha:');
 
   const TipoTicket(this.titulo, this.etiquetaFecha);
 
@@ -26,6 +29,8 @@ class Ticket {
     required this.fecha,
     this.folio,
     this.eslogan,
+    this.pagado,
+    this.entrega,
   });
 
   final TipoTicket tipo;
@@ -39,6 +44,12 @@ class Ticket {
 
   /// Eslogan del negocio al pie del ticket; null o vacío = no se imprime.
   final String? eslogan;
+
+  /// Lo pagado hasta ahora; null = no se imprimen pagado ni saldo.
+  final double? pagado;
+
+  /// Fecha de entrega acordada (solo el día); null = no se imprime.
+  final DateTime? entrega;
 }
 
 class LineaTicket {

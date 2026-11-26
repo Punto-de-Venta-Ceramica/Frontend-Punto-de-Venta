@@ -20,7 +20,12 @@ class ProductoVenta {
     this.categoriaId,
     this.categoriaNombre,
     this.descuentos = const [],
+    this.precioVariable = false,
   });
+
+  /// Artículo artesanal: producto de cobro libre, sin inventario ni descuentos; el
+  /// precio y el nombre se capturan en cada venta.
+  final bool precioVariable;
 
   final int id;
   final String nombre;
@@ -122,15 +127,33 @@ class SeleccionVenta {
     required this.producto,
     required this.cantidad,
     bool aplicarDescuento = false,
+    this.precioLibre,
+    this.nombreLibre,
   }) : _descuentoMarcado = aplicarDescuento;
 
   static const maximoProductos = 200;
+
+  /// Topes del cobro libre; el servidor valida el mismo precio máximo.
+  static const precioLibreMaximo = 999999.99;
+  static const cantidadLibreMaxima = 9999;
 
   final ProductoVenta producto;
   final int cantidad;
   final bool _descuentoMarcado;
 
-  num? get porcentajeDisponible => producto.descuentoPara(cantidad)?.porcentaje;
+  /// Solo en el cobro libre: precio por pieza y descripción que capturó el cajero.
+  final num? precioLibre;
+  final String? nombreLibre;
+
+  bool get esLibre => producto.precioVariable;
+
+  /// Nombre con el que sale en el resumen y el ticket.
+  String get nombre => nombreLibre ?? producto.nombre;
+
+  num get precio => precioLibre ?? producto.precio;
+
+  num? get porcentajeDisponible =>
+      esLibre ? null : producto.descuentoPara(cantidad)?.porcentaje;
 
   bool get aplicarDescuento =>
       _descuentoMarcado && porcentajeDisponible != null;
@@ -143,11 +166,13 @@ class SeleccionVenta {
             aplicarDescuento &&
             porcentajeDisponible ==
                 producto.descuentoPara(cantidad)?.porcentaje,
+        precioLibre: precioLibre,
+        nombreLibre: nombreLibre,
       );
 
   num get importe {
     final bruto =
-        BigInt.from((producto.precio * 100).round()) * BigInt.from(cantidad);
+        BigInt.from((precio * 100).round()) * BigInt.from(cantidad);
     final porcentaje = _descuentoMarcado ? porcentajeDisponible : null;
     if (porcentaje == null) return bruto.toDouble() / 100;
 

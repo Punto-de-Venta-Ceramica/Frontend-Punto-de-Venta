@@ -9,7 +9,9 @@ import 'package:punto_de_venta/features/tickets/application/impresion_tickets.da
 import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 
 import '../../../../application/services/gestion_ventas.dart';
+import '../../../../domain/busqueda_productos_venta.dart';
 import '../../../../domain/venta.dart';
+import 'cobro_libre_widgets.dart';
 import 'confirmar_venta_page.dart';
 import 'filtros_productos_venta.dart';
 import 'ventas_widgets.dart';
@@ -39,6 +41,12 @@ class RegistrarVentaPage extends StatefulWidget {
 class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
   final _formulario = GlobalKey<FormState>();
   final _carrito = <int, SeleccionVenta>{};
+
+  /// Cobro libre (artículo artesanal): una sola línea por venta, fuera del listado
+  /// porque no tiene existencia ni descuentos.
+  SeleccionVenta? _libre;
+  ProductoVenta? _productoLibre;
+  bool _cargandoLibre = false;
   final _buscador = TextEditingController();
   PaginaProductosVenta? _pagina;
   Timer? _esperaBusqueda;
@@ -185,6 +193,50 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     });
   }
 
+  Future<void> _abrirCobroLibre() async {
+    if (_cargandoLibre) return;
+    var producto = _productoLibre;
+    if (producto == null) {
+      setState(() => _cargandoLibre = true);
+      try {
+        producto = await widget.gestion.productoLibre(widget.sucursalId);
+      } on VentaFailure catch (error) {
+        if (!mounted) return;
+        setState(() => _cargandoLibre = false);
+        if (error.sesionExpirada) {
+          widget.onSesionExpirada();
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.mensaje)));
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _productoLibre = producto;
+        _cargandoLibre = false;
+      });
+    }
+    final resultado = await mostrarCobroLibre(
+      context,
+      actual: _libre,
+      nombrePorDefecto: producto.nombre,
+    );
+    if (!mounted || resultado == null) return;
+    final cobro = resultado.cobro;
+    setState(() {
+      _libre = resultado.quitar || cobro == null
+          ? null
+          : SeleccionVenta(
+              producto: producto!,
+              cantidad: cobro.cantidad,
+              precioLibre: cobro.precio,
+              nombreLibre: cobro.nombre,
+            );
+    });
+  }
+
   Future<void> _continuar(List<SeleccionVenta> seleccion) async {
     if (_abriendoPago || !_formulario.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
@@ -212,20 +264,17 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
 
   @override
   Widget build(BuildContext context) {
-    final seleccion = List<SeleccionVenta>.of(_carrito.values);
+    final seleccion = [
+      ..._carrito.values,
+      ?_libre,
+    ];
     final piezas = seleccion.fold(0, (suma, linea) => suma + linea.cantidad);
     final total = seleccion.fold<num>(0, (suma, linea) => suma + linea.importe);
     final pagina = _pagina;
-    final consulta = _busqueda.toLowerCase();
-    final idBuscado = int.tryParse(consulta);
     final productos = _soloSeleccionados
-        ? [
-            for (final linea in seleccion)
-              if (_filtros.coincide(linea.producto) &&
-                  (linea.producto.nombre.toLowerCase().contains(consulta) ||
-                      linea.producto.id == idBuscado))
-                linea.producto,
-          ]
+        ? BusquedaProductosVenta(_busqueda).filtrar(
+            seleccion.map((linea) => linea.producto).where(_filtros.coincide),
+          )
         : pagina?.productos ?? const <ProductoVenta>[];
 
     final pantalla = VentaScaffold(
@@ -234,6 +283,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
       accion: 'Continuar al pago',
       iconoAccion: Icons.arrow_forward_rounded,
       espacioAntesContenido: 0,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       onAccion: (!_cargando || _soloSeleccionados) && seleccion.isNotEmpty
           ? () => _continuar(seleccion)
           : null,
@@ -283,6 +333,15 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
         ],
       ),
       children: [
+        TarjetaCobroLibre(
+          seleccion: _libre,
+          cargando: _cargandoLibre,
+          onAbrir: _abrirCobroLibre,
+          onQuitar: _libre == null
+              ? null
+              : () => setState(() => _libre = null),
+        ),
+        const SizedBox(height: 20),
         VentaCampo(
           etiqueta: 'Buscar producto',
           accionEtiqueta: FilterChip(
@@ -425,7 +484,9 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
     final porcentaje = seleccion?.porcentajeDisponible;
     final puedeSeleccionar =
         producto.existencia > 0 &&
-        (cantidad > 0 || _carrito.length < SeleccionVenta.maximoProductos);
+        (cantidad > 0 ||
+            _carrito.length + (_libre == null ? 0 : 1) <
+                SeleccionVenta.maximoProductos);
     final puedeAgregar = puedeSeleccionar && cantidad < producto.existencia;
     return Padding(
       key: ValueKey(producto.id),

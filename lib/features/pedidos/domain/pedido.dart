@@ -117,10 +117,30 @@ class AvisoPedido {
     required this.titulo,
     required this.mensaje,
     required this.leida,
+    this.pedidoId,
+    this.fecha,
   });
   final int id;
   final String titulo, mensaje;
   final bool leida;
+
+  /// Cuándo se generó el aviso; null si el servidor no la envía.
+  final DateTime? fecha;
+
+  /// Pedido del aviso, para abrir su detalle; null si no tiene.
+  final int? pedidoId;
+}
+
+/// Página de avisos del servidor: del más reciente al más antiguo.
+class PaginaAvisos {
+  const PaginaAvisos({
+    required this.avisos,
+    required this.pagina,
+    required this.ultima,
+  });
+  final List<AvisoPedido> avisos;
+  final int pagina;
+  final bool ultima;
 }
 
 class Pedido {
@@ -141,9 +161,23 @@ class Pedido {
     required this.saldo,
     this.descripcionEnvio = '',
     this.fechaCreacion,
+    this.sucursalId,
+    this.negocioId,
+    this.negocio,
+    this.sucursal,
+    this.fechaEntrega,
   });
   final int id;
   final String folio, estado, cliente, telefono, ciudad, colonia, calle;
+
+  /// Dónde se registró: permiten abrir el detalle sin venir del listado
+  /// (p. ej. desde una notificación). Null si el servidor no los envía.
+  final int? sucursalId, negocioId;
+  final String? negocio, sucursal;
+
+  /// Fecha de entrega acordada (hora local); al entregarse, la real. Null en
+  /// pedidos registrados antes de capturarla.
+  final DateTime? fechaEntrega;
   final String descripcion, tipoEntrega, descripcionEnvio;
   final List<DetallePedido> productos;
   final double total, pagado, saldo;
@@ -203,8 +237,12 @@ class DatosPedido {
     required this.descripcionEnvio,
     required this.monto,
     required this.metodo,
+    required this.fechaEntrega,
   });
   final int sucursalId;
+
+  /// Día acordado con el cliente (solo cuenta la fecha, no la hora).
+  final DateTime fechaEntrega;
   final List<LineaPedido> productos;
   final String descripcion,
       cliente,

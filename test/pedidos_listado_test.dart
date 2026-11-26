@@ -31,7 +31,8 @@ class _Pedidos extends Fake implements PedidosGateway {
   final editados = <(int, DatosEdicionPedido)>[];
 
   @override
-  Future<List<AvisoPedido>> notificaciones() async => [];
+  Future<PaginaAvisos> notificaciones({int pagina = 0}) async =>
+      const PaginaAvisos(avisos: [], pagina: 0, ultima: true);
 
   @override
   Future<void> editarDatos(int pedidoId, DatosEdicionPedido datos) async =>
@@ -183,7 +184,9 @@ void main() {
       );
       expect(find.text('Registrar pago'), findsOneWidget);
       expect(find.text('Cancelar pedido'), findsNothing);
-      expect(find.text('Imprimir ticket'), findsNothing);
+      // En curso y con pagos: solo el comprobante de pago, no el ticket final.
+      expect(find.text('Comprobante de pago'), findsOneWidget);
+      expect(find.text('Ticket'), findsNothing);
       expect(find.text('Ver ticket'), findsNothing);
     },
   );

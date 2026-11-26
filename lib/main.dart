@@ -38,6 +38,7 @@ import 'features/productos/infrastructure/imagenes_producto.dart';
 import 'features/pedidos/application/gestion_pedidos.dart';
 import 'features/pedidos/infrastructure/adapters/outbound/http_pedidos_gateway.dart';
 import 'features/pedidos/infrastructure/adapters/inbound/pedidos_page.dart';
+import 'features/pedidos/infrastructure/adapters/inbound/pedidos_negocio_page.dart';
 import 'features/pedidos/infrastructure/adapters/inbound/notificaciones_page.dart';
 import 'features/notificaciones/application/contador_notificaciones.dart';
 import 'features/notificaciones/infrastructure/indicador_icono_movil.dart';
@@ -272,6 +273,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
         onDescuentos: (negocio) => _abrirDescuentosNegocio(context, negocio),
         onEmpleados: (negocio) => _abrirEmpleadosNegocio(context, negocio),
         onDatosContables: (negocio) => _abrirDatosContables(context, negocio),
+        onPedidos: (negocio) => _abrirPedidosNegocio(context, negocio),
         onAdministrar: (negocio, sucursal) =>
             _abrirAdministracion(context, negocio, sucursal),
       ),
@@ -538,6 +540,22 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     return reemplazar ? navigator.pushReplacement(ruta) : navigator.push(ruta);
   }
 
+  /// Pedidos desde el negocio: la sucursal se elige en la misma pantalla.
+  Future<void> _abrirPedidosNegocio(
+    BuildContext context,
+    NegocioSucursal negocio,
+  ) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (pedidosContext) => PedidosNegocioPage(
+        negocio: negocio,
+        sucursales: _gestionSucursales,
+        gestion: _gestionPedidos,
+        contador: _contador,
+        onSesionExpirada: () => _cerrarSesion(pedidosContext),
+      ),
+    ),
+  );
+
   Future<void> _abrirPedidos(
     BuildContext context,
     NegocioSucursal negocio,
@@ -639,8 +657,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     conteoNotificaciones: _contador,
     onNotificaciones: () => Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            NotificacionesPage(gestion: _gestionPedidos, contador: _contador),
+        builder: (_) => NotificacionesPage(
+          gestion: _gestionPedidos,
+          contador: _contador,
+          esPropietario: _rol == 'PROPIETARIO',
+        ),
       ),
     ),
   );
@@ -653,8 +674,11 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     if (_sesionActual == null) return;
     _navegador.currentState?.push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            NotificacionesPage(gestion: _gestionPedidos, contador: _contador),
+        builder: (_) => NotificacionesPage(
+          gestion: _gestionPedidos,
+          contador: _contador,
+          esPropietario: _rol == 'PROPIETARIO',
+        ),
       ),
     );
   }
@@ -675,7 +699,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
       theme: BarroTheme.data,
       initialRoute: widget.initialRoute,
-      home: Builder(builder: _login),
+      home: _RestaurarSesion(store: widget.sessionStore, login: _login),
       routes: {
         '/login': _login,
         '/register': (_) => OwnerRegistrationPage(
@@ -723,6 +747,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
                 builder: (_) => NotificacionesPage(
                   gestion: _gestionPedidos,
                   contador: _contador,
+                  esPropietario: _rol == 'PROPIETARIO',
                 ),
               ),
             ),
@@ -744,6 +769,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
                         builder: (_) => NotificacionesPage(
                           gestion: _gestionPedidos,
                           contador: _contador,
+                          esPropietario: _rol == 'PROPIETARIO',
                         ),
                       ),
                     ),
@@ -757,6 +783,40 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       },
     ),
   );
+}
+
+/// Al abrir la app entra directo con la sesión guardada; sin ella muestra el login.
+class _RestaurarSesion extends StatefulWidget {
+  const _RestaurarSesion({required this.store, required this.login});
+  final SessionStore store;
+  final WidgetBuilder login;
+
+  @override
+  State<_RestaurarSesion> createState() => _RestaurarSesionState();
+}
+
+class _RestaurarSesionState extends State<_RestaurarSesion> {
+  bool _sinSesion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.leer().then((session) {
+      if (!mounted) return;
+      if (session == null) {
+        setState(() => _sinSesion = true);
+      } else {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/session', (_) => false, arguments: session);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _sinSesion
+      ? widget.login(context)
+      : const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 class _ConnectionHome extends StatefulWidget {

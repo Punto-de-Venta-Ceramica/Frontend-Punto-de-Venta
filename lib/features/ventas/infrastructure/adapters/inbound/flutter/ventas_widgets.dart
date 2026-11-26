@@ -18,6 +18,7 @@ class VentaScaffold extends StatelessWidget {
     this.debajoAccion,
     this.textoCancelar = 'Cancelar',
     this.espacioAntesContenido = 28,
+    this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     super.key,
   });
 
@@ -38,6 +39,7 @@ class VentaScaffold extends StatelessWidget {
   final Widget? debajoAccion;
   final String textoCancelar;
   final double espacioAntesContenido;
+  final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -51,6 +53,7 @@ class VentaScaffold extends StatelessWidget {
             children: [
               Expanded(
                 child: ListView(
+                  keyboardDismissBehavior: keyboardDismissBehavior,
                   padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
                   children: [
                     contexto,
