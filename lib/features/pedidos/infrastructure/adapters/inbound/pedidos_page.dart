@@ -54,7 +54,14 @@ class _PedidosPageState extends State<PedidosPage> {
   bool _cargando = true;
   bool _cargandoMas = false;
   String? _error;
-  String _busqueda = '';
+
+  /// Texto buscado en el servidor (ya recortado); vacío = sin buscar. Mientras
+  /// hay búsqueda se ignora el filtro de estado: busca en todos.
+  String _buscado = '';
+  Timer? _espera;
+  bool get _buscando => _buscado.isNotEmpty;
+  String? get _estadoConsulta => _buscando ? null : _estado;
+  String? get _busquedaConsulta => _buscando ? _buscado : null;
 
   /// Estado filtrado en el servidor; null = todos.
   late String? _estado = EstadosPedido.porDefecto(
@@ -67,10 +74,10 @@ class _PedidosPageState extends State<PedidosPage> {
   /// Descarta respuestas de una carga anterior (p. ej. al cambiar de filtro rápido).
   int _carga = 0;
 
-  /// Filtro al que corresponden los pedidos en pantalla. Mientras recarga el
-  /// mismo filtro (al volver del detalle o al deslizar) se siguen mostrando;
-  /// si cambió, se muestra lo guardado de ese filtro o nada.
-  String? _estadoMostrado;
+  /// Filtro (estado, búsqueda) al que corresponden los pedidos en pantalla.
+  /// Mientras recarga el mismo filtro (al volver del detalle o al deslizar)
+  /// se siguen mostrando; si cambió, se muestra lo guardado de ese filtro o nada.
+  (String?, String)? _filtroMostrado;
   bool _hayMostrados = false;
 
   void _mostrar(PaginaPedidos pagina) {
@@ -78,7 +85,7 @@ class _PedidosPageState extends State<PedidosPage> {
     _pagina = pagina.pagina;
     _ultima = pagina.ultima;
     _total = pagina.total;
-    _estadoMostrado = _estado;
+    _filtroMostrado = (_estadoConsulta, _buscado);
     _hayMostrados = true;
   }
 
@@ -88,6 +95,23 @@ class _PedidosPageState extends State<PedidosPage> {
     _cargar();
   }
 
+  @override
+  void dispose() {
+    _espera?.cancel();
+    super.dispose();
+  }
+
+  /// Espera a que se deje de escribir para no consultar en cada tecla.
+  void _buscar(String texto) {
+    _espera?.cancel();
+    _espera = Timer(const Duration(milliseconds: 350), () {
+      final buscado = texto.trim();
+      if (!mounted || buscado == _buscado) return;
+      setState(() => _buscado = buscado);
+      _cargar();
+    });
+  }
+
   /// Carga la primera página del filtro actual.
   Future<void> _cargar() async {
     // Registrar o cambiar un pedido genera avisos: no esperar al sondeo de 45 s.
@@ -95,11 +119,13 @@ class _PedidosPageState extends State<PedidosPage> {
     final carga = ++_carga;
     setState(() {
       // Se muestra al instante lo último recibido; la consulta lo reemplaza.
-      if (!_hayMostrados || _estadoMostrado != _estado) {
-        final guardado = widget.gestion.listadoGuardado(
-          widget.sucursalId,
-          estado: _estado,
-        );
+      if (!_hayMostrados || _filtroMostrado != (_estadoConsulta, _buscado)) {
+        final guardado = _buscando
+            ? null
+            : widget.gestion.listadoGuardado(
+                widget.sucursalId,
+                estado: _estado,
+              );
         if (guardado != null) {
           _mostrar(guardado);
         } else {
@@ -114,7 +140,8 @@ class _PedidosPageState extends State<PedidosPage> {
     try {
       final pagina = await widget.gestion.listar(
         widget.sucursalId,
-        estado: _estado,
+        estado: _estadoConsulta,
+        busqueda: _busquedaConsulta,
       );
       if (!mounted || carga != _carga) return;
       setState(() => _mostrar(pagina));
@@ -137,7 +164,8 @@ class _PedidosPageState extends State<PedidosPage> {
     try {
       final pagina = await widget.gestion.listar(
         widget.sucursalId,
-        estado: _estado,
+        estado: _estadoConsulta,
+        busqueda: _busquedaConsulta,
         pagina: _pagina + 1,
       );
       if (!mounted || carga != _carga) return;
@@ -251,8 +279,9 @@ class _PedidosPageState extends State<PedidosPage> {
               label: Text(
                 estado == null ? 'Todos' : EstadosPedido.etiqueta(estado),
               ),
-              selected: _estado == estado,
-              onSelected: (_) => _filtrar(estado),
+              // Con búsqueda se busca en todos los estados: el filtro espera.
+              selected: !_buscando && _estado == estado,
+              onSelected: _buscando ? null : (_) => _filtrar(estado),
             ),
           ),
       ],
@@ -450,24 +479,28 @@ class _PedidosPageState extends State<PedidosPage> {
     }
   }
 
+  // Estado y búsqueda se filtran en el servidor: lo cargado es lo que se ve,
+  // y "Mostrando X de Y" cuenta lo mismo que las tarjetas.
   @override
-  Widget build(BuildContext context) {
-    // La búsqueda filtra los pedidos ya cargados; el estado se filtra en el servidor.
-    final busqueda = _busqueda.trim().toLowerCase();
-    final visibles = _pedidos
-        .where((p) => p.cliente.toLowerCase().contains(busqueda))
-        .toList();
-    return _conCampana(_pantalla(visibles, busqueda));
-  }
+  Widget build(BuildContext context) => _conCampana(_pantalla(_pedidos));
 
-  Widget _pantalla(List<ResumenPedido> visibles, String busqueda) {
+  Widget _pantalla(List<ResumenPedido> visibles) {
     final contenido = <Widget>[
       TextField(
-        decoration: productoDecoracion(hint: 'Buscar cliente...'),
-        onChanged: (v) => setState(() => _busqueda = v),
+        decoration: productoDecoracion(
+          hint: 'Buscar por cliente, teléfono o folio...',
+        ),
+        onChanged: _buscar,
       ),
       const SizedBox(height: 12),
       _filtros(),
+      if (_buscando) ...[
+        const SizedBox(height: 8),
+        Text(
+          'Buscando en todos los estados',
+          style: BarroTheme.type(13, 20, color: BarroTheme.secondary),
+        ),
+      ],
       const SizedBox(height: 14),
       ProductoBoton(texto: '+ Nuevo pedido', onPressed: _nuevo),
       const SizedBox(height: 20),
@@ -484,7 +517,9 @@ class _PedidosPageState extends State<PedidosPage> {
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Text(
-              _estado == null || busqueda.isNotEmpty
+              _buscando
+                  ? 'Ningún pedido coincide con "$_buscado".'
+                  : _estado == null
                   ? 'No hay pedidos para mostrar.'
                   : 'No hay pedidos en estado ${EstadosPedido.etiqueta(_estado!).toLowerCase()}.',
               textAlign: TextAlign.center,

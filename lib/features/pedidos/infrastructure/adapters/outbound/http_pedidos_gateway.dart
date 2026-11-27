@@ -64,12 +64,14 @@ class HttpPedidosGateway implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async {
     final consulta = [
       'sucursalId=$sucursalId',
       'page=$pagina',
       if (estado != null) 'estado=${Uri.encodeQueryComponent(estado)}',
+      if (busqueda != null) 'q=${Uri.encodeQueryComponent(busqueda)}',
     ].join('&');
     final json = _mapa(await _api.requestJson('GET', 'api/pedidos?$consulta'));
     final total = json['totalElementos'];

@@ -2,9 +2,12 @@ import '../../domain/pedido.dart';
 
 abstract interface class PedidosGateway {
   /// Listado paginado (20 por página), sin folio. [estado] null = todos.
+  /// [busqueda] (null = sin buscar) coincide por nombre o teléfono del
+  /// cliente (parcial) o por folio (exacto); se combina con [estado].
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   });
 

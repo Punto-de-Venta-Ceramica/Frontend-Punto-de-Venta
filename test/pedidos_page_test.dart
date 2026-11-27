@@ -68,6 +68,7 @@ class _Gateway implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int id, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async =>
       const PaginaPedidos(pedidos: [], pagina: 0, ultima: true, total: 0);

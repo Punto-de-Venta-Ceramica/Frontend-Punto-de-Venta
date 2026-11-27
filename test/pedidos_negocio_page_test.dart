@@ -30,6 +30,7 @@ class _Pedidos extends Fake implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async {
     consultadas.add(sucursalId);
