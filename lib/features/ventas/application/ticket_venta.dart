@@ -39,9 +39,8 @@ Ticket ticketDeVenta(
 /// es informativo: el importe descontado se calcula con precio y subtotal.
 double _porcentaje(SeleccionVenta? seleccion, DetalleVenta detalle) {
   if (seleccion == null ||
-      seleccion.producto.nombre != detalle.nombre ||
-      !seleccion.aplicarDescuento) {
+      seleccion.nombre != detalle.nombre) {
     return 0;
   }
-  return seleccion.porcentajeDisponible?.toDouble() ?? 0;
+  return seleccion.porcentajeAplicado?.toDouble() ?? 0;
 }

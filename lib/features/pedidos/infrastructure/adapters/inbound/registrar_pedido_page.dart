@@ -2,6 +2,7 @@ import 'package:punto_de_venta/features/tickets/application/impresion_tickets.da
 import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 import 'comprobante_pedido_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/descuento_manual_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -185,6 +186,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
             .subtotalEstimadoCentavos(
               linea.cantidad,
               conDescuento: linea.aplicarDescuento,
+              manual: linea.descuentoManual,
             ),
   );
 
@@ -689,6 +691,32 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     _limpiarErroresProductos();
   });
 
+  Future<void> _editarDescuento(int productoId) async {
+    final indice = _lineas.indexWhere((l) => l.productoId == productoId);
+    if (indice < 0) return;
+    final linea = _lineas[indice];
+    final producto = _productoPorId(productoId);
+    final catalogo = linea.aplicarDescuento
+        ? producto.porcentajePara(linea.cantidad)
+        : null;
+    final actual = linea.descuentoManual ?? catalogo;
+    final resultado = await pedirDescuentoManual(
+      context,
+      producto: producto.nombre,
+      actual: actual,
+      importe: producto.precio * linea.cantidad,
+      puedeQuitar: actual != null,
+    );
+    if (!mounted || resultado == null) return;
+    final nuevo = _lineas.indexWhere((l) => l.productoId == productoId);
+    if (nuevo < 0) return;
+    setState(
+      () => _lineas[nuevo] = _lineas[nuevo].conDescuentoManual(
+        resultado.porcentaje,
+      ),
+    );
+  }
+
   /// Renglón del pedido. Editable en el paso 1 (cantidad, descuento, quitar);
   /// de solo lectura en el resumen del pago.
   Widget _tarjetaLinea(
@@ -697,11 +725,15 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     required bool editable,
   }) {
     final producto = _productoPorId(linea.productoId);
-    final porcentaje = producto.porcentajePara(linea.cantidad);
-    final aplicado = porcentaje != null && linea.aplicarDescuento;
+    final catalogo = producto.porcentajePara(linea.cantidad);
+    final manual = linea.descuentoManual;
+    final porcentaje = manual ?? catalogo;
+    final aplicado =
+        manual != null || (catalogo != null && linea.aplicarDescuento);
     final subtotal = producto.subtotalEstimadoCentavos(
       linea.cantidad,
       conDescuento: linea.aplicarDescuento,
+      manual: linea.descuentoManual,
     );
     final siguiente = producto.siguienteEscalon(linea.cantidad);
     final conError =
@@ -874,7 +906,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      editable
+                      manual != null
+                          ? 'Descuento manual: ${manual.toStringAsFixed(2)} %'
+                          : editable
                           ? aplicado
                                 ? 'Aplica descuento de mayoreo: ${porcentaje.toStringAsFixed(2)} %'
                                 : 'Descuento de ${porcentaje.toStringAsFixed(2)} % disponible, sin aplicar'
@@ -892,22 +926,43 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                     ),
                   ),
                   // El vendedor decide si usa el descuento vigente.
-                  if (editable)
+                  if (editable) ...[
+                    IconButton(
+                      key: ValueKey('editar-descuento-${linea.productoId}'),
+                      tooltip: 'Cambiar porcentaje de descuento',
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: () => _editarDescuento(linea.productoId),
+                    ),
                     Switch(
                       key: ValueKey('aplicar-descuento-${linea.productoId}'),
-                      value: linea.aplicarDescuento,
+                      value: aplicado,
+                      // Sin descuento de catálogo, apagarlo quita el manual.
                       onChanged: (aplicar) => setState(
-                        () => _lineas[indice] = linea.conDescuento(aplicar),
+                        () => _lineas[indice] = aplicar || catalogo != null
+                            ? linea.conDescuento(aplicar)
+                            : linea.conDescuentoManual(null),
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
-          ] else if (editable && siguiente != null)
-            _avisoMayoreo(
-              _textoSiguienteEscalon(producto, siguiente),
-              sugerencia: true,
+          ] else if (editable) ...[
+            if (siguiente != null)
+              _avisoMayoreo(
+                _textoSiguienteEscalon(producto, siguiente),
+                sugerencia: true,
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: ValueKey('agregar-descuento-${linea.productoId}'),
+                onPressed: () => _editarDescuento(linea.productoId),
+                icon: const Icon(Icons.sell_outlined, size: 16),
+                label: const Text('Agregar descuento'),
+              ),
             ),
+          ],
         ],
       ),
     );
@@ -1583,8 +1638,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   /// Renglón compacto del resumen del pago.
   Widget _filaResumen(LineaPedido linea) {
     final producto = _productoPorId(linea.productoId);
-    final porcentaje = producto.porcentajePara(linea.cantidad);
-    final aplicado = porcentaje != null && linea.aplicarDescuento;
+    final manual = linea.descuentoManual;
+    final porcentaje = manual ?? producto.porcentajePara(linea.cantidad);
+    final aplicado =
+        manual != null || (porcentaje != null && linea.aplicarDescuento);
     return Padding(
       key: ValueKey('pedido-resumen-${linea.productoId}'),
       padding: const EdgeInsets.only(bottom: 12),
@@ -1608,7 +1665,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                 ),
                 if (porcentaje != null)
                   Text(
-                    aplicado
+                    manual != null
+                        ? 'Descuento manual ${manual.toStringAsFixed(2)} %'
+                        : aplicado
                         ? 'Mayoreo ${porcentaje.toStringAsFixed(2)} % aplicado'
                         : 'Mayoreo no aplicado',
                     style: BarroTheme.type(
@@ -1646,6 +1705,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   producto.subtotalEstimadoCentavos(
                     linea.cantidad,
                     conDescuento: linea.aplicarDescuento,
+                    manual: linea.descuentoManual,
                   ),
                 ),
                 style: BarroTheme.type(14, 20, weight: FontWeight.w700),

@@ -129,6 +129,7 @@ class SeleccionVenta {
     bool aplicarDescuento = false,
     this.precioLibre,
     this.nombreLibre,
+    this.descuentoManual,
   }) : _descuentoMarcado = aplicarDescuento;
 
   static const maximoProductos = 200;
@@ -145,6 +146,9 @@ class SeleccionVenta {
   final num? precioLibre;
   final String? nombreLibre;
 
+  /// Porcentaje que capturó el cajero (1 a 100); reemplaza al del catálogo.
+  final num? descuentoManual;
+
   bool get esLibre => producto.precioVariable;
 
   /// Nombre con el que sale en el resumen y el ticket.
@@ -158,6 +162,20 @@ class SeleccionVenta {
   bool get aplicarDescuento =>
       _descuentoMarcado && porcentajeDisponible != null;
 
+  /// Porcentaje que se cobra en la línea, manual o de catálogo; null si ninguno.
+  num? get porcentajeAplicado =>
+      descuentoManual ?? (aplicarDescuento ? porcentajeDisponible : null);
+
+  SeleccionVenta conDescuento({bool aplicar = false, num? manual}) =>
+      SeleccionVenta(
+        producto: producto,
+        cantidad: cantidad,
+        aplicarDescuento: aplicar,
+        precioLibre: precioLibre,
+        nombreLibre: nombreLibre,
+        descuentoManual: manual,
+      );
+
   SeleccionVenta actualizar(ProductoVenta producto, int cantidad) =>
       SeleccionVenta(
         producto: producto,
@@ -168,12 +186,13 @@ class SeleccionVenta {
                 producto.descuentoPara(cantidad)?.porcentaje,
         precioLibre: precioLibre,
         nombreLibre: nombreLibre,
+        descuentoManual: descuentoManual,
       );
 
   num get importe {
     final bruto =
         BigInt.from((precio * 100).round()) * BigInt.from(cantidad);
-    final porcentaje = _descuentoMarcado ? porcentajeDisponible : null;
+    final porcentaje = porcentajeAplicado;
     if (porcentaje == null) return bruto.toDouble() / 100;
 
     final factor = 10000 - (porcentaje * 100).round();

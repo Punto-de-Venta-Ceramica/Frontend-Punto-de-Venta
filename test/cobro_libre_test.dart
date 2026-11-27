@@ -197,6 +197,8 @@ void main() {
     await tester.pump();
     expect(find.text(r'5 × $10.00 c/u'), findsOneWidget);
     expect(find.text(r'$50.00'), findsOneWidget);
+    await tester.ensureVisible(find.text('Agregar al cobro'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Agregar al cobro'));
     await tester.pumpAndSettle();
 
@@ -211,6 +213,8 @@ void main() {
       tester.widget<TextField>(campos.at(0)).controller?.text,
       '10',
     );
+    await tester.ensureVisible(find.text('Quitar de la venta'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Quitar de la venta'));
     await tester.pumpAndSettle();
     expect(invitacion, findsOneWidget);
@@ -222,6 +226,8 @@ void main() {
     await tester.enterText(campos.at(1), '5');
     await tester.enterText(campos.at(2), '  Servilletas ');
     await tester.pump();
+    await tester.ensureVisible(find.text('Agregar al cobro'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Agregar al cobro'));
     await tester.pumpAndSettle();
 

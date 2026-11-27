@@ -213,6 +213,7 @@ class HttpPedidosGateway implements PedidosGateway {
               'productoId': producto.productoId,
               'cantidad': producto.cantidad,
               'aplicarDescuento': producto.aplicarDescuento,
+              'descuentoManual': ?producto.descuentoManual,
             },
         ],
         'tipoEntrega': d.tipoEntrega,

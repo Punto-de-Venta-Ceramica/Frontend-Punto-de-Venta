@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/descuento_manual_dialog.dart';
 import 'package:punto_de_venta/features/productos/infrastructure/adapters/inbound/flutter/producto_widgets.dart'
     show productoSuave;
 
@@ -9,13 +10,21 @@ import 'ventas_widgets.dart';
 
 /// Lo que el cajero captura para cobrar algo que no está en el catálogo.
 class CobroLibre {
-  const CobroLibre({required this.cantidad, required this.precio, this.nombre});
+  const CobroLibre({
+    required this.cantidad,
+    required this.precio,
+    this.nombre,
+    this.descuento,
+  });
 
   final int cantidad;
   final num precio;
 
   /// Descripción opcional; sin ella la venta usa el nombre del producto.
   final String? nombre;
+
+  /// Porcentaje de descuento opcional (1 a 100).
+  final double? descuento;
 }
 
 /// Resultado de la hoja: un cobro guardado o la orden de quitar el actual.
@@ -154,7 +163,8 @@ class TarjetaCobroLibre extends StatelessWidget {
                         style: BarroTheme.type(15, 21, weight: FontWeight.w700),
                       ),
                       Text(
-                        'Cobro libre · ${linea.cantidad} × ${dineroVenta(linea.precio)} c/u',
+                        'Cobro libre · ${linea.cantidad} × ${dineroVenta(linea.precio)} c/u'
+                        '${linea.descuentoManual == null ? '' : ' · ${textoPorcentaje(linea.descuentoManual!)} % desc.'}',
                         style: BarroTheme.type(
                           12,
                           17,
@@ -273,7 +283,11 @@ class _NotaNombre extends StatelessWidget {
       children: [
         const Padding(
           padding: EdgeInsets.only(top: 1),
-          child: Icon(Icons.lightbulb_outline_rounded, size: 20, color: _acento),
+          child: Icon(
+            Icons.lightbulb_outline_rounded,
+            size: 20,
+            color: _acento,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -332,11 +346,17 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
   late final _nombre = TextEditingController(
     text: widget.actual?.nombreLibre ?? '',
   );
+  late final _descuento = TextEditingController(
+    text: widget.actual?.descuentoManual == null
+        ? ''
+        : textoPorcentaje(widget.actual!.descuentoManual!),
+  );
+
+  bool get _descuentoVacio => _descuento.text.trim().isEmpty;
 
   bool get _editando => widget.actual != null;
 
-  static String _texto(num valor) =>
-      valor == valor.roundToDouble()
+  static String _texto(num valor) => valor == valor.roundToDouble()
       ? valor.toInt().toString()
       : valor.toStringAsFixed(2);
 
@@ -359,6 +379,7 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
     _precio.dispose();
     _cantidad.dispose();
     _nombre.dispose();
+    _descuento.dispose();
     super.dispose();
   }
 
@@ -370,10 +391,17 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
     setState(() => _cantidad.text = '$nueva');
   }
 
-  void _guardar() {
+  Future<void> _guardar() async {
     final precio = _precioValido;
     final cantidad = _cantidadValida;
+    final descuento = leerPorcentajeManual(_descuento.text);
     if (precio == null || cantidad == null) return;
+    if (!_descuentoVacio && descuento == null) return;
+    if (descuento != null &&
+        !await confirmarDescuentoAlto(context, descuento)) {
+      return;
+    }
+    if (!mounted) return;
     final nombre = _nombre.text.trim();
     Navigator.of(context).pop(
       ResultadoCobroLibre.guardar(
@@ -381,6 +409,7 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
           cantidad: cantidad,
           precio: precio,
           nombre: nombre.isEmpty ? null : nombre,
+          descuento: descuento,
         ),
       ),
     );
@@ -390,9 +419,11 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
   Widget build(BuildContext context) {
     final precio = _precioValido;
     final cantidad = _cantidadValida;
-    final total = precio == null || cantidad == null
-        ? null
-        : (precio * 100).round() * cantidad / 100;
+    final descuento = leerPorcentajeManual(_descuento.text);
+    final errorDescuento = !_descuentoVacio && descuento == null
+        ? 'Escribe un porcentaje entre 1 y 100.'
+        : null;
+    final listo = precio != null && cantidad != null && errorDescuento == null;
     final errorPrecio = _precio.text.trim().isNotEmpty && precio == null
         ? 'Escribe un precio entre \$0.01 y \$999,999.99.'
         : null;
@@ -408,14 +439,54 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Cobro libre',
-            style: BarroTheme.type(22, 28, weight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Para algo que no está en el catálogo. No descuenta inventario.',
-            style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFD9694C), BarroTheme.primary],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33B84D34),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.point_of_sale_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cobro libre',
+                      style: BarroTheme.type(22, 28, weight: FontWeight.w800),
+                    ),
+                    Text(
+                      'Para algo que no está en el catálogo. '
+                      'No descuenta inventario.',
+                      style: BarroTheme.type(
+                        13,
+                        19,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           VentaCampo(
@@ -432,15 +503,17 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
                       _formatoPrecio.hasMatch(nuevo.text) ? nuevo : anterior,
                 ),
               ],
-              decoration: decoracionCampoVenta(
-                indicacion: '0.00',
-                error: errorPrecio,
-              ).copyWith(
-                prefixIcon: const Icon(
-                  Icons.attach_money_rounded,
-                  color: BarroTheme.primary,
-                ),
-              ),
+              decoration:
+                  decoracionCampoVenta(
+                    indicacion: '0.00',
+                    error: errorPrecio,
+                  ).copyWith(
+                    prefixIcon: const Icon(
+                      Icons.payments_outlined,
+                      color: BarroTheme.primary,
+                    ),
+                    prefixText: '\$ ',
+                  ),
               onChanged: (_) => setState(() {}),
             ),
           ),
@@ -479,7 +552,8 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
                     backgroundColor: BarroTheme.primary,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: (cantidad ?? 0) < SeleccionVenta.cantidadLibreMaxima
+                  onPressed:
+                      (cantidad ?? 0) < SeleccionVenta.cantidadLibreMaxima
                       ? () => _sumar(1)
                       : null,
                 ),
@@ -496,69 +570,100 @@ class _HojaCobroLibreState extends State<_HojaCobroLibre> {
                   controller: _nombre,
                   maxLength: 150,
                   textCapitalization: TextCapitalization.sentences,
-                  decoration: decoracionCampoVenta(
-                    indicacion: 'Ej. Servilletas',
-                  ).copyWith(counterText: ''),
+                  decoration:
+                      decoracionCampoVenta(
+                        indicacion: 'Ej. Servilletas',
+                      ).copyWith(
+                        counterText: '',
+                        prefixIcon: const Icon(
+                          Icons.edit_note_rounded,
+                          color: BarroTheme.primary,
+                        ),
+                      ),
                 ),
                 const SizedBox(height: 10),
                 _NotaNombre(nombre: widget.nombrePorDefecto),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: productoSuave,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    total == null
-                        ? 'Escribe el precio para ver el total'
-                        : '$cantidad × ${dineroVenta(precio!)} c/u',
-                    style: BarroTheme.type(
-                      14,
-                      20,
-                      weight: FontWeight.w600,
-                      color: total == null
-                          ? BarroTheme.secondary
-                          : BarroTheme.text,
+          const SizedBox(height: 16),
+          VentaCampo(
+            etiqueta: 'Descuento % (opcional)',
+            child: TextField(
+              key: const ValueKey('descuento-cobro-libre'),
+              controller: _descuento,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [formatoPorcentajeManual],
+              decoration:
+                  decoracionCampoVenta(
+                    indicacion: 'Sin descuento',
+                    error: errorDescuento,
+                  ).copyWith(
+                    suffixText: '%',
+                    prefixIcon: const Icon(
+                      Icons.sell_outlined,
+                      color: BarroTheme.success,
                     ),
                   ),
-                ),
-                if (total != null)
-                  Text(
-                    dineroVenta(total),
-                    style: BarroTheme.type(
-                      22,
-                      28,
-                      weight: FontWeight.w800,
-                      color: BarroTheme.primary,
-                    ),
-                  ),
-              ],
+              onChanged: (_) => setState(() {}),
             ),
           ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: total == null ? null : _guardar,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 20),
+          if (listo)
+            ResumenDescuento(
+              importe: (precio * 100).round() * cantidad / 100,
+              porcentaje: descuento,
+              detalle: '$cantidad × ${dineroVenta(precio)} c/u',
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: productoSuave,
+                borderRadius: BorderRadius.circular(18),
               ),
-              textStyle: BarroTheme.type(14, 20, weight: FontWeight.w600),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.receipt_long_outlined,
+                    color: BarroTheme.secondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Escribe el precio para ver el total',
+                      style: BarroTheme.type(
+                        14,
+                        20,
+                        weight: FontWeight.w600,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Text(_editando ? 'Actualizar' : 'Agregar al cobro'),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: listo ? _guardar : null,
+            icon: Icon(
+              _editando ? Icons.check_rounded : Icons.add_shopping_cart_rounded,
+            ),
+            label: Text(_editando ? 'Actualizar' : 'Agregar al cobro'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              textStyle: BarroTheme.type(15, 20, weight: FontWeight.w700),
+            ),
           ),
           if (_editando)
             TextButton(
-              onPressed: () => Navigator.of(
-                context,
-              ).pop(const ResultadoCobroLibre.quitar()),
+              onPressed: () =>
+                  Navigator.of(context).pop(const ResultadoCobroLibre.quitar()),
               style: TextButton.styleFrom(
                 foregroundColor: BarroTheme.error,
                 minimumSize: const Size.fromHeight(44),
