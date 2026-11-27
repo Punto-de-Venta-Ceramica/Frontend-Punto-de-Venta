@@ -220,13 +220,28 @@ void main() {
       expect(find.text('Mostrando 2 de 2'), findsOneWidget);
 
       // Al borrar vuelve el filtro que se tenía.
-      await tester.enterText(find.byType(TextField).first, '');
-      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.close_rounded), findsNothing);
+      expect(
+        FocusManager.instance.primaryFocus?.context?.widget,
+        isNot(isA<EditableText>()),
+      );
       expect(gateway.llamadas.last, ('ENTREGADO', 0));
       expect(gateway.busquedas.last, isNull);
       expect(find.text('Buscando en todos los estados'), findsNothing);
       expect(find.text('Mostrando 20 de 21'), findsOneWidget);
+
+      // Elegir un filtro cierra el teclado del buscador.
+      await tester.tap(find.byType(TextField).first);
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+      await tester.ensureVisible(find.text('Todos'));
+      await tester.tap(find.text('Todos'));
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(gateway.llamadas.last, (null, 0));
     },
   );
 

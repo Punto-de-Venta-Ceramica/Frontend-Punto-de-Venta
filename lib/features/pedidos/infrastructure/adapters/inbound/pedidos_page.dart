@@ -59,6 +59,7 @@ class _PedidosPageState extends State<PedidosPage> {
   /// hay búsqueda se ignora el filtro de estado: busca en todos.
   String _buscado = '';
   Timer? _espera;
+  final _buscador = TextEditingController();
   bool get _buscando => _buscado.isNotEmpty;
   String? get _estadoConsulta => _buscando ? null : _estado;
   String? get _busquedaConsulta => _buscando ? _buscado : null;
@@ -98,11 +99,13 @@ class _PedidosPageState extends State<PedidosPage> {
   @override
   void dispose() {
     _espera?.cancel();
+    _buscador.dispose();
     super.dispose();
   }
 
   /// Espera a que se deje de escribir para no consultar en cada tecla.
   void _buscar(String texto) {
+    setState(() {}); // Muestra u oculta la X al instante.
     _espera?.cancel();
     _espera = Timer(const Duration(milliseconds: 350), () {
       final buscado = texto.trim();
@@ -189,7 +192,20 @@ class _PedidosPageState extends State<PedidosPage> {
     }
   }
 
+  /// Borra la búsqueda de inmediato y cierra el teclado.
+  void _limpiarBusqueda() {
+    _buscador.clear();
+    _quitarFoco();
+    _espera?.cancel();
+    if (_buscado.isEmpty) return setState(() {});
+    setState(() => _buscado = '');
+    _cargar();
+  }
+
+  void _quitarFoco() => FocusManager.instance.primaryFocus?.unfocus();
+
   void _filtrar(String? estado) {
+    _quitarFoco();
     if (estado == _estado) return;
     setState(() => _estado = estado);
     _cargar();
@@ -487,10 +503,28 @@ class _PedidosPageState extends State<PedidosPage> {
   Widget _pantalla(List<ResumenPedido> visibles) {
     final contenido = <Widget>[
       TextField(
-        decoration: productoDecoracion(
-          hint: 'Buscar por cliente, teléfono o folio...',
-        ),
+        controller: _buscador,
+        textInputAction: TextInputAction.search,
+        decoration:
+            productoDecoracion(
+              hint: 'Buscar por cliente, teléfono o folio...',
+            ).copyWith(
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: BarroTheme.secondary,
+              ),
+              suffixIcon: _buscador.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Limpiar búsqueda',
+                      icon: const Icon(Icons.close_rounded),
+                      color: BarroTheme.secondary,
+                      onPressed: _limpiarBusqueda,
+                    ),
+            ),
         onChanged: _buscar,
+        // Al tocar fuera (filtros, tarjetas) se cierra el teclado.
+        onTapOutside: (_) => _quitarFoco(),
       ),
       const SizedBox(height: 12),
       _filtros(),
