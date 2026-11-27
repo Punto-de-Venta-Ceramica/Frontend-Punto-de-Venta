@@ -8,9 +8,6 @@ typedef DescuentoManual = ({double? porcentaje});
 /// Arriba de este porcentaje se pide confirmar antes de aplicar.
 const umbralDescuentoAlto = 60;
 
-/// Porcentajes que se ofrecen con un toque.
-const porcentajesRapidos = [5, 10, 15, 20, 25, 50];
-
 const _ambar = Color(0xFFB45309);
 const _ambarSuave = Color(0xFFFFF4E0);
 const _verdeSuave = Color(0xFFE7F4EC);
@@ -102,74 +99,6 @@ Future<bool> confirmarDescuentoAlto(
     },
   );
   return confirmado ?? false;
-}
-
-/// Accesos rápidos de porcentaje; resalta el que coincide con [seleccionado].
-class ChipsPorcentaje extends StatelessWidget {
-  const ChipsPorcentaje({
-    required this.seleccionado,
-    required this.onSeleccionar,
-    super.key,
-  });
-
-  final double? seleccionado;
-  final ValueChanged<int> onSeleccionar;
-
-  @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: [
-      for (final valor in porcentajesRapidos)
-        _ChipPorcentaje(
-          valor: valor,
-          activo: seleccionado == valor,
-          onTap: () => onSeleccionar(valor),
-        ),
-    ],
-  );
-}
-
-class _ChipPorcentaje extends StatelessWidget {
-  const _ChipPorcentaje({
-    required this.valor,
-    required this.activo,
-    required this.onTap,
-  });
-
-  final int valor;
-  final bool activo;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    selected: activo,
-    child: Material(
-      color: activo ? BarroTheme.primary : _rosaSuave,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        key: ValueKey('porcentaje-rapido-$valor'),
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          constraints: const BoxConstraints(minWidth: 56, minHeight: 40),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(
-            '$valor %',
-            style: BarroTheme.type(
-              14,
-              20,
-              weight: FontWeight.w700,
-              color: activo ? Colors.white : BarroTheme.primary,
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 /// Resumen del ahorro: precio normal tachado, ahorro y precio final.
@@ -379,13 +308,6 @@ class _HojaDescuentoState extends State<_HojaDescuento> {
     super.dispose();
   }
 
-  void _elegir(int valor) {
-    setState(() {
-      _campo.text = '$valor';
-      _campo.selection = TextSelection.collapsed(offset: _campo.text.length);
-    });
-  }
-
   Future<void> _guardar() async {
     final valor = leerPorcentajeManual(_campo.text);
     if (valor == null || !await confirmarDescuentoAlto(context, valor)) return;
@@ -534,18 +456,6 @@ class _HojaDescuentoState extends State<_HojaDescuento> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _guardar(),
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Porcentajes rápidos',
-            style: BarroTheme.type(
-              12,
-              16,
-              weight: FontWeight.w600,
-              color: BarroTheme.placeholder,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ChipsPorcentaje(seleccionado: valor, onSeleccionar: _elegir),
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
             child: alto
