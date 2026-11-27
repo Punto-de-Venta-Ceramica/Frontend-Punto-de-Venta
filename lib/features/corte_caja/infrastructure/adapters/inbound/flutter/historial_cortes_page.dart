@@ -353,7 +353,7 @@ class _TarjetaCorte extends StatelessWidget {
                     Expanded(
                       child: _Monto(
                         icono: Icons.calculate_outlined,
-                        etiqueta: 'Total estimado',
+                        etiqueta: 'Efectivo esperado',
                         monto: formatDinero(corte.totalEstimado),
                       ),
                     ),
@@ -366,7 +366,7 @@ class _TarjetaCorte extends StatelessWidget {
                     Expanded(
                       child: _Monto(
                         icono: Icons.payments_outlined,
-                        etiqueta: 'Real',
+                        etiqueta: 'Efectivo contado',
                         monto: formatDinero(corte.totalReal ?? 0.0),
                         destacado: true,
                       ),

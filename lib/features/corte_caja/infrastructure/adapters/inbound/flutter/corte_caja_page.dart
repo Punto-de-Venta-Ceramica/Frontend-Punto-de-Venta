@@ -812,13 +812,9 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     );
   }
 
-  /// Tarjeta blanca: total esperado en caja y desglose por método de pago
-  /// (efectivo en verde, tarjeta en azul).
+  /// Tarjeta blanca: efectivo esperado en caja (sin mezclar tarjeta) y
+  /// desglose separado por método de pago (efectivo en verde, tarjeta en azul).
   Widget _tarjetaTotales(CorteCaja corte) {
-    final efectivo = corte.totalEfectivo > 0 ? corte.totalEfectivo : 0.0;
-    final tarjeta = corte.totalTarjeta > 0 ? corte.totalTarjeta : 0.0;
-    final suma = efectivo + tarjeta;
-    double? parte(double v) => suma <= 0 ? null : v / suma;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -837,9 +833,22 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Total esperado en caja',
-                  style: BarroTheme.type(17, 24, weight: FontWeight.w700),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Efectivo esperado en caja',
+                      style: BarroTheme.type(17, 24, weight: FontWeight.w700),
+                    ),
+                    Text(
+                      'Solo efectivo físico (no incluye tarjeta)',
+                      style: BarroTheme.type(
+                        12,
+                        16,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -849,7 +858,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              formatDinero(corte.totalEstimado),
+              formatDinero(corte.efectivoEsperado),
               style: BarroTheme.type(32, 40, weight: FontWeight.w800),
             ),
           ),
@@ -865,7 +874,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                     Icons.payments_outlined,
                     color: const Color(0xFF1F6B45),
                     fondo: const Color(0xFFE6F2EA),
-                    proporcion: parte(efectivo),
+                    leyenda: 'Dinero físico en caja',
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -876,7 +885,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                     Icons.credit_card_rounded,
                     color: corteAzul,
                     fondo: const Color(0xFFE7EEF8),
-                    proporcion: parte(tarjeta),
+                    leyenda: 'No entra al conteo de caja',
                   ),
                 ),
               ],
@@ -893,7 +902,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     IconData icono, {
     required Color color,
     required Color fondo,
-    double? proporcion,
+    String? leyenda,
   }) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
@@ -925,22 +934,11 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
             style: BarroTheme.type(20, 26, weight: FontWeight.w800),
           ),
         ),
-        if (proporcion != null) ...[
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: proporcion.clamp(0, 1).toDouble(),
-              minHeight: 7,
-              color: color,
-              backgroundColor: Colors.white,
-              semanticsLabel: 'Proporción de $label',
-            ),
-          ),
-          const SizedBox(height: 4),
+        if (leyenda != null) ...[
+          const SizedBox(height: 6),
           Text(
-            '${(proporcion * 100).round()} % del total',
-            style: BarroTheme.type(11, 16, color: BarroTheme.secondary),
+            leyenda,
+            style: BarroTheme.type(11, 15, color: BarroTheme.secondary),
           ),
         ],
       ],

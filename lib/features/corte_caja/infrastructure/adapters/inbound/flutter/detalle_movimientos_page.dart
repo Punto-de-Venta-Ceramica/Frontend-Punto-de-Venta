@@ -104,6 +104,30 @@ class DetalleMovimientosPage extends StatelessWidget {
                             children: [
                               for (final p in corte.productos) _producto(p),
                               const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  _metodoBadge(
+                                    'Efectivo',
+                                    Icons.payments_outlined,
+                                    corteVerde,
+                                    corteVerdeSuave,
+                                    formatDinero(
+                                      corte.ventasEfectivo.totalVentas,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _metodoBadge(
+                                    'Tarjeta',
+                                    Icons.credit_card_rounded,
+                                    corteAzul,
+                                    corteAzulSuave,
+                                    formatDinero(
+                                      corte.ventasTarjeta.totalVentas,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
@@ -372,6 +396,58 @@ class DetalleMovimientosPage extends StatelessWidget {
     ),
   );
 
+  Widget _metodoBadge(
+    String etiqueta,
+    IconData ic,
+    Color tono,
+    Color fondo,
+    String valorTexto, {
+    Color? valorColor,
+  }) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tono.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(ic, size: 15, color: tono),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  etiqueta,
+                  style: BarroTheme.type(
+                    11,
+                    15,
+                    color: BarroTheme.secondary,
+                  ),
+                ),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    valorTexto,
+                    style: BarroTheme.type(
+                      14,
+                      19,
+                      weight: FontWeight.w700,
+                      color: valorColor ?? BarroTheme.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _movimiento(
     String concepto,
     IconData icono,
@@ -383,44 +459,6 @@ class DetalleMovimientosPage extends StatelessWidget {
         negativo && v > 0 ? '-${formatDinero(v)}' : formatDinero(v);
     Color color(double v) =>
         negativo && v > 0 ? BarroTheme.error : BarroTheme.text;
-
-    Widget metodo(String etiqueta, IconData ic, Color tono, double v) =>
-        Expanded(
-          child: Row(
-            children: [
-              Icon(ic, size: 15, color: tono),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      etiqueta,
-                      style: BarroTheme.type(
-                        11,
-                        15,
-                        color: BarroTheme.secondary,
-                      ),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        monto(v),
-                        style: BarroTheme.type(
-                          14,
-                          19,
-                          weight: FontWeight.w700,
-                          color: color(v),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -452,9 +490,23 @@ class DetalleMovimientosPage extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              metodo('Efectivo', Icons.payments_outlined, corteVerde, efectivo),
+              _metodoBadge(
+                'Efectivo',
+                Icons.payments_outlined,
+                corteVerde,
+                corteVerdeSuave,
+                monto(efectivo),
+                valorColor: color(efectivo),
+              ),
               const SizedBox(width: 10),
-              metodo('Tarjeta', Icons.credit_card_rounded, corteAzul, tarjeta),
+              _metodoBadge(
+                'Tarjeta',
+                Icons.credit_card_rounded,
+                corteAzul,
+                corteAzulSuave,
+                monto(tarjeta),
+                valorColor: color(tarjeta),
+              ),
             ],
           ),
         ],

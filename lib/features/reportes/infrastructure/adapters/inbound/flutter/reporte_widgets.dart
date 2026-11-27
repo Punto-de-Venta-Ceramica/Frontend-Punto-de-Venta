@@ -8,9 +8,9 @@ const _fondoImporte = Color(0xFFF7E7DF);
 
 /// Colores por método de pago: verde para efectivo, azul para tarjeta.
 const verdeEfectivo = Color(0xFF1F6B45);
-const _fondoEfectivo = Color(0xFFE6F2EA);
-const _azulTarjeta = Color(0xFF2F5C8F);
-const _fondoTarjeta = Color(0xFFE7EEF8);
+const fondoEfectivo = Color(0xFFE6F2EA);
+const azulTarjeta = Color(0xFF2F5C8F);
+const fondoTarjeta = Color(0xFFE7EEF8);
 
 /// Fondo único de la tarjeta de ingresos netos y su texto café.
 const _fondoNeto = Color(0xFFFBEDE6);
@@ -38,18 +38,25 @@ const _meses = [
 String fechaLargaReporte(DateTime fecha) =>
     '${fecha.day} de ${_meses[fecha.month - 1]} de ${fecha.year}';
 
-/// Contenedor blanco con borde suave usado en toda la pantalla.
+/// Contenedor con borde suave usado en toda la pantalla.
 class PanelReporte extends StatelessWidget {
-  const PanelReporte({required this.child, super.key});
+  const PanelReporte({
+    required this.child,
+    this.color = Colors.white,
+    this.borderColor = BarroTheme.border,
+    super.key,
+  });
 
   final Widget child;
+  final Color color;
+  final Color borderColor;
 
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: BarroTheme.border),
+      color: color,
+      border: Border.all(color: borderColor),
       borderRadius: BorderRadius.circular(18),
     ),
     child: child,
@@ -290,15 +297,15 @@ class ResumenReporte extends StatelessWidget {
                     reporte.efectivo,
                     icono: Icons.payments_outlined,
                     color: verdeEfectivo,
-                    fondo: _fondoEfectivo,
+                    fondo: fondoEfectivo,
                     proporcion: parte(reporte.efectivo),
                   );
                   final tarjeta = _ImporteMetodo(
                     'Tarjeta',
                     reporte.tarjeta,
                     icono: Icons.credit_card_rounded,
-                    color: _azulTarjeta,
-                    fondo: _fondoTarjeta,
+                    color: azulTarjeta,
+                    fondo: fondoTarjeta,
                     proporcion: parte(reporte.tarjeta),
                   );
                   if (constraints.maxWidth <
