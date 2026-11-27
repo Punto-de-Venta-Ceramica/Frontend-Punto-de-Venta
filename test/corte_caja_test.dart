@@ -216,6 +216,7 @@ CorteCaja _crearCorteEjemplo() => CorteCaja(
       cantidad: 8,
       precioUnitario: 120.0,
       subtotal: 960.0,
+      metodoPago: 'TARJETA',
     ),
     ProductoVendido(
       idProducto: 2,
@@ -223,6 +224,25 @@ CorteCaja _crearCorteEjemplo() => CorteCaja(
       cantidad: 8,
       precioUnitario: 85.0,
       subtotal: 680.0,
+    ),
+  ],
+  pedidos: const [
+    PedidoCorte(
+      id: 12,
+      folio: 'P-012',
+      total: 175,
+      pagado: 150,
+      saldo: 25,
+      pagos: [
+        PagoPedidoCorte(
+          tipoPago: 'ANTICIPO',
+          metodoPago: 'EFECTIVO',
+          monto: 150,
+        ),
+      ],
+      productos: [
+        ProductoPedidoCorte(nombre: 'Tequilero', cantidad: 5, subtotal: 175),
+      ],
     ),
   ],
 );
@@ -419,6 +439,10 @@ void main() {
     testWidgetsConNotificaciones(
       'DetalleMovimientosPage muestra productos y alerta de cancelación',
       (tester) async {
+        // Ancho de teléfono: detecta desbordes en las tarjetas de pedidos.
+        tester.view.physicalSize = const Size(360, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
         final corte = _crearCorteEjemplo();
 
         await tester.pumpWidget(
@@ -431,8 +455,24 @@ void main() {
         expect(find.text('Detalle del día'), findsOneWidget);
         expect(find.text('Productos vendidos'), findsOneWidget);
         expect(find.text('Maceta mediana'), findsOneWidget);
-        expect(find.text('Jabonero'), findsOneWidget);
-        expect(find.text('Pagos y cancelaciones'), findsOneWidget);
+        // El producto del pedido no se mezcla con las ventas directas.
+        expect(find.text('Jabonero'), findsNothing);
+        // Cada producto muestra cómo se cobró.
+        Finder etiquetaDe(String producto, String metodo) => find.descendant(
+          of: find
+              .ancestor(of: find.text(producto), matching: find.byType(Row))
+              .first,
+          matching: find.text(metodo),
+        );
+        expect(etiquetaDe('Maceta mediana', 'Tarjeta'), findsOneWidget);
+        expect(find.text('Pedidos del turno'), findsOneWidget);
+        expect(find.text('P-012'), findsOneWidget);
+        expect(find.text('5× Tequilero'), findsOneWidget);
+        expect(find.text('Valor del pedido'), findsOneWidget);
+        expect(find.text('Resta por cobrar'), findsOneWidget);
+        expect(find.text('\$25.00'), findsOneWidget);
+        expect(find.text('Anticipo'), findsOneWidget);
+        expect(find.text('Efectivo'), findsWidgets);
         expect(find.text('Pedido P-018 cancelado'), findsOneWidget);
         expect(
           find.text('Descontado automáticamente del corte'),
