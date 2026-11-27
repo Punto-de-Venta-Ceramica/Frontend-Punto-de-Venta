@@ -704,6 +704,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       context,
       producto: producto.nombre,
       actual: actual,
+      importe: producto.precio * linea.cantidad,
       puedeQuitar: actual != null,
     );
     if (!mounted || resultado == null) return;
@@ -727,7 +728,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     final catalogo = producto.porcentajePara(linea.cantidad);
     final manual = linea.descuentoManual;
     final porcentaje = manual ?? catalogo;
-    final aplicado = manual != null || (catalogo != null && linea.aplicarDescuento);
+    final aplicado =
+        manual != null || (catalogo != null && linea.aplicarDescuento);
     final subtotal = producto.subtotalEstimadoCentavos(
       linea.cantidad,
       conDescuento: linea.aplicarDescuento,

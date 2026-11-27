@@ -84,14 +84,16 @@ void main() {
       porcentaje,
     );
     await tester.pump();
-    await tester.tap(find.text('Aplicar'));
+    await tester.ensureVisible(find.text('Aplicar descuento'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar descuento'));
     await tester.pumpAndSettle();
     return resultado;
   }
 
   testWidgets('hasta 60 % se aplica sin alerta', (tester) async {
     await abrir(tester, '60');
-    expect(find.text('Descuento muy alto'), findsNothing);
+    expect(find.text('¡Atención!'), findsNothing);
     expect(find.byKey(const ValueKey('campo-descuento-manual')), findsNothing);
   });
 
@@ -99,8 +101,16 @@ void main() {
     tester,
   ) async {
     await abrir(tester, '75');
-    expect(find.text('Descuento muy alto'), findsOneWidget);
+    expect(find.text('¡Atención!'), findsOneWidget);
     expect(find.text('Sí, aplicar 75 %'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'El descuento es muy alto. El cliente pagará solo el 25% del precio. '
+        'Revisa que el porcentaje sea correcto antes de aplicarlo.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('revisar-descuento-alto')));
     await tester.pumpAndSettle();
@@ -110,7 +120,9 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text('Aplicar'));
+    await tester.ensureVisible(find.text('Aplicar descuento'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aplicar descuento'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('confirmar-descuento-alto')));
     await tester.pumpAndSettle();

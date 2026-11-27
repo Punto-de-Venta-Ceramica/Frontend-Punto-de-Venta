@@ -202,6 +202,7 @@ class _RegistrarVentaPageState extends State<RegistrarVentaPage> {
       context,
       producto: seleccion.nombre,
       actual: seleccion.porcentajeAplicado,
+      importe: seleccion.precio * seleccion.cantidad,
       puedeQuitar: seleccion.porcentajeAplicado != null,
     );
     final actual = _carrito[productoId];
