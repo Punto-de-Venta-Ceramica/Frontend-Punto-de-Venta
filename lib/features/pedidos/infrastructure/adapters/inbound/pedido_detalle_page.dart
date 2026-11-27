@@ -346,7 +346,8 @@ class _PedidoDetallePageState extends State<PedidoDetallePage> {
         },
       ),
     );
-    monto.dispose();
+    // Sin dispose: el diálogo sigue animando su cierre con el TextField vivo y
+    // soltar el controlador aquí rompe `_dependents.isEmpty`. Sin listeners, el GC basta.
   }
 
   Future<void> _editar(Pedido pedido) async {
