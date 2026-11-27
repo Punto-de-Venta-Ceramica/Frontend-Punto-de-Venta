@@ -376,7 +376,7 @@ void main() {
     );
 
     testWidgetsConNotificaciones(
-      'el historial de cortes solo lo ve el propietario',
+      'el historial de cortes es visible para propietario y empleado',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1400);
         tester.view.devicePixelRatio = 1.0;
@@ -402,12 +402,11 @@ void main() {
           await tester.pumpAndSettle();
         }
 
-        // Caja cerrada: el empleado no ve el acceso al historial.
+        // Caja cerrada y abierta: tanto empleado como propietario ven el acceso al historial.
         await abrir(propietario: false);
-        expect(find.text('Historial de cortes'), findsNothing);
-        // Con turno abierto, el empleado sigue pudiendo hacer el corte.
+        expect(find.text('Historial de cortes'), findsOneWidget);
         await abrir(propietario: false, corte: _crearCorteEjemplo());
-        expect(find.text('Historial de cortes'), findsNothing);
+        expect(find.text('Historial de cortes'), findsOneWidget);
         expect(find.text('Realizar corte'), findsOneWidget);
 
         await abrir(propietario: true);

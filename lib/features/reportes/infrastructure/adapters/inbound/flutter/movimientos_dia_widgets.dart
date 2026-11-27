@@ -126,7 +126,9 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
     final venta = movimiento.tipo == TipoMovimientoReporte.venta;
     final devolucion = movimiento.tipo == TipoMovimientoReporte.devolucion;
     final efectivo = movimiento.medioPago == MedioPagoReporte.efectivo;
-    final colorMetodo = efectivo ? verdeEfectivo : const Color(0xFF2F5C8F);
+    final colorMetodo = efectivo ? verdeEfectivo : azulTarjeta;
+    final fondoCard = efectivo ? fondoEfectivo : fondoTarjeta;
+    final bordeCard = colorMetodo.withValues(alpha: 0.25);
     final mostrarTodos = !widget.compacto || _expandido;
     final productos = mostrarTodos
         ? movimiento.productos
@@ -180,6 +182,8 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
       ],
     );
     return PanelReporte(
+      color: fondoCard,
+      borderColor: bordeCard,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
