@@ -16,12 +16,18 @@ class CacheEnMemoria<K, T> {
   final DateTime Function() _ahora;
   final _entradas = <K, _Entrada<T>>{};
 
-  /// Lo guardado si sigue vigente; si no, el resultado de [cargar].
-  Future<T> obtener(K clave, Future<T> Function() cargar) {
+  /// Lo guardado si sigue vigente; si no, null (no consulta).
+  Future<T>? vigente(K clave) {
     final guardada = _entradas[clave];
     if (guardada != null && _ahora().difference(guardada.guardado) < vigencia) {
       return guardada.valor;
     }
+    return null;
+  }
+
+  /// Lo guardado si sigue vigente; si no, el resultado de [cargar].
+  Future<T> obtener(K clave, Future<T> Function() cargar) {
+    if (vigente(clave) case final guardada?) return guardada;
     final nueva = _Entrada(cargar(), _ahora());
     _entradas.remove(clave);
     _entradas[clave] = nueva;
