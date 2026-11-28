@@ -27,6 +27,7 @@ class CorteCajaPage extends StatefulWidget {
     this.onInventario,
     this.onDatosContables,
     this.onRegistrarVenta,
+    this.actualizar,
     super.key,
   });
 
@@ -43,12 +44,20 @@ class CorteCajaPage extends StatefulWidget {
   final VoidCallback? onDatosContables;
   final Future<bool> Function(BuildContext context)? onRegistrarVenta;
 
+  /// Avisa que hubo cobros (ventas, anticipos, liquidaciones, cancelaciones):
+  /// la caja se vuelve a consultar sin dejar de mostrar lo actual.
+  final Listenable? actualizar;
+
   @override
   State<CorteCajaPage> createState() => _CorteCajaPageState();
 }
 
-class _CorteCajaPageState extends State<CorteCajaPage> {
+class _CorteCajaPageState extends State<CorteCajaPage>
+    with WidgetsBindingObserver {
   bool _cargando = true;
+
+  /// Descarta respuestas de una consulta anterior si llegan tarde.
+  int _consulta = 0;
   String? _error;
   CorteCaja? _corte;
 
@@ -66,10 +75,33 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     super.initState();
     _cargar();
     _contadoCtrl.addListener(_onContadoChanged);
+    widget.actualizar?.addListener(_actualizar);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(CorteCajaPage anterior) {
+    super.didUpdateWidget(anterior);
+    if (anterior.actualizar != widget.actualizar) {
+      anterior.actualizar?.removeListener(_actualizar);
+      widget.actualizar?.addListener(_actualizar);
+    }
+  }
+
+  /// Al volver a la app: pudo haber cobros desde otro dispositivo.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _actualizar();
+  }
+
+  void _actualizar() {
+    if (mounted && !_guardando) _cargar(silencioso: true);
   }
 
   @override
   void dispose() {
+    widget.actualizar?.removeListener(_actualizar);
+    WidgetsBinding.instance.removeObserver(this);
     _contadoCtrl.removeListener(_onContadoChanged);
     _contadoCtrl.dispose();
     _aperturaCtrl.dispose();
@@ -91,37 +123,51 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     }
   }
 
-  Future<void> _cargar() async {
-    setState(() {
-      _cargando = true;
-      _error = null;
-    });
+  /// [silencioso]: sigue mostrando lo actual mientras consulta y, si falla,
+  /// lo conserva (no reemplaza la pantalla por el error).
+  Future<void> _cargar({bool silencioso = false}) async {
+    final consulta = ++_consulta;
+    if (!silencioso) {
+      setState(() {
+        _cargando = true;
+        _error = null;
+      });
+    }
 
     try {
       final corte = await widget.gestion.obtenerCorteActivo(widget.sucursalId);
-      if (!mounted) return;
+      if (!mounted || consulta != _consulta) return;
+      final anterior = _corte;
+      // Lo escrito por el cajero en "efectivo contado" no se pisa; solo se
+      // rellena si sigue con el esperado de antes (o no había corte).
+      final sinTocar =
+          anterior == null ||
+          _contadoCtrl.text == anterior.efectivoEsperado.toStringAsFixed(2);
       setState(() {
         _corte = corte;
         _cargando = false;
-        if (corte != null) {
-          // Pre-llenamos el efectivo contado con el esperado para agilizar
-          final esperadoStr = corte.efectivoEsperado.toStringAsFixed(2);
-          _contadoCtrl.text = esperadoStr;
-          _diferencia = 0.0;
-        }
+        _error = null;
       });
+      if (corte != null) {
+        if (sinTocar) {
+          _contadoCtrl.text = corte.efectivoEsperado.toStringAsFixed(2);
+        }
+        _onContadoChanged();
+      }
     } on CorteCajaFailure catch (e) {
-      if (!mounted) return;
+      if (!mounted || consulta != _consulta) return;
       if (e.sesionExpirada) {
         widget.onSesionExpirada?.call();
         return;
       }
+      if (silencioso && !_cargando && _error == null) return;
       setState(() {
         _error = e.message;
         _cargando = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || consulta != _consulta) return;
+      if (silencioso && !_cargando && _error == null) return;
       setState(() {
         _error = 'Ocurrió un error inesperado al consultar la caja.';
         _cargando = false;
@@ -275,7 +321,10 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
     setState(() => _abriendoVenta = true);
     try {
       final registrada = await abrirVenta(context);
-      if (mounted && registrada) await _cargar();
+      // Con [CorteCajaPage.actualizar] la venta ya avisa y recarga.
+      if (mounted && registrada && widget.actualizar == null) {
+        await _cargar(silencioso: true);
+      }
     } finally {
       if (mounted) setState(() => _abriendoVenta = false);
     }
@@ -306,9 +355,13 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
                 )
               : _error != null
               ? _construirError()
-              : _corte == null
-              ? _construirAperturaCaja()
-              : _construirCorteActivo(),
+              : RefreshIndicator(
+                  color: BarroTheme.primary,
+                  onRefresh: () => _cargar(silencioso: true),
+                  child: _corte == null
+                      ? _construirAperturaCaja()
+                      : _construirCorteActivo(),
+                ),
         ),
       ),
     ),
@@ -454,6 +507,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
 
   /// Estado cuando la caja no está abierta (Formulario de apertura de turno).
   Widget _construirAperturaCaja() => SingleChildScrollView(
+    physics: const AlwaysScrollableScrollPhysics(),
     padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -541,6 +595,7 @@ class _CorteCajaPageState extends State<CorteCajaPage> {
   Widget _construirCorteActivo() {
     final corte = _corte!;
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

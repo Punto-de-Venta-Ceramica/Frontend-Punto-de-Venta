@@ -273,6 +273,60 @@ void main() {
 
   group('Corte de caja - Widgets', () {
     testWidgetsConNotificaciones(
+      'Un cobro avisado recarga la caja sin borrar el efectivo contado',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final fake = FakeCorteCajaGateway();
+        await fake.abrirCorte(sucursalId: 1, montoInicial: 100);
+        final cobros = ValueNotifier<int>(0);
+        addTearDown(cobros.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CorteCajaPage(
+              gestion: GestionCorteCaja(fake),
+              sucursalId: 1,
+              sucursalNombre: 'Centro',
+              esPropietario: true,
+              actualizar: cobros,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        Finder contado(String texto) => find.byWidgetPredicate(
+          (w) => w is TextField && w.controller?.text == texto,
+        );
+        expect(fake.consultasCorteActivo, 1);
+        expect(contado('100.00'), findsOneWidget);
+
+        // Anticipo en otra pantalla: el esperado sube y, sin tocar, se rellena.
+        await fake.abrirCorte(sucursalId: 1, montoInicial: 250);
+        cobros.value++;
+        await tester.pump();
+        expect(
+          find.byType(CircularProgressIndicator),
+          findsNothing,
+          reason: 'recarga sin quitar lo que se ve',
+        );
+        await tester.pumpAndSettle();
+        expect(fake.consultasCorteActivo, 2);
+        expect(contado('250.00'), findsOneWidget);
+
+        // Lo que escribió el cajero se respeta en la siguiente recarga.
+        await tester.enterText(contado('250.00'), '300');
+        await fake.abrirCorte(sucursalId: 1, montoInicial: 400);
+        cobros.value++;
+        await tester.pumpAndSettle();
+        expect(fake.consultasCorteActivo, 3);
+        expect(contado('300'), findsOneWidget);
+      },
+    );
+
+    testWidgetsConNotificaciones(
       'Muestra pantalla de apertura cuando la caja está cerrada',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1200);

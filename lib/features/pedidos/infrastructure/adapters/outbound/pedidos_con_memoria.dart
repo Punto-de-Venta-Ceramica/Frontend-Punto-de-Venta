@@ -10,9 +10,13 @@ import '../../../domain/pedido.dart';
 /// app (pagar, cambiar estado, cancelar, editar, registrar) descartan lo
 /// guardado, porque ya se sabe que está atrasado.
 class PedidosConMemoria implements PedidosGateway, PedidosEnMemoria {
-  PedidosConMemoria(this._origen);
+  PedidosConMemoria(this._origen, {void Function()? alCambiar})
+    : _alCambiar = alCambiar;
 
   final PedidosGateway _origen;
+
+  /// Avisa tras un pago, liquidación, cancelación o registro (p. ej. a la caja).
+  final void Function()? _alCambiar;
 
   /// Clave: (sucursal, estado). Solo la primera página de cada filtro.
   final _listados = <(int, String?), PaginaPedidos>{};
@@ -37,6 +41,7 @@ class PedidosConMemoria implements PedidosGateway, PedidosEnMemoria {
     _version++;
     _listados.clear();
     if (pedidoId != null) _detalles.remove(pedidoId);
+    _alCambiar?.call();
   }
 
   void descartar() {
