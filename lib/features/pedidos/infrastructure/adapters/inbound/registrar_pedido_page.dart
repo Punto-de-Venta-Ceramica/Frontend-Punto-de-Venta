@@ -2,6 +2,7 @@ import 'package:punto_de_venta/features/tickets/application/impresion_tickets.da
 import 'package:punto_de_venta/features/tickets/infrastructure/impresion_tickets_bluetooth.dart';
 import 'comprobante_pedido_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:punto_de_venta/core/infrastructure/widgets/descuento_manual_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -185,6 +186,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
             .subtotalEstimadoCentavos(
               linea.cantidad,
               conDescuento: linea.aplicarDescuento,
+              manual: linea.descuentoManual,
             ),
   );
 
@@ -672,7 +674,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         );
       },
     );
-    controlador.dispose();
+    // Sin dispose: el diálogo aún anima su cierre con el TextField vivo (ver _pagar).
     if (nueva != null && mounted && indice < _lineas.length) {
       setState(() {
         _lineas[indice] = _lineas[indice].conCantidad(nueva);
@@ -689,6 +691,32 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     _limpiarErroresProductos();
   });
 
+  Future<void> _editarDescuento(int productoId) async {
+    final indice = _lineas.indexWhere((l) => l.productoId == productoId);
+    if (indice < 0) return;
+    final linea = _lineas[indice];
+    final producto = _productoPorId(productoId);
+    final catalogo = linea.aplicarDescuento
+        ? producto.porcentajePara(linea.cantidad)
+        : null;
+    final actual = linea.descuentoManual ?? catalogo;
+    final resultado = await pedirDescuentoManual(
+      context,
+      producto: producto.nombre,
+      actual: actual,
+      importe: producto.precio * linea.cantidad,
+      puedeQuitar: actual != null,
+    );
+    if (!mounted || resultado == null) return;
+    final nuevo = _lineas.indexWhere((l) => l.productoId == productoId);
+    if (nuevo < 0) return;
+    setState(
+      () => _lineas[nuevo] = _lineas[nuevo].conDescuentoManual(
+        resultado.porcentaje,
+      ),
+    );
+  }
+
   /// Renglón del pedido. Editable en el paso 1 (cantidad, descuento, quitar);
   /// de solo lectura en el resumen del pago.
   Widget _tarjetaLinea(
@@ -697,11 +725,15 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
     required bool editable,
   }) {
     final producto = _productoPorId(linea.productoId);
-    final porcentaje = producto.porcentajePara(linea.cantidad);
-    final aplicado = porcentaje != null && linea.aplicarDescuento;
+    final catalogo = producto.porcentajePara(linea.cantidad);
+    final manual = linea.descuentoManual;
+    final porcentaje = manual ?? catalogo;
+    final aplicado =
+        manual != null || (catalogo != null && linea.aplicarDescuento);
     final subtotal = producto.subtotalEstimadoCentavos(
       linea.cantidad,
       conDescuento: linea.aplicarDescuento,
+      manual: linea.descuentoManual,
     );
     final siguiente = producto.siguienteEscalon(linea.cantidad);
     final conError =
@@ -874,7 +906,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      editable
+                      manual != null
+                          ? 'Descuento manual: ${manual.toStringAsFixed(2)} %'
+                          : editable
                           ? aplicado
                                 ? 'Aplica descuento de mayoreo: ${porcentaje.toStringAsFixed(2)} %'
                                 : 'Descuento de ${porcentaje.toStringAsFixed(2)} % disponible, sin aplicar'
@@ -892,22 +926,43 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                     ),
                   ),
                   // El vendedor decide si usa el descuento vigente.
-                  if (editable)
+                  if (editable) ...[
+                    IconButton(
+                      key: ValueKey('editar-descuento-${linea.productoId}'),
+                      tooltip: 'Cambiar porcentaje de descuento',
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: () => _editarDescuento(linea.productoId),
+                    ),
                     Switch(
                       key: ValueKey('aplicar-descuento-${linea.productoId}'),
-                      value: linea.aplicarDescuento,
+                      value: aplicado,
+                      // Sin descuento de catálogo, apagarlo quita el manual.
                       onChanged: (aplicar) => setState(
-                        () => _lineas[indice] = linea.conDescuento(aplicar),
+                        () => _lineas[indice] = aplicar || catalogo != null
+                            ? linea.conDescuento(aplicar)
+                            : linea.conDescuentoManual(null),
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
-          ] else if (editable && siguiente != null)
-            _avisoMayoreo(
-              _textoSiguienteEscalon(producto, siguiente),
-              sugerencia: true,
+          ] else if (editable) ...[
+            if (siguiente != null)
+              _avisoMayoreo(
+                _textoSiguienteEscalon(producto, siguiente),
+                sugerencia: true,
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: ValueKey('agregar-descuento-${linea.productoId}'),
+                onPressed: () => _editarDescuento(linea.productoId),
+                icon: const Icon(Icons.sell_outlined, size: 16),
+                label: const Text('Agregar descuento'),
+              ),
             ),
+          ],
         ],
       ),
     );
@@ -1065,6 +1120,8 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       initialDate: _fechaEntrega ?? hoy,
       firstDate: hoy,
       lastDate: hoy.add(const Duration(days: 365 * 2)),
+      // Solo calendario: escribir la fecha a mano invita a errores de formato.
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
       helpText: 'Fecha de entrega',
       cancelText: 'Cancelar',
       confirmText: 'Aceptar',
@@ -1161,10 +1218,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
       // Con anticipo se ofrece el comprobante; sin él no hay nada que imprimir.
       if (monto > 0) {
         setState(() => _guardando = false);
-        await showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => ComprobantePedidoDialog(
+        await _dialogo<void>(
+          cerrable: false,
+          (_) => ComprobantePedidoDialog(
             gestion: widget.gestion,
             pedidoId: pedidoId,
             negocio: widget.negocio.nombre,
@@ -1279,27 +1335,28 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         _calle,
       ].any((c) => c.text.trim().isNotEmpty);
 
+  /// Abre un diálogo y espera a que termine de cerrarse. Después se cierra esta
+  /// pantalla: si se cerrara mientras el diálogo aún se anima, Flutter falla
+  /// ("_dependents.isEmpty is not true").
+  Future<T?> _dialogo<T>(WidgetBuilder builder, {bool cerrable = true}) async {
+    final ruta = DialogRoute<T>(
+      context: context,
+      builder: builder,
+      barrierDismissible: cerrable,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    );
+    final resultado = await Navigator.of(context).push(ruta);
+    await ruta.completed;
+    return resultado;
+  }
+
   /// Sale desde la barra inferior: cierra el registro (pidiendo confirmación si
   /// hay datos capturados) y después abre [destino], si hay uno.
   Future<void> _salir(VoidCallback? destino) async {
     if (_guardando) return;
     if (_hayDatos) {
-      final salir = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('¿Salir sin registrar el pedido?'),
-          content: const Text('Se perderán los datos que capturaste.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Seguir capturando'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Salir'),
-            ),
-          ],
-        ),
+      final salir = await _dialogo<bool>(
+        (_) => const _SalirSinRegistrarDialog(),
       );
       if (salir != true || !mounted) return;
     }
@@ -1581,8 +1638,10 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
   /// Renglón compacto del resumen del pago.
   Widget _filaResumen(LineaPedido linea) {
     final producto = _productoPorId(linea.productoId);
-    final porcentaje = producto.porcentajePara(linea.cantidad);
-    final aplicado = porcentaje != null && linea.aplicarDescuento;
+    final manual = linea.descuentoManual;
+    final porcentaje = manual ?? producto.porcentajePara(linea.cantidad);
+    final aplicado =
+        manual != null || (porcentaje != null && linea.aplicarDescuento);
     return Padding(
       key: ValueKey('pedido-resumen-${linea.productoId}'),
       padding: const EdgeInsets.only(bottom: 12),
@@ -1606,7 +1665,9 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                 ),
                 if (porcentaje != null)
                   Text(
-                    aplicado
+                    manual != null
+                        ? 'Descuento manual ${manual.toStringAsFixed(2)} %'
+                        : aplicado
                         ? 'Mayoreo ${porcentaje.toStringAsFixed(2)} % aplicado'
                         : 'Mayoreo no aplicado',
                     style: BarroTheme.type(
@@ -1644,6 +1705,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
                   producto.subtotalEstimadoCentavos(
                     linea.cantidad,
                     conDescuento: linea.aplicarDescuento,
+                    manual: linea.descuentoManual,
                   ),
                 ),
                 style: BarroTheme.type(14, 20, weight: FontWeight.w700),
@@ -2009,6 +2071,89 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
             ),
           ),
       ],
+    ),
+  );
+}
+
+/// Confirma salir del registro sin guardar; se cierra con `true` si sale.
+class _SalirSinRegistrarDialog extends StatelessWidget {
+  const _SalirSinRegistrarDialog();
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: BarroTheme.background,
+    surfaceTintColor: Colors.transparent,
+    insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF6E5),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFF2D59B), width: 6),
+                ),
+                child: const Icon(
+                  Icons.edit_note_rounded,
+                  size: 34,
+                  color: Color(0xFF9A6200),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '¿Salir sin registrar el pedido?',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(21, 27, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Se perderán los datos que capturaste.',
+              textAlign: TextAlign.center,
+              style: BarroTheme.type(13, 19, color: BarroTheme.placeholder),
+            ),
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              key: const ValueKey('pedido-seguir-capturando'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                backgroundColor: BarroTheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context, false),
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              label: const Text('Seguir capturando'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const ValueKey('pedido-salir-sin-registrar'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: BarroTheme.error,
+                side: const BorderSide(color: BarroTheme.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.logout_rounded, size: 20),
+              label: const Text('Salir sin guardar'),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

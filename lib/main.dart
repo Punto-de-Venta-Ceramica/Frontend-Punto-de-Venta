@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:material_ui/material_ui.dart'
     as mui
-    show DefaultMaterialLocalizations;
+    show GlobalMaterialLocalizations;
 import 'package:http/http.dart' as http;
 import 'package:toastification/toastification.dart';
 import 'package:punto_de_venta/core/infrastructure/services/notificacion_servicio.dart';
@@ -126,11 +127,18 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   /// Descuentos del propietario: lista 5 min, catálogo para asignar 10 min.
   late final CachedDescuentoGateway _descuentos;
 
+  /// Ventas: artículo artesanal (toda la sesión) y categorías del filtro (30 min) por sucursal.
+  late final GestionVentas _ventas;
+
   /// Caché del empleado por sucursal (mismas vigencias que la del propietario:
   /// listado 5 min, áreas/categorías 30 min). Usa gateways con alcance de
   /// sucursal, por eso no comparte la del propietario.
   final _productosEmpleado = <int, CacheProductos>{};
   final _revisionInventarioEmpleado = ValueNotifier<int>(0);
+
+  /// Sube con cada cobro hecho desde esta app (venta, anticipo, liquidación,
+  /// cancelación): las pantallas de caja abiertas se vuelven a consultar.
+  final _cobrosCaja = ValueNotifier<int>(0);
 
   CacheProductos _cacheEmpleado(SucursalAsignada s) =>
       _productosEmpleado.putIfAbsent(
@@ -190,9 +198,15 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     // Los listados de empleados muestran sus sucursales asignadas: dar de
     // baja o renombrar una sucursal los deja atrasados.
     _compartidas.escucharCambiosSucursales(_empleados.sucursalesCambiaron);
-    _pedidos = PedidosConMemoria(HttpPedidosGateway(_api));
+    _pedidos = PedidosConMemoria(
+      HttpPedidosGateway(_api),
+      alCambiar: () => _cobrosCaja.value++,
+    );
     _cortes = CachedCorteCajaGateway(HttpCorteCajaGateway(_api));
     _descuentos = CachedDescuentoGateway(HttpDescuentoGateway(_api));
+    _ventas = GestionVentas(HttpVentasGateway(_api));
+    // Las categorías del filtro de ventas dependen de las áreas de la sucursal.
+    _compartidas.escucharCambiosSucursales((_) => _ventas.descartar());
     BarroHeader.accionPerfilGlobal = (ctx) => Navigator.of(ctx).push(
       PerfilUsuarioPage.route(
         api: _api,
@@ -225,6 +239,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _empleados.descartar();
     _pedidos.descartar();
     _cortes.descartar();
+    _ventas.descartar();
     _productosEmpleado.clear();
   }
 
@@ -233,6 +248,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _contador.dispose();
     _sesionExpirada.dispose();
     _revisionInventarioEmpleado.dispose();
+    _cobrosCaja.dispose();
     _api.close();
     super.dispose();
   }
@@ -313,7 +329,10 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
               ),
             ),
           )
-          .whenComplete(_productos.descartar);
+          .whenComplete(() {
+            _productos.descartar();
+            _ventas.descartar(); // Categorías del filtro de ventas.
+          });
 
   Future<void> _abrirAdministracion(
     BuildContext context,
@@ -364,6 +383,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     final ruta = MaterialPageRoute<void>(
       builder: (cajaContext) => CorteCajaPage(
         gestion: GestionCorteCaja(_cortes),
+        actualizar: _cobrosCaja,
         sucursalId: sucursal.id,
         sucursalNombre: sucursal.nombre,
         negocioNombre: negocio.nombre,
@@ -403,7 +423,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     final venta = await Navigator.of(context).push<VentaRegistrada>(
       MaterialPageRoute(
         builder: (ventasContext) => RegistrarVentaPage(
-          gestion: GestionVentas(HttpVentasGateway(_api)),
+          gestion: _ventas,
           sucursalId: sucursalId,
           contexto: VentaContexto(
             negocio: negocio,
@@ -415,9 +435,10 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ),
     );
     if (venta == null || !mounted) return false;
-    _productos.descartar();
-    _productosEmpleado[sucursalId]?.descartar();
+    _productos.descartarSalvoCatalogos();
+    _productosEmpleado[sucursalId]?.descartarSalvoCatalogos();
     _revisionInventarioEmpleado.value++;
+    _cobrosCaja.value++;
     if (context.mounted) {
       final cambio = venta.cambio;
       final mensaje =
@@ -482,7 +503,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             ),
           ),
         )
-        .whenComplete(_productos.descartar);
+        .whenComplete(_productos.descartarSalvoCatalogos);
   }
 
   /// Catálogo de productos del negocio completo: todas las sucursales.
@@ -595,6 +616,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
 
   /// Inicio del empleado: Pedidos, Caja (por defecto) e Inventario de su sucursal.
   Widget _inicioEmpleado(BuildContext context) => EmpleadoInicioPage(
+    alMostrarCaja: () => _cobrosCaja.value++,
     cargarSucursales: () async {
       final respuesta = await _api.requestJson(
         'GET',
@@ -616,6 +638,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     ),
     construirCaja: (s) => CorteCajaPage(
       gestion: GestionCorteCaja(_cortes),
+      actualizar: _cobrosCaja,
       sucursalId: s.sucursalId,
       sucursalNombre: s.sucursal,
       negocioNombre: s.negocio,
@@ -694,9 +717,15 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ),
       title: 'BarroControl',
       debugShowCheckedModeBanner: false,
+      // Todo en español (México): calendario, menús de texto y accesibilidad.
       // `dropdown_search` usa su propio material_ui: sus TextField piden las
-      // localizaciones de ese paquete (las de flutter/material.dart no sirven).
-      localizationsDelegates: const [mui.DefaultMaterialLocalizations.delegate],
+      // traducciones de ese paquete (las de flutter_localizations no le sirven).
+      localizationsDelegates: const [
+        ...GlobalMaterialLocalizations.delegates,
+        mui.GlobalMaterialLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es', 'MX')],
+      locale: const Locale('es', 'MX'),
       theme: BarroTheme.data,
       initialRoute: widget.initialRoute,
       home: _RestaurarSesion(store: widget.sessionStore, login: _login),

@@ -96,6 +96,42 @@ class HttpCorteCajaGateway implements CorteCajaGateway {
     );
   }
 
+  List<PedidoCorte> _pedidos(Object? value) {
+    if (value is! List) return const [];
+    double dinero(Object? v) => (v as num?)?.toDouble() ?? 0;
+    return [
+      for (final p in value.cast<Map<String, dynamic>>())
+        PedidoCorte(
+          id: (p['id'] as num).toInt(),
+          folio: p['folio'] as String? ?? '',
+          total: dinero(p['total']),
+          pagado: dinero(p['pagado']),
+          saldo: dinero(p['saldo']),
+          cancelado: p['cancelado'] as bool? ?? false,
+          pagos: [
+            for (final x
+                in (p['pagos'] as List? ?? const [])
+                    .cast<Map<String, dynamic>>())
+              PagoPedidoCorte(
+                tipoPago: x['tipoPago'] as String? ?? '',
+                metodoPago: x['metodoPago'] as String? ?? 'EFECTIVO',
+                monto: dinero(x['monto']),
+              ),
+          ],
+          productos: [
+            for (final x
+                in (p['productos'] as List? ?? const [])
+                    .cast<Map<String, dynamic>>())
+              ProductoPedidoCorte(
+                nombre: x['nombre'] as String? ?? '',
+                cantidad: (x['cantidad'] as num?)?.toInt() ?? 0,
+                subtotal: dinero(x['subtotal']),
+              ),
+          ],
+        ),
+    ];
+  }
+
   List<ProductoVendido> _productos(Object? value) {
     if (value is! List) return const [];
     return value
@@ -107,6 +143,7 @@ class HttpCorteCajaGateway implements CorteCajaGateway {
             cantidad: (map['cantidad'] as num).toInt(),
             precioUnitario: (map['precioUnitario'] as num).toDouble(),
             subtotal: (map['subtotal'] as num).toDouble(),
+            metodoPago: map['metodoPago'] as String?,
           );
         })
         .toList(growable: false);
@@ -144,6 +181,7 @@ class HttpCorteCajaGateway implements CorteCajaGateway {
           ? (j['diferencia'] as num).toDouble()
           : null,
       productos: _productos(j['productos']),
+      pedidos: _pedidos(j['pedidos']),
     );
   }
 

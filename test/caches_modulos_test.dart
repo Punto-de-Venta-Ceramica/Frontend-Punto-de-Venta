@@ -289,6 +289,13 @@ void main() {
         expect(gestion.listadoGuardado(3, estado: 'PENDIENTE')?.total, 1);
         expect(gestion.listadoGuardado(3, estado: null), isNull);
 
+        await gestion.listar(3, busqueda: 'ana');
+        expect(
+          gestion.listadoGuardado(3, estado: null),
+          isNull,
+          reason: 'una búsqueda no sustituye al listado sin filtro',
+        );
+
         await gestion.listar(3, estado: 'PENDIENTE', pagina: 1);
         expect(
           gestion.listadoGuardado(3, estado: 'PENDIENTE')?.pagina,
@@ -304,6 +311,23 @@ void main() {
         expect(gestion.listadoGuardado(3, estado: 'PENDIENTE'), isNull);
       },
     );
+  });
+
+  test('un pago, cambio de estado o cancelación avisa a la caja', () async {
+    var avisos = 0;
+    final memoria = PedidosConMemoria(
+      _PedidosFalsos(),
+      alCambiar: () => avisos++,
+    );
+
+    await memoria.listar(3);
+    await memoria.obtener(7);
+    expect(avisos, 0, reason: 'consultar no cambia la caja');
+
+    await memoria.pagar(7, 50, 'EFECTIVO');
+    await memoria.cambiarEstado(7, 'ENTREGADO');
+    await memoria.cancelar(7);
+    expect(avisos, 3);
   });
 
   test(
@@ -461,6 +485,7 @@ class _PedidosFalsos implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async {
     listados++;

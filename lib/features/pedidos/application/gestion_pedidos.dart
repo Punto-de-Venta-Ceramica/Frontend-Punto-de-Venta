@@ -10,8 +10,14 @@ class GestionPedidos {
   Future<PaginaPedidos> listar(
     int sucursal, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
-  }) => _gateway.listar(sucursal, estado: estado, pagina: pagina);
+  }) => _gateway.listar(
+    sucursal,
+    estado: estado,
+    busqueda: busqueda,
+    pagina: pagina,
+  );
   Future<Pedido> obtener(int id) => _gateway.obtener(id);
 
   /// Primera página guardada de ese filtro, para mostrarla mientras se

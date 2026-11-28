@@ -45,6 +45,7 @@ class CorteCaja {
     this.totalReal,
     this.diferencia,
     this.productos = const [],
+    this.pedidos = const [],
   });
 
   final int id;
@@ -70,6 +71,9 @@ class CorteCaja {
   final double? totalReal;
   final double? diferencia;
   final List<ProductoVendido> productos;
+
+  /// Pedidos con anticipo, liquidación o devolución en este corte.
+  final List<PedidoCorte> pedidos;
 
   /// Total neto del día generado por ventas, anticipos y liquidaciones menos cancelaciones.
   double get totalNetoDia =>
@@ -134,6 +138,54 @@ class CancelacionPedido {
   final DateTime fechaHora;
 }
 
+/// Pedido con movimientos en el corte. [pagado] y [saldo] son al momento de ese corte.
+class PedidoCorte {
+  const PedidoCorte({
+    required this.id,
+    required this.folio,
+    required this.total,
+    required this.pagado,
+    required this.saldo,
+    this.cancelado = false,
+    this.pagos = const [],
+    this.productos = const [],
+  });
+
+  final int id;
+  final String folio;
+  final double total;
+  final double pagado;
+  final double saldo;
+  final bool cancelado;
+  final List<PagoPedidoCorte> pagos;
+  final List<ProductoPedidoCorte> productos;
+}
+
+/// Movimiento del pedido en el turno: ANTICIPO, LIQUIDACION o DEVOLUCION.
+class PagoPedidoCorte {
+  const PagoPedidoCorte({
+    required this.tipoPago,
+    required this.metodoPago,
+    required this.monto,
+  });
+
+  final String tipoPago;
+  final String metodoPago;
+  final double monto;
+}
+
+class ProductoPedidoCorte {
+  const ProductoPedidoCorte({
+    required this.nombre,
+    required this.cantidad,
+    required this.subtotal,
+  });
+
+  final String nombre;
+  final int cantidad;
+  final double subtotal;
+}
+
 /// Producto vendido durante el turno de la caja.
 class ProductoVendido {
   const ProductoVendido({
@@ -142,6 +194,7 @@ class ProductoVendido {
     required this.cantidad,
     required this.precioUnitario,
     required this.subtotal,
+    this.metodoPago,
   });
 
   final int idProducto;
@@ -149,6 +202,9 @@ class ProductoVendido {
   final int cantidad;
   final double precioUnitario;
   final double subtotal;
+
+  /// EFECTIVO o TARJETA en ventas directas; null si vino de un pedido.
+  final String? metodoPago;
 }
 
 /// Resumen de un corte de caja para listados históricos.

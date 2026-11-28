@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:material_ui/material_ui.dart'
     as mui
-    show DefaultMaterialLocalizations;
+    show DefaultMaterialLocalizations, GlobalMaterialLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:punto_de_venta/core/infrastructure/network/api_client.dart';
 import 'package:punto_de_venta/core/infrastructure/theme/barro_theme.dart';
@@ -67,6 +68,7 @@ class _Gateway implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int id, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async =>
       const PaginaPedidos(pedidos: [], pagina: 0, ultima: true, total: 0);
@@ -387,6 +389,74 @@ void main() {
     expect(find.byType(BottomSheet), findsOneWidget);
   });
 
+  testWidgets(
+    'en español: el calendario y el selector de productos funcionan',
+    (tester) async {
+      tester.view.physicalSize = const Size(416, 858);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      // Misma configuración de idioma que la app (main.dart).
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: BarroTheme.data,
+          localizationsDelegates: const [
+            ...GlobalMaterialLocalizations.delegates,
+            mui.GlobalMaterialLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('es', 'MX')],
+          locale: const Locale('es', 'MX'),
+          home: RegistrarPedidoPage(
+            gestion: GestionPedidos(_Gateway()),
+            sucursalId: 1,
+            negocio: const NegocioProducto(id: 1, nombre: 'Cerámica'),
+            esPropietario: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // El selector de productos (dropdown_search) se dibuja sin errores.
+      await tester.ensureVisible(find.text('Selecciona un producto'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Selecciona un producto'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Taza'));
+      await tester.pumpAndSettle();
+
+      final campo = find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            (w.key! as ValueKey<String>).value.startsWith(
+              'pedido-fecha-entrega',
+            ),
+      );
+      await tester.ensureVisible(campo);
+      await tester.pumpAndSettle();
+      await tester.tap(campo);
+      await tester.pumpAndSettle();
+      const meses = [
+        'enero',
+        'febrero',
+        'marzo',
+        'abril',
+        'mayo',
+        'junio',
+        'julio',
+        'agosto',
+        'septiembre',
+        'octubre',
+        'noviembre',
+        'diciembre',
+      ];
+      final mes = meses[DateTime.now().month - 1];
+      expect(find.textContaining(mes), findsWidgets);
+      expect(find.text('Aceptar'), findsOneWidget);
+      await tester.tap(find.text('Aceptar'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('regresa a pasos anteriores sin perder lo capturado', (
     tester,
   ) async {
@@ -658,7 +728,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Salir'));
+      await tester.tap(find.text('Salir sin guardar'));
       await tester.pumpAndSettle();
       expect(find.text('Listado'), findsOneWidget);
       expect(destinos, ['caja']);

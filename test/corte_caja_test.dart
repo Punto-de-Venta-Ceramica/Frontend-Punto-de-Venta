@@ -216,6 +216,7 @@ CorteCaja _crearCorteEjemplo() => CorteCaja(
       cantidad: 8,
       precioUnitario: 120.0,
       subtotal: 960.0,
+      metodoPago: 'TARJETA',
     ),
     ProductoVendido(
       idProducto: 2,
@@ -223,6 +224,25 @@ CorteCaja _crearCorteEjemplo() => CorteCaja(
       cantidad: 8,
       precioUnitario: 85.0,
       subtotal: 680.0,
+    ),
+  ],
+  pedidos: const [
+    PedidoCorte(
+      id: 12,
+      folio: 'P-012',
+      total: 175,
+      pagado: 150,
+      saldo: 25,
+      pagos: [
+        PagoPedidoCorte(
+          tipoPago: 'ANTICIPO',
+          metodoPago: 'EFECTIVO',
+          monto: 150,
+        ),
+      ],
+      productos: [
+        ProductoPedidoCorte(nombre: 'Tequilero', cantidad: 5, subtotal: 175),
+      ],
     ),
   ],
 );
@@ -252,6 +272,60 @@ void main() {
   });
 
   group('Corte de caja - Widgets', () {
+    testWidgetsConNotificaciones(
+      'Un cobro avisado recarga la caja sin borrar el efectivo contado',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final fake = FakeCorteCajaGateway();
+        await fake.abrirCorte(sucursalId: 1, montoInicial: 100);
+        final cobros = ValueNotifier<int>(0);
+        addTearDown(cobros.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CorteCajaPage(
+              gestion: GestionCorteCaja(fake),
+              sucursalId: 1,
+              sucursalNombre: 'Centro',
+              esPropietario: true,
+              actualizar: cobros,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        Finder contado(String texto) => find.byWidgetPredicate(
+          (w) => w is TextField && w.controller?.text == texto,
+        );
+        expect(fake.consultasCorteActivo, 1);
+        expect(contado('100.00'), findsOneWidget);
+
+        // Anticipo en otra pantalla: el esperado sube y, sin tocar, se rellena.
+        await fake.abrirCorte(sucursalId: 1, montoInicial: 250);
+        cobros.value++;
+        await tester.pump();
+        expect(
+          find.byType(CircularProgressIndicator),
+          findsNothing,
+          reason: 'recarga sin quitar lo que se ve',
+        );
+        await tester.pumpAndSettle();
+        expect(fake.consultasCorteActivo, 2);
+        expect(contado('250.00'), findsOneWidget);
+
+        // Lo que escribió el cajero se respeta en la siguiente recarga.
+        await tester.enterText(contado('250.00'), '300');
+        await fake.abrirCorte(sucursalId: 1, montoInicial: 400);
+        cobros.value++;
+        await tester.pumpAndSettle();
+        expect(fake.consultasCorteActivo, 3);
+        expect(contado('300'), findsOneWidget);
+      },
+    );
+
     testWidgetsConNotificaciones(
       'Muestra pantalla de apertura cuando la caja está cerrada',
       (tester) async {
@@ -376,7 +450,7 @@ void main() {
     );
 
     testWidgetsConNotificaciones(
-      'el historial de cortes solo lo ve el propietario',
+      'el historial de cortes es visible para propietario y empleado',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1400);
         tester.view.devicePixelRatio = 1.0;
@@ -402,12 +476,11 @@ void main() {
           await tester.pumpAndSettle();
         }
 
-        // Caja cerrada: el empleado no ve el acceso al historial.
+        // Caja cerrada y abierta: tanto empleado como propietario ven el acceso al historial.
         await abrir(propietario: false);
-        expect(find.text('Historial de cortes'), findsNothing);
-        // Con turno abierto, el empleado sigue pudiendo hacer el corte.
+        expect(find.text('Historial de cortes'), findsOneWidget);
         await abrir(propietario: false, corte: _crearCorteEjemplo());
-        expect(find.text('Historial de cortes'), findsNothing);
+        expect(find.text('Historial de cortes'), findsOneWidget);
         expect(find.text('Realizar corte'), findsOneWidget);
 
         await abrir(propietario: true);
@@ -420,6 +493,10 @@ void main() {
     testWidgetsConNotificaciones(
       'DetalleMovimientosPage muestra productos y alerta de cancelación',
       (tester) async {
+        // Ancho de teléfono: detecta desbordes en las tarjetas de pedidos.
+        tester.view.physicalSize = const Size(360, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
         final corte = _crearCorteEjemplo();
 
         await tester.pumpWidget(
@@ -432,8 +509,24 @@ void main() {
         expect(find.text('Detalle del día'), findsOneWidget);
         expect(find.text('Productos vendidos'), findsOneWidget);
         expect(find.text('Maceta mediana'), findsOneWidget);
-        expect(find.text('Jabonero'), findsOneWidget);
-        expect(find.text('Pagos y cancelaciones'), findsOneWidget);
+        // El producto del pedido no se mezcla con las ventas directas.
+        expect(find.text('Jabonero'), findsNothing);
+        // Cada producto muestra cómo se cobró.
+        Finder etiquetaDe(String producto, String metodo) => find.descendant(
+          of: find
+              .ancestor(of: find.text(producto), matching: find.byType(Row))
+              .first,
+          matching: find.text(metodo),
+        );
+        expect(etiquetaDe('Maceta mediana', 'Tarjeta'), findsOneWidget);
+        expect(find.text('Pedidos del turno'), findsOneWidget);
+        expect(find.text('P-012'), findsOneWidget);
+        expect(find.text('5× Tequilero'), findsOneWidget);
+        expect(find.text('Valor del pedido'), findsOneWidget);
+        expect(find.text('Resta por cobrar'), findsOneWidget);
+        expect(find.text('\$25.00'), findsOneWidget);
+        expect(find.text('Anticipo'), findsOneWidget);
+        expect(find.text('Efectivo'), findsWidgets);
         expect(find.text('Pedido P-018 cancelado'), findsOneWidget);
         expect(
           find.text('Descontado automáticamente del corte'),

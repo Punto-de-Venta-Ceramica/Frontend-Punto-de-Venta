@@ -1,3 +1,5 @@
+import 'package:punto_de_venta/core/infrastructure/cache/cache_en_memoria.dart';
+
 import '../../../../application/ports/outbound/existencias_gateway.dart';
 import '../../../../application/ports/outbound/producto_gateway.dart';
 import '../../../../application/ports/outbound/productos_en_cache.dart';
@@ -13,7 +15,7 @@ class CacheProductos implements ProductosEnCache {
     ProductoGateway productos,
     ExistenciasGateway existencias, {
     Duration vigenciaCatalogos = const Duration(minutes: 30),
-    Duration vigenciaListado = const Duration(minutes: 10),
+    Duration vigenciaListado = const Duration(minutes: 5),
     DateTime Function()? ahora,
   }) : productos = CachedProductoGateway(
          productos,
@@ -44,12 +46,12 @@ class CacheProductos implements ProductosEnCache {
     productos.descartar();
     existencias.descartar();
   }
-}
 
-class _Entrada<T> {
-  _Entrada(this.valor, this.guardado);
-  final Future<T> valor;
-  final DateTime guardado;
+  /// Tras una venta o un cambio de descuentos: áreas y categorías siguen igual.
+  void descartarSalvoCatalogos() {
+    productos.descartarSalvoCatalogos();
+    existencias.descartar();
+  }
 }
 
 /// Tope de entradas por mapa: cada búsqueda o producto abierto crea una y sin
@@ -76,42 +78,19 @@ V _recordar<K, V>(Map<K, V> mapa, K clave, V valor) {
 class CachedProductoGateway implements ProductoGateway {
   CachedProductoGateway(
     this._origen, {
-    this.vigenciaCatalogos = const Duration(minutes: 30),
-    this.vigenciaListado = const Duration(minutes: 10),
+    Duration vigenciaCatalogos = const Duration(minutes: 30),
+    Duration vigenciaListado = const Duration(minutes: 5),
     DateTime Function()? ahora,
-  }) : _ahora = ahora ?? DateTime.now;
+  }) : _areas = CacheEnMemoria(vigencia: vigenciaCatalogos, ahora: ahora),
+       _categorias = CacheEnMemoria(vigencia: vigenciaCatalogos, ahora: ahora),
+       _paginas = CacheEnMemoria(vigencia: vigenciaListado, ahora: ahora);
 
   final ProductoGateway _origen;
-  final Duration vigenciaCatalogos;
-  final Duration vigenciaListado;
-  final DateTime Function() _ahora;
 
-  final _areas = <int, _Entrada<List<AreaProducto>>>{};
-  final _categorias = <int, _Entrada<List<CategoriaProducto>>>{};
-  final _paginas = <String, _Entrada<PaginaProductos>>{};
+  final CacheEnMemoria<int, List<AreaProducto>> _areas;
+  final CacheEnMemoria<int, List<CategoriaProducto>> _categorias;
+  final CacheEnMemoria<String, PaginaProductos> _paginas;
   final _detalles = <int, Producto>{};
-
-  /// Las peticiones simultáneas a lo mismo comparten una sola llamada y los
-  /// errores no se guardan.
-  Future<T> _vigenteO<K, T>(
-    Map<K, _Entrada<T>> mapa,
-    K clave,
-    Duration vigencia,
-    Future<T> Function() cargar,
-  ) {
-    final guardada = mapa[clave];
-    if (guardada != null && _ahora().difference(guardada.guardado) < vigencia) {
-      return guardada.valor;
-    }
-    final nueva = _recordar(mapa, clave, _Entrada(cargar(), _ahora()));
-    nueva.valor.then<void>(
-      (_) {},
-      onError: (Object _) {
-        if (identical(mapa[clave], nueva)) mapa.remove(clave);
-      },
-    );
-    return nueva.valor;
-  }
 
   static String _clavePagina(int negocioId, int pagina, FiltroProductos f) =>
       '$negocioId|${f.areaId}|${f.categoriaId}|${f.sucursalId}|'
@@ -123,12 +102,17 @@ class CachedProductoGateway implements ProductoGateway {
 
   Producto? guardado(int id) => _detalles[id];
 
-  void descartarListados() => _paginas.clear();
+  void descartarListados() => _paginas.limpiar();
+
+  void descartarSalvoCatalogos() {
+    _paginas.limpiar();
+    _detalles.clear();
+  }
 
   void descartar() {
-    _areas.clear();
-    _categorias.clear();
-    _paginas.clear();
+    _areas.limpiar();
+    _categorias.limpiar();
+    _paginas.limpiar();
     _detalles.clear();
   }
 
@@ -136,20 +120,12 @@ class CachedProductoGateway implements ProductoGateway {
   Future<List<NegocioProducto>> negocios() => _origen.negocios();
 
   @override
-  Future<List<AreaProducto>> areas(int negocioId) => _vigenteO(
-    _areas,
-    negocioId,
-    vigenciaCatalogos,
-    () => _origen.areas(negocioId),
-  );
+  Future<List<AreaProducto>> areas(int negocioId) =>
+      _areas.obtener(negocioId, () => _origen.areas(negocioId));
 
   @override
-  Future<List<CategoriaProducto>> categorias(int negocioId) => _vigenteO(
-    _categorias,
-    negocioId,
-    vigenciaCatalogos,
-    () => _origen.categorias(negocioId),
-  );
+  Future<List<CategoriaProducto>> categorias(int negocioId) =>
+      _categorias.obtener(negocioId, () => _origen.categorias(negocioId));
 
   @override
   Future<List<SucursalProducto>> sucursales(int negocioId) =>
@@ -160,10 +136,8 @@ class CachedProductoGateway implements ProductoGateway {
     int negocioId, {
     int pagina = 0,
     FiltroProductos filtro = const FiltroProductos(),
-  }) => _vigenteO(
-    _paginas,
+  }) => _paginas.obtener(
     _clavePagina(negocioId, pagina, filtro),
-    vigenciaListado,
     () => _origen.listar(negocioId, pagina: pagina, filtro: filtro),
   );
 

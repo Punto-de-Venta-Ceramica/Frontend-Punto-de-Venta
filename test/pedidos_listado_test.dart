@@ -26,6 +26,7 @@ class _Pedidos extends Fake implements PedidosGateway {
   @override
   Future<bool> cajaAbierta(int sucursalId) async => caja;
   final llamadas = <(String?, int)>[];
+  final busquedas = <String?>[];
   final consultados = <int>[];
   final cambios = <(int, String)>[];
   final editados = <(int, DatosEdicionPedido)>[];
@@ -57,9 +58,20 @@ class _Pedidos extends Fake implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async {
     llamadas.add((estado, pagina));
+    busquedas.add(busqueda);
+    // Búsqueda: 2 coincidencias, una por página.
+    if (busqueda != null) {
+      return PaginaPedidos(
+        pedidos: [_resumen(pagina == 0 ? 5 : 15)],
+        pagina: pagina,
+        ultima: pagina > 0,
+        total: 2,
+      );
+    }
     return pagina == 0
         ? PaginaPedidos(
             pedidos: [for (var i = 1; i <= 20; i++) _resumen(i)],
@@ -161,6 +173,75 @@ void main() {
       await tester.pumpAndSettle();
       expect(gateway.llamadas.last, (null, 0));
       expect(find.text('Mostrando 20 de 21'), findsOneWidget);
+    },
+  );
+
+  testWidgetsConNotificaciones(
+    'la búsqueda va al servidor en todos los estados y el conteo cuadra',
+    (tester) async {
+      _pantallaAlta(tester);
+      final gateway = _Pedidos(estadoPedidos: 'ENTREGADO');
+      await tester.pumpWidget(_app(gateway));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Buscar por cliente, teléfono o folio...'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(find.byType(TextField).first, '  ana ');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        gateway.llamadas,
+        hasLength(1),
+        reason: 'espera a que se deje de escribir',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(gateway.llamadas.last, (null, 0), reason: 'sin filtro de estado');
+      expect(gateway.busquedas.last, 'ana');
+      expect(find.text('Buscando en todos los estados'), findsOneWidget);
+      final chip = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'Entregado'),
+      );
+      expect(chip.selected, isFalse);
+      expect(chip.onSelected, isNull);
+      expect(find.text('Cliente 5'), findsOneWidget);
+      expect(find.text('Cliente 1'), findsNothing);
+      expect(find.text('Mostrando 1 de 2'), findsOneWidget);
+
+      // La siguiente página sigue la misma búsqueda.
+      await tester.ensureVisible(find.text('Cargar más pedidos'));
+      await tester.tap(find.text('Cargar más pedidos'));
+      await tester.pumpAndSettle();
+      expect(gateway.llamadas.last, (null, 1));
+      expect(gateway.busquedas.last, 'ana');
+      expect(find.text('Cliente 15'), findsOneWidget);
+      expect(find.text('Mostrando 2 de 2'), findsOneWidget);
+
+      // Al borrar vuelve el filtro que se tenía.
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.close_rounded), findsNothing);
+      expect(
+        FocusManager.instance.primaryFocus?.context?.widget,
+        isNot(isA<EditableText>()),
+      );
+      expect(gateway.llamadas.last, ('ENTREGADO', 0));
+      expect(gateway.busquedas.last, isNull);
+      expect(find.text('Buscando en todos los estados'), findsNothing);
+      expect(find.text('Mostrando 20 de 21'), findsOneWidget);
+
+      // Elegir un filtro cierra el teclado del buscador.
+      await tester.tap(find.byType(TextField).first);
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+      await tester.ensureVisible(find.text('Todos'));
+      await tester.tap(find.text('Todos'));
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(gateway.llamadas.last, (null, 0));
     },
   );
 

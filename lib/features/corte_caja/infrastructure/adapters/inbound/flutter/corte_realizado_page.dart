@@ -146,7 +146,7 @@ class CorteRealizadoPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // Fila resumen: Total neto y Total estimado
+                  // Fila resumen: Efectivo estimado en caja (sin tarjeta)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -162,7 +162,7 @@ class CorteRealizadoPage extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            'Total estimado en caja',
+                            'Efectivo estimado en caja',
                             style: BarroTheme.type(
                               13,
                               18,
@@ -173,7 +173,7 @@ class CorteRealizadoPage extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          formatDinero(corte.totalEstimado),
+                          formatDinero(corte.efectivoEsperado),
                           style: BarroTheme.type(
                             15,
                             20,

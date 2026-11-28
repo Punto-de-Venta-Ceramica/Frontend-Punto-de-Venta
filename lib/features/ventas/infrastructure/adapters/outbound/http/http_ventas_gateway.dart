@@ -162,6 +162,7 @@ class HttpVentasGateway implements VentasGateway {
           'aplicarDescuento': seleccion.aplicarDescuento,
           if (seleccion.esLibre) 'precioUnitario': seleccion.precioLibre,
           'nombre': ?seleccion.nombreLibre,
+          'descuentoManual': ?seleccion.descuentoManual,
         },
     ],
   };

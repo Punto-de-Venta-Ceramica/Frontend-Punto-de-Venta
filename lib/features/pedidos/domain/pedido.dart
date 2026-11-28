@@ -73,12 +73,16 @@ class ProductoPedido {
   bool aplicaDescuento(int cantidad) => porcentajePara(cantidad) != null;
 
   /// Estima el subtotal en centavos, con el redondeo por línea del backend.
-  /// Sin [conDescuento] se calcula a precio de lista.
-  BigInt subtotalEstimadoCentavos(int cantidad, {bool conDescuento = true}) {
+  /// Sin [conDescuento] se calcula a precio de lista; [manual] reemplaza al del catálogo.
+  BigInt subtotalEstimadoCentavos(
+    int cantidad, {
+    bool conDescuento = true,
+    double? manual,
+  }) {
     final precioCentavos = BigInt.from((precio * 100).round());
-    final descuento = conDescuento
-        ? ((porcentajePara(cantidad) ?? 0) * 100).round()
-        : 0;
+    final descuento =
+        ((manual ?? (conDescuento ? porcentajePara(cantidad) ?? 0 : 0)) * 100)
+            .round();
     final importe =
         precioCentavos * BigInt.from(cantidad) * BigInt.from(10000 - descuento);
     return (importe + BigInt.from(5000)) ~/ BigInt.from(10000);
@@ -90,24 +94,38 @@ class LineaPedido {
     required this.productoId,
     required this.cantidad,
     this.aplicarDescuento = true,
+    this.descuentoManual,
   });
   final int productoId, cantidad;
+
+  /// Porcentaje capturado por el vendedor (1 a 100); reemplaza al del catálogo.
+  final double? descuentoManual;
 
   /// Si se usa el descuento vigente del producto. El servidor lo resuelve por
   /// jerarquía (producto, luego categoría, luego área); aquí solo se decide
   /// aplicarlo o no.
   final bool aplicarDescuento;
 
+  /// Cambiar el uso del descuento de catálogo descarta el manual.
   LineaPedido conDescuento(bool aplicar) => LineaPedido(
     productoId: productoId,
     cantidad: cantidad,
     aplicarDescuento: aplicar,
   );
 
+  /// null quita el descuento manual y deja la línea a precio de lista.
+  LineaPedido conDescuentoManual(double? porcentaje) => LineaPedido(
+    productoId: productoId,
+    cantidad: cantidad,
+    aplicarDescuento: porcentaje != null,
+    descuentoManual: porcentaje,
+  );
+
   LineaPedido conCantidad(int nueva) => LineaPedido(
     productoId: productoId,
     cantidad: nueva,
     aplicarDescuento: aplicarDescuento,
+    descuentoManual: descuentoManual,
   );
 }
 

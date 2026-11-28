@@ -209,12 +209,13 @@ void main() {
     );
     final pagina = await HttpPedidosGateway(
       client,
-    ).listar(1, estado: 'ENCARGADO', pagina: 1);
+    ).listar(1, estado: 'ENCARGADO', busqueda: 'José & 55', pagina: 1);
     expect(url?.path, '/api/pedidos');
     expect(url?.queryParameters, {
       'sucursalId': '1',
       'page': '1',
       'estado': 'ENCARGADO',
+      'q': 'José & 55',
     });
     expect(pagina.total, 21);
     expect(pagina.pagina, 1);

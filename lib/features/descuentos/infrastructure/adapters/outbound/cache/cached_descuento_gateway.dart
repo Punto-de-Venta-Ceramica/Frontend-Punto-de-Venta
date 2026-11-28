@@ -1,3 +1,5 @@
+import 'package:punto_de_venta/core/infrastructure/cache/cache_en_memoria.dart';
+
 import '../../../../application/ports/outbound/descuento_gateway.dart';
 import '../../../../domain/descuento.dart';
 
@@ -15,74 +17,43 @@ import '../../../../domain/descuento.dart';
 class CachedDescuentoGateway implements DescuentoGateway {
   CachedDescuentoGateway(
     this._origen, {
-    this.vigenciaListado = const Duration(minutes: 5),
-    this.vigenciaCatalogo = const Duration(minutes: 10),
+    Duration vigenciaListado = const Duration(minutes: 5),
+    Duration vigenciaCatalogo = const Duration(minutes: 10),
     DateTime Function()? ahora,
-  }) : _ahora = ahora ?? DateTime.now;
+  }) : _listados = CacheEnMemoria(vigencia: vigenciaListado, ahora: ahora),
+       _catalogos = CacheEnMemoria(vigencia: vigenciaCatalogo, ahora: ahora);
 
   final DescuentoGateway _origen;
-  final Duration vigenciaListado;
-  final Duration vigenciaCatalogo;
-  final DateTime Function() _ahora;
 
-  final _listados = <int, _Entrada<List<Descuento>>>{};
-  final _catalogos = <int, _Entrada<CatalogoDescuento>>{};
-
-  Future<T> _vigenteO<T>(
-    Map<int, _Entrada<T>> cache,
-    int negocioId,
-    Duration vigencia,
-    Future<T> Function() cargar,
-  ) {
-    final entrada = cache[negocioId];
-    if (entrada != null && _ahora().difference(entrada.guardado) < vigencia) {
-      return entrada.valor;
-    }
-    final nueva = _Entrada(cargar(), _ahora());
-    cache[negocioId] = nueva;
-    // Un error no se guarda: el siguiente intento vuelve al servidor.
-    nueva.valor.then<void>(
-      (_) {},
-      onError: (Object _) {
-        if (identical(cache[negocioId], nueva)) cache.remove(negocioId);
-      },
-    );
-    return nueva.valor;
-  }
+  final CacheEnMemoria<int, List<Descuento>> _listados;
+  final CacheEnMemoria<int, CatalogoDescuento> _catalogos;
 
   /// Ejecuta un cambio y, si sale bien, descarta la lista del negocio.
   Future<T> _cambio<T>(int negocioId, Future<T> Function() accion) async {
     final resultado = await accion();
-    _listados.remove(negocioId);
+    _listados.descartar(negocioId);
     return resultado;
   }
 
-  void descartarCatalogo() => _catalogos.clear();
+  void descartarCatalogo() => _catalogos.limpiar();
 
   void descartar() {
-    _listados.clear();
-    _catalogos.clear();
+    _listados.limpiar();
+    _catalogos.limpiar();
   }
 
   @override
-  Future<List<Descuento>> listar(int negocioId) => _vigenteO(
-    _listados,
-    negocioId,
-    vigenciaListado,
-    () => _origen.listar(negocioId),
-  );
+  Future<List<Descuento>> listar(int negocioId) =>
+      _listados.obtener(negocioId, () => _origen.listar(negocioId));
 
   /// Sale de la lista del negocio si está vigente; si no, se piden al servidor
   /// solo los de ese producto.
   @override
   Future<List<Descuento>> deProducto(int negocioId, int productoId) async {
-    final entrada = _listados[negocioId];
-    if (entrada == null ||
-        _ahora().difference(entrada.guardado) >= vigenciaListado) {
-      return _origen.deProducto(negocioId, productoId);
-    }
+    final lista = _listados.vigente(negocioId);
+    if (lista == null) return _origen.deProducto(negocioId, productoId);
     return [
-      for (final d in await entrada.valor)
+      for (final d in await lista)
         if (d.productoIds.contains(productoId)) d,
     ];
   }
@@ -104,12 +75,8 @@ class CachedDescuentoGateway implements DescuentoGateway {
   );
 
   @override
-  Future<CatalogoDescuento> catalogo(int negocioId) => _vigenteO(
-    _catalogos,
-    negocioId,
-    vigenciaCatalogo,
-    () => _origen.catalogo(negocioId),
-  );
+  Future<CatalogoDescuento> catalogo(int negocioId) =>
+      _catalogos.obtener(negocioId, () => _origen.catalogo(negocioId));
 
   @override
   Future<Descuento> crear(int negocioId, DatosDescuento datos) =>
@@ -154,10 +121,4 @@ class CachedDescuentoGateway implements DescuentoGateway {
     negocioId,
     () => _origen.quitar(negocioId, id, destino, destinoId),
   );
-}
-
-class _Entrada<T> {
-  _Entrada(this.valor, this.guardado);
-  final Future<T> valor;
-  final DateTime guardado;
 }
