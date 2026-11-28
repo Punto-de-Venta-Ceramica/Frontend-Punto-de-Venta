@@ -1,10 +1,20 @@
+import 'package:punto_de_venta/core/infrastructure/cache/cache_en_memoria.dart';
+
 import '../../domain/venta.dart';
 import '../ports/outbound/ventas_gateway.dart';
 
 class GestionVentas {
-  const GestionVentas(this._gateway);
+  GestionVentas(this._gateway);
 
   final VentasGateway _gateway;
+
+  /// El artículo artesanal no cambia: se pide una vez por sucursal y no en cada venta.
+  final _productosLibres = <int, ProductoVenta>{};
+
+  /// Categorías del filtro por sucursal: casi no cambian.
+  final _categorias = CacheEnMemoria<int, List<CategoriaFiltroVenta>>(
+    vigencia: const Duration(minutes: 30),
+  );
 
   static const productosPorPagina = 20;
 
@@ -22,10 +32,19 @@ class GestionVentas {
   );
 
   Future<List<CategoriaFiltroVenta>> cargarCategorias(int sucursalId) =>
-      _gateway.cargarCategorias(sucursalId);
+      _categorias.obtener(
+        sucursalId,
+        () => _gateway.cargarCategorias(sucursalId),
+      );
 
-  Future<ProductoVenta> productoLibre(int sucursalId) =>
-      _gateway.productoLibre(sucursalId);
+  Future<ProductoVenta> productoLibre(int sucursalId) async =>
+      _productosLibres[sucursalId] ??= await _gateway.productoLibre(sucursalId);
+
+  /// Al cerrar sesión, o al cambiar áreas, categorías o sucursales.
+  void descartar() {
+    _productosLibres.clear();
+    _categorias.limpiar();
+  }
 
   Future<CotizacionVenta> preparar({
     required int sucursalId,

@@ -127,6 +127,9 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
   /// Descuentos del propietario: lista 5 min, catálogo para asignar 10 min.
   late final CachedDescuentoGateway _descuentos;
 
+  /// Ventas: artículo artesanal (toda la sesión) y categorías del filtro (30 min) por sucursal.
+  late final GestionVentas _ventas;
+
   /// Caché del empleado por sucursal (mismas vigencias que la del propietario:
   /// listado 5 min, áreas/categorías 30 min). Usa gateways con alcance de
   /// sucursal, por eso no comparte la del propietario.
@@ -194,6 +197,9 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _pedidos = PedidosConMemoria(HttpPedidosGateway(_api));
     _cortes = CachedCorteCajaGateway(HttpCorteCajaGateway(_api));
     _descuentos = CachedDescuentoGateway(HttpDescuentoGateway(_api));
+    _ventas = GestionVentas(HttpVentasGateway(_api));
+    // Las categorías del filtro de ventas dependen de las áreas de la sucursal.
+    _compartidas.escucharCambiosSucursales((_) => _ventas.descartar());
     BarroHeader.accionPerfilGlobal = (ctx) => Navigator.of(ctx).push(
       PerfilUsuarioPage.route(
         api: _api,
@@ -226,6 +232,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     _empleados.descartar();
     _pedidos.descartar();
     _cortes.descartar();
+    _ventas.descartar();
     _productosEmpleado.clear();
   }
 
@@ -314,7 +321,10 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
               ),
             ),
           )
-          .whenComplete(_productos.descartar);
+          .whenComplete(() {
+            _productos.descartar();
+            _ventas.descartar(); // Categorías del filtro de ventas.
+          });
 
   Future<void> _abrirAdministracion(
     BuildContext context,
@@ -404,7 +414,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
     final venta = await Navigator.of(context).push<VentaRegistrada>(
       MaterialPageRoute(
         builder: (ventasContext) => RegistrarVentaPage(
-          gestion: GestionVentas(HttpVentasGateway(_api)),
+          gestion: _ventas,
           sucursalId: sucursalId,
           contexto: VentaContexto(
             negocio: negocio,
@@ -416,8 +426,8 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
       ),
     );
     if (venta == null || !mounted) return false;
-    _productos.descartar();
-    _productosEmpleado[sucursalId]?.descartar();
+    _productos.descartarSalvoCatalogos();
+    _productosEmpleado[sucursalId]?.descartarSalvoCatalogos();
     _revisionInventarioEmpleado.value++;
     if (context.mounted) {
       final cambio = venta.cambio;
@@ -483,7 +493,7 @@ class _PuntoDeVentaAppState extends State<PuntoDeVentaApp> {
             ),
           ),
         )
-        .whenComplete(_productos.descartar);
+        .whenComplete(_productos.descartarSalvoCatalogos);
   }
 
   /// Catálogo de productos del negocio completo: todas las sucursales.

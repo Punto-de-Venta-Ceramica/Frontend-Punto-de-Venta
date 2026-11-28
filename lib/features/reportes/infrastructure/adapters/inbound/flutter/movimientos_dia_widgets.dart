@@ -55,18 +55,19 @@ class MovimientosDia extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 48),
-            side: const BorderSide(color: BarroTheme.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        if (movimientos.length > 3)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              side: const BorderSide(color: BarroTheme.border),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
+            onPressed: onVerTodos,
+            icon: const Icon(Icons.receipt_long_outlined, size: 20),
+            label: Text('Ver todos (${movimientos.length})'),
           ),
-          onPressed: onVerTodos,
-          icon: const Icon(Icons.receipt_long_outlined, size: 20),
-          label: Text('Ver todos (${movimientos.length})'),
-        ),
       ],
     ],
   );
@@ -134,30 +135,46 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
         ? movimiento.productos
         : movimiento.productos.take(3);
     final importe = _monedaMovimiento.format(movimiento.importe.abs());
-    final registro = movimiento.vendedor != null
-        ? 'Registró ${movimiento.vendedor}'
+    final colorTipo = devolucion ? BarroTheme.error : colorMetodo;
+    final iconoTipo = switch (movimiento.tipo) {
+      TipoMovimientoReporte.venta => Icons.shopping_bag_outlined,
+      TipoMovimientoReporte.anticipo => Icons.savings_outlined,
+      TipoMovimientoReporte.liquidacion => Icons.task_alt_rounded,
+      TipoMovimientoReporte.devolucion => Icons.assignment_return_outlined,
+    };
+    final etiquetaRegistro = movimiento.vendedor != null
+        ? 'Registró'
         : movimiento.creadorPedido != null
-        ? 'Pedido creado por ${movimiento.creadorPedido}'
-        : 'Usuario no registrado';
-    final metodo = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          efectivo ? Icons.payments_outlined : Icons.credit_card_rounded,
-          size: 18,
-          color: colorMetodo,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          efectivo ? 'Efectivo' : 'Tarjeta',
-          style: BarroTheme.type(
-            13,
-            19,
-            weight: FontWeight.w600,
+        ? 'Pedido creado por'
+        : null;
+    final nombreRegistro = movimiento.vendedor ?? movimiento.creadorPedido;
+    final metodo = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: bordeCard),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            efectivo ? Icons.payments_outlined : Icons.credit_card_rounded,
+            size: 18,
             color: colorMetodo,
           ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Text(
+            efectivo ? 'Efectivo' : 'Tarjeta',
+            style: BarroTheme.type(
+              13,
+              19,
+              weight: FontWeight.w700,
+              color: colorMetodo,
+            ),
+          ),
+        ],
+      ),
     );
     final total = Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -173,10 +190,10 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
         Text(
           devolucion ? '−$importe' : importe,
           style: BarroTheme.type(
-            19,
-            26,
-            weight: FontWeight.w700,
-            color: devolucion ? BarroTheme.error : BarroTheme.text,
+            22,
+            28,
+            weight: FontWeight.w800,
+            color: devolucion ? BarroTheme.error : colorMetodo,
           ),
         ),
       ],
@@ -188,78 +205,167 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Text(
-                  venta
-                      ? 'Venta ${movimiento.referencia}'
-                      : movimiento.tipo.etiqueta,
-                  style: BarroTheme.type(17, 23, weight: FontWeight.w700),
-                ),
+              IconoReporte(
+                iconoTipo,
+                color: colorTipo,
+                fondo: Colors.white,
+                tamano: 42,
               ),
               const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      movimiento.tipo.etiqueta,
+                      style: BarroTheme.type(17, 23, weight: FontWeight.w700),
+                    ),
+                    // La referencia del pedido ya llega como "Pedido PED-000022".
+                    Text.rich(
+                      venta
+                          ? TextSpan(
+                              children: [
+                                const TextSpan(
+                                  text: 'Folio: ',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                TextSpan(text: movimiento.referencia),
+                              ],
+                            )
+                          : TextSpan(
+                              children: [
+                                const TextSpan(
+                                  text: 'Pedido: ',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                TextSpan(
+                                  text: movimiento.referencia.replaceFirst(
+                                    RegExp(r'^Pedido\s+'),
+                                    '',
+                                  ),
+                                ),
+                              ],
+                            ),
+                      style: BarroTheme.type(
+                        13,
+                        19,
+                        color: BarroTheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
               Semantics(
                 label: 'Hora ${movimiento.horaLocal}',
-                child: Text(
-                  movimiento.horaLocal,
-                  style: BarroTheme.type(13, 23, color: BarroTheme.secondary),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 14,
+                        color: BarroTheme.secondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        movimiento.horaLocal,
+                        style: BarroTheme.type(
+                          12,
+                          16,
+                          weight: FontWeight.w600,
+                          color: BarroTheme.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          if (!venta) ...[
-            const SizedBox(height: 2),
-            Text(
-              movimiento.referencia,
-              style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
-            ),
-          ],
           const SizedBox(height: 14),
-          if (movimiento.productos.isEmpty)
-            Text(
-              'Detalle de productos no disponible.',
-              style: BarroTheme.type(13, 19, color: BarroTheme.secondary),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
             ),
-          for (final producto in productos)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 30),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (movimiento.productos.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
                     child: Text(
-                      '${producto.cantidad} ×',
+                      'Detalle de productos no disponible.',
                       style: BarroTheme.type(
-                        14,
-                        21,
-                        weight: FontWeight.w700,
-                        color: BarroTheme.primary,
+                        13,
+                        19,
+                        color: BarroTheme.secondary,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      producto.nombre,
-                      style: BarroTheme.type(14, 21),
+                for (final producto in productos)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          constraints: const BoxConstraints(minWidth: 38),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: BarroTheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${producto.cantidad} ×',
+                            textAlign: TextAlign.center,
+                            style: BarroTheme.type(
+                              13,
+                              19,
+                              weight: FontWeight.w700,
+                              color: BarroTheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            producto.nombre,
+                            style: BarroTheme.type(14, 21),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                if (!mostrarTodos && movimiento.productos.length > 3)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => setState(() => _expandido = true),
+                      child: Text(
+                        'Ver ${movimiento.productos.length - 3} productos más',
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          if (!mostrarTodos && movimiento.productos.length > 3)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => setState(() => _expandido = true),
-                child: Text(
-                  'Ver ${movimiento.productos.length - 3} productos más',
-                ),
-              ),
-            ),
-          const Divider(height: 24, color: BarroTheme.border),
+          ),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth <
@@ -274,6 +380,7 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
                 );
               }
               return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   metodo,
@@ -294,10 +401,33 @@ class _MovimientoReporteCardState extends State<MovimientoReporteCard> {
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  registro,
-                  style: BarroTheme.type(12, 18, color: BarroTheme.secondary),
-                ),
+                child: etiquetaRegistro == null
+                    ? Text(
+                        'Usuario no registrado',
+                        style: BarroTheme.type(
+                          12,
+                          18,
+                          color: BarroTheme.secondary,
+                        ),
+                      )
+                    : Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '$etiquetaRegistro: ',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            TextSpan(text: nombreRegistro),
+                          ],
+                        ),
+                        style: BarroTheme.type(
+                          12,
+                          18,
+                          color: BarroTheme.secondary,
+                        ),
+                      ),
               ),
             ],
           ),

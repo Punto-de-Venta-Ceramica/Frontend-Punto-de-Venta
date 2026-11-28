@@ -120,11 +120,11 @@ void main() {
     await gestion.listar(1, filtro: const FiltroProductos(buscar: 'ja'));
     expect(productos.listados, 2, reason: 'otro filtro, otra clave');
 
-    ahora = ahora.add(const Duration(minutes: 6));
+    ahora = ahora.add(const Duration(minutes: 4));
     await gestion.listar(1);
-    expect(productos.listados, 2, reason: 'el listado dura 10 minutos');
+    expect(productos.listados, 2, reason: 'el listado dura 5 minutos');
 
-    ahora = ahora.add(const Duration(minutes: 5));
+    ahora = ahora.add(const Duration(minutes: 2));
     await gestion.listar(1);
     expect(productos.listados, 3);
   });

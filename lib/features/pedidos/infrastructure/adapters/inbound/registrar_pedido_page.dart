@@ -674,7 +674,7 @@ class _RegistrarPedidoPageState extends State<RegistrarPedidoPage> {
         );
       },
     );
-    controlador.dispose();
+    // Sin dispose: el diálogo aún anima su cierre con el TextField vivo (ver _pagar).
     if (nueva != null && mounted && indice < _lineas.length) {
       setState(() {
         _lineas[indice] = _lineas[indice].conCantidad(nueva);

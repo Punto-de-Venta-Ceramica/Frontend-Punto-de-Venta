@@ -56,15 +56,18 @@ class PedidosConMemoria implements PedidosGateway, PedidosEnMemoria {
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async {
     final version = _version;
     final resultado = await _origen.listar(
       sucursalId,
       estado: estado,
+      busqueda: busqueda,
       pagina: pagina,
     );
-    if (pagina == 0 && version == _version) {
+    // Una búsqueda no es el listado del filtro: no lo sustituye.
+    if (pagina == 0 && busqueda == null && version == _version) {
       _recordar(_listados, (sucursalId, estado), resultado);
     }
     return resultado;

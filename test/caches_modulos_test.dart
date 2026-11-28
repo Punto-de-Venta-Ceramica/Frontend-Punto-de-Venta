@@ -289,6 +289,13 @@ void main() {
         expect(gestion.listadoGuardado(3, estado: 'PENDIENTE')?.total, 1);
         expect(gestion.listadoGuardado(3, estado: null), isNull);
 
+        await gestion.listar(3, busqueda: 'ana');
+        expect(
+          gestion.listadoGuardado(3, estado: null),
+          isNull,
+          reason: 'una búsqueda no sustituye al listado sin filtro',
+        );
+
         await gestion.listar(3, estado: 'PENDIENTE', pagina: 1);
         expect(
           gestion.listadoGuardado(3, estado: 'PENDIENTE')?.pagina,
@@ -461,6 +468,7 @@ class _PedidosFalsos implements PedidosGateway {
   Future<PaginaPedidos> listar(
     int sucursalId, {
     String? estado,
+    String? busqueda,
     int pagina = 0,
   }) async {
     listados++;
