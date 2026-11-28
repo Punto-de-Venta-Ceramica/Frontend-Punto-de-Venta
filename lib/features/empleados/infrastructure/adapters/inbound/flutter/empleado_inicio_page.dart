@@ -15,6 +15,7 @@ class EmpleadoInicioPage extends StatefulWidget {
     required this.construirInventario,
     required this.onCerrarSesion,
     this.onNotificaciones,
+    this.alMostrarCaja,
     this.conteoNotificaciones,
     super.key,
   });
@@ -25,6 +26,9 @@ class EmpleadoInicioPage extends StatefulWidget {
   final Widget Function(SucursalAsignada sucursal) construirInventario;
   final VoidCallback onCerrarSesion;
   final VoidCallback? onNotificaciones;
+
+  /// Al volver a la pestaña Caja: puede haber cobros hechos en otro dispositivo.
+  final VoidCallback? alMostrarCaja;
   final ValueListenable<int?>? conteoNotificaciones;
 
   @override
@@ -348,7 +352,10 @@ class _EmpleadoInicioPageState extends State<EmpleadoInicioPage> {
           esEmpleado: true,
           seleccionada: const ['Pedidos', 'Caja', 'Inventario'][_pestana],
           onPedidos: () => setState(() => _pestana = _pedidos),
-          onCaja: () => setState(() => _pestana = _caja),
+          onCaja: () {
+            if (_pestana != _caja) widget.alMostrarCaja?.call();
+            setState(() => _pestana = _caja);
+          },
           onInventario: () => setState(() => _pestana = _inventario),
         ),
       ),

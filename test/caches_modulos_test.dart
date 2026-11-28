@@ -313,6 +313,23 @@ void main() {
     );
   });
 
+  test('un pago, cambio de estado o cancelación avisa a la caja', () async {
+    var avisos = 0;
+    final memoria = PedidosConMemoria(
+      _PedidosFalsos(),
+      alCambiar: () => avisos++,
+    );
+
+    await memoria.listar(3);
+    await memoria.obtener(7);
+    expect(avisos, 0, reason: 'consultar no cambia la caja');
+
+    await memoria.pagar(7, 50, 'EFECTIVO');
+    await memoria.cambiarEstado(7, 'ENTREGADO');
+    await memoria.cancelar(7);
+    expect(avisos, 3);
+  });
+
   test(
     'una consulta que empezó antes de un pago no se recuerda al terminar',
     () async {
